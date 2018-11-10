@@ -269,7 +269,7 @@ ECommandResult::Type FGitSourceControlProvider::Execute( const TSharedRef<ISourc
 		Command->bAutoDelete = true;
 
 		UE_LOG(LogSourceControl, Log, TEXT("IssueAsynchronousCommand(%s)"), *InOperation->GetName().ToString());
-		return IssueCommand(*Command);
+		return IssueCommand(*Command, false);
 	}
 }
 
@@ -284,7 +284,7 @@ void FGitSourceControlProvider::CancelOperation( const TSharedRef<ISourceControl
 
 bool FGitSourceControlProvider::UsesLocalReadOnlyState() const
 {
-	// TODO LFS IsUsingGitLfsLocking() should be cached in the Provider to avoir doing this here so frequently
+	// TODO LFS IsUsingGitLfsLocking() should be cached in the Provider to avoid doing this here so frequently
 	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
 	return GitSourceControl.AccessSettings().IsUsingGitLfsLocking(); // Git LFS Lock uses read-only state
 }
@@ -296,7 +296,7 @@ bool FGitSourceControlProvider::UsesChangelists() const
 
 bool FGitSourceControlProvider::UsesCheckout() const
 {
-	// TODO LFS IsUsingGitLfsLocking() should be cached in the Provider to avoir doing this here so frequently
+	// TODO LFS IsUsingGitLfsLocking() should be cached in the Provider to avoid doing this here so frequently
 	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
 	return GitSourceControl.AccessSettings().IsUsingGitLfsLocking(); // Git LFS Lock uses read-only state
 }
@@ -389,6 +389,9 @@ TArray< TSharedRef<ISourceControlLabel> > FGitSourceControlProvider::GetLabels( 
 {
 	TArray< TSharedRef<ISourceControlLabel> > Tags;
 
+	// NOTE list labels. Called by CrashDebugHelper() (to remote debug Engine crash)
+	//					 and by SourceControlHelpers::AnnotateFile() (to add source file to report)
+	// Reserved for internal use by Epic Games with Perforce only
 	return Tags;
 }
 
@@ -408,9 +411,9 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 		FScopedSourceControlProgress Progress(Task);
 
 		// Issue the command asynchronously...
-		IssueCommand( InCommand );
+		IssueCommand( InCommand, false );
 
-		// ... then wait for its completion (thus making it synchrounous)
+		// ... then wait for its completion (thus making it synchronous)
 		while(!InCommand.bExecuteProcessed)
 		{
 			// Tick the command queue and update progress.
@@ -429,6 +432,12 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 		{
 			Result = ECommandResult::Succeeded;
 		}
+		else
+		{
+			// TODO LFS If the command failed, inform the user that they need to try again (see Perforce)
+			FMessageDialog::Open( EAppMsgType::Ok, LOCTEXT("Git_ServerUnresponsive", "Git LFS server command failed. Please check the output log for more information.") );
+			UE_LOG(LogSourceControl, Error, TEXT("Command '%s' Failed!"), *InCommand.Operation->GetName().ToString());
+		}
 	}
 
 	// Delete the command now (asynchronous commands are deleted in the Tick() method)
@@ -444,9 +453,9 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 	return Result;
 }
 
-ECommandResult::Type FGitSourceControlProvider::IssueCommand(FGitSourceControlCommand& InCommand)
+ECommandResult::Type FGitSourceControlProvider::IssueCommand(FGitSourceControlCommand& InCommand, const bool bSynchronous)
 {
-	if(GThreadPool != nullptr)
+	if (!bSynchronous && GThreadPool != nullptr)
 	{
 		// Queue this to our worker thread(s) for resolving
 		GThreadPool->AddQueuedWork(&InCommand);
@@ -455,7 +464,17 @@ ECommandResult::Type FGitSourceControlProvider::IssueCommand(FGitSourceControlCo
 	}
 	else
 	{
-		return ECommandResult::Failed;
+		InCommand.bCommandSuccessful = InCommand.DoWork();
+
+		InCommand.Worker->UpdateStates();
+
+		OutputCommandMessages(InCommand);
+
+		// Callback now if present. When asynchronous, this callback gets called from Tick().
+		ECommandResult::Type Result = InCommand.bCommandSuccessful ? ECommandResult::Succeeded : ECommandResult::Failed;
+		InCommand.OperationCompleteDelegate.ExecuteIfBound(InCommand.Operation, Result);
+
+		return Result;
 	}
 }
 

@@ -9,6 +9,8 @@ public class GitSourceControl : ModuleRules
 {
 	public GitSourceControl(ReadOnlyTargetRules Target) : base(Target)
 	{
+		bEnforceIWYU = false;
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
