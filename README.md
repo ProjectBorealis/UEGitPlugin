@@ -9,6 +9,8 @@ UE4GitPlugin is a simple Git Source Control Plugin for **Unreal Engine 4.21**.
 Developed and contributed by Sébastien Rombauts 2014-2018 (sebastien.rombauts@gmail.com)
 <a href="https://www.paypal.me/SRombauts" title="Pay Me a Beer! Donate with PayPal :)"><img src="https://www.paypalobjects.com/webstatic/paypalme/images/pp_logo_small.png" width="118"></a>
 
+(not affiliated with Project Borealis, which has added further improvements)
+
 - First version of the plugin has been **integrated by default in UE4.7 in "beta version"**.
 - This is a developement fork named "**Git LFS 2**" adding File Locks supported by Github.
 
