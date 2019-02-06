@@ -44,8 +44,6 @@ To https://github.com/SRombauts/UE4GitLfs2FileLocks.git
    ee44ff5..59da15e HEAD -> master
 
 Use "TODO LFS" in the code to track things left to do/improve/refactor:
-1. IsUsingGitLfsLocking() should be cached in the Provider to avoid calling AccessSettings() too frequently
-   it can not change without re-initializing (at least re-connect) the Provider!
 2. Implement FGitSourceControlProvider::bWorkingOffline like the SubversionSourceControl plugin
 3. Trying to deactivate Git LFS 2 file locking afterward on the "Login to Source Control" (Connect/Configure) screen
    is not working after Git LFS 2 has switched "read-only" flag on files (which needs the Checkout operation to be editable)!
@@ -55,7 +53,7 @@ Use "TODO LFS" in the code to track things left to do/improve/refactor:
        - see SubversionSourceControl plugin that deals with such flags
        - this would need a rework of the way the "bIsUsingFileLocking" si propagated, since this would no more be a configuration (or not only) but a file state
      - else we should at least revert those read-only flags when going out of "Lock mode"
-4. Optimize usage of "git lfs locks", ie reduce the use of UdpateStatus() in Operations
+4. Optimize usage of "git lfs locks", ie reduce the use of UpdateStatus() in Operations
 
 ### What *cannot* be done presently
 - Branch/Merge are not in the current Editor workflow

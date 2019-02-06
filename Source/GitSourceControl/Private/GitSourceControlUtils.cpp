@@ -102,9 +102,9 @@ static bool RunCommandInternalRaw(const FString& InCommand, const FString& InPat
 
 	FullCommand += LogableCommand;
 
-//#if UE_BUILD_DEBUG
+#if UE_BUILD_DEBUG
 	UE_LOG(LogSourceControl, Log, TEXT("RunCommand: 'git %s'"), *LogableCommand);
-//#endif
+#endif
 
 	FString PathToGitOrEnvBinary = InPathToGitBinary;
 #if PLATFORM_MAC
@@ -132,13 +132,13 @@ static bool RunCommandInternalRaw(const FString& InCommand, const FString& InPat
 #endif
 	FPlatformProcess::ExecProcess(*PathToGitOrEnvBinary, *FullCommand, &ReturnCode, &OutResults, &OutErrors);
 
-//#if UE_BUILD_DEBUG
+#if UE_BUILD_DEBUG
 	UE_LOG(LogSourceControl, Log, TEXT("RunCommand(%s):\n%s"), *InCommand, *OutResults);
+#endif
 	if(ReturnCode != 0 || OutErrors.Len() > 0)
 	{
 		UE_LOG(LogSourceControl, Warning, TEXT("RunCommand(%s) ReturnCode=%d:\n%s"), *InCommand, ReturnCode, *OutErrors);
 	}
-//#endif
 
 	// Move push/pull progress information from the error stream to the info stream
 	if(ReturnCode == 0 && OutErrors.Len() > 0)
@@ -872,8 +872,9 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 		{
 			// File found in status results; only the case for "changed" files
 			FGitStatusParser StatusParser(InResults[IdxResult]);
-			// TODO LFS Debug log
+#if UE_BUILD_DEBUG
 			UE_LOG(LogSourceControl, Log, TEXT("Status(%s) = '%s' => %d"), *File, *InResults[IdxResult], static_cast<int>(StatusParser.State));
+#endif
 
 			FileState.WorkingCopyState = StatusParser.State;
 			if(FileState.IsConflicted())
@@ -889,15 +890,17 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 			{
 				// usually means the file is unchanged,
 				FileState.WorkingCopyState = EWorkingCopyState::Unchanged;
-				// TODO LFS Debug log
+#if UE_BUILD_DEBUG
 				UE_LOG(LogSourceControl, Log, TEXT("Status(%s) not found but exists => unchanged"), *File);
+#endif
 			}
 			else
 			{
 				// but also the case for newly created content: there is no file on disk until the content is saved for the first time
 				FileState.WorkingCopyState = EWorkingCopyState::NotControlled;
-				// TODO LFS Debug log
+#if UE_BUILD_DEBUG
 				UE_LOG(LogSourceControl, Log, TEXT("Status(%s) not found and does not exists => new/not controled"), *File);
+#endif
 			}
 		}
 		if(InLockedFiles.Contains(File))
@@ -911,17 +914,19 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 			{
 				FileState.LockState = ELockState::LockedOther;
 			}
-			// TODO LFS Debug log
+#if UE_BUILD_DEBUG
 			UE_LOG(LogSourceControl, Log, TEXT("Status(%s) Locked by '%s'"), *File, *FileState.LockUser);
+#endif
 		}
 		else
 		{
 			FileState.LockState = ELockState::NotLocked;
-			// TODO LFS Debug log
+#if UE_BUILD_DEBUG
 			if (InUsingLfsLocking)
 			{
 				UE_LOG(LogSourceControl, Log, TEXT("Status(%s) Not Locked"), *File);
 			}
+#endif
 		}
 		FileState.TimeStamp = Now;
 		OutStates.Add(FileState);
@@ -973,8 +978,9 @@ static void ParseStatusResults(const FString& InPathToGitBinary, const FString& 
 	{
 		// 1) Special case for "status" of a directory: requires to get the list of files by ourselves.
 		//   (this is triggered by the "Submit to Source Control" menu)
-		// TODO LFS Debug Log
+#if UE_BUILD_DEBUG
 		UE_LOG(LogSourceControl, Log, TEXT("ParseStatusResults: 1) Special case for status of a directory (%s)"), *InFiles[0]);
+#endif
 		TArray<FString> Files;
 		const FString& Directory = InFiles[0];
 		const bool bResult = ListFilesInDirectoryRecurse(InPathToGitBinary, InRepositoryRoot, Directory, Files);
@@ -989,8 +995,9 @@ static void ParseStatusResults(const FString& InPathToGitBinary, const FString& 
 	else
 	{
 		// 2) General case for one or more files in the same directory.
-		// TODO LFS Debug Log
+#if UE_BUILD_DEBUG
 		UE_LOG(LogSourceControl, Log, TEXT("ParseStatusResults: 2) General case for one or more files (%s, ...)"), *InFiles[0]);
+#endif
 		ParseFileStatusResult(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, InFiles, InLockedFiles, InResults, OutStates);
 	}
 }
@@ -1010,8 +1017,9 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 		for(const FString& Result : Results)
 		{
 			FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
-			// TODO LFS Debug log
+#if UE_BUILD_DEBUG
 			UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
+#endif
 			LockedFiles.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 		}
 	}

@@ -419,7 +419,9 @@ void FGitSourceControlMenu::DisplaySucessNotification(const FName& InOperationNa
 	Info.bUseSuccessFailIcons = true;
 	Info.Image = FEditorStyle::GetBrush(TEXT("NotificationList.SuccessImage"));
 	FSlateNotificationManager::Get().AddNotification(Info);
+#if UE_BUILD_DEBUG
 	UE_LOG(LogSourceControl, Log, TEXT("%s"), *NotificationText.ToString());
+#endif
 }
 
 // Display a temporary failure notification at the end of the operation

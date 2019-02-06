@@ -152,6 +152,13 @@ private:
 	/** Is git repository found. */
 	bool bGitRepositoryFound;
 
+	/** Is LFS locking enabled?
+	 * -1: uninitialized
+	 * 0: no
+	 * 1: yes
+	*/
+	int UsingGitLfsLocking;
+
 	/** Helper function for Execute() */
 	TSharedPtr<class IGitSourceControlWorker, ESPMode::ThreadSafe> CreateWorker(const FName& InOperationName) const;
 

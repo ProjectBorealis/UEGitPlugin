@@ -48,10 +48,12 @@ void FGitSourceControlCommand::DoThreadedWork()
 ECommandResult::Type FGitSourceControlCommand::ReturnResults()
 {
 	// Save any messages that have accumulated
+#if UE_BUILD_DEBUG
 	for (FString& String : InfoMessages)
 	{
 		Operation->AddInfoMessge(FText::FromString(String));
 	}
+#endif
 	for (FString& String : ErrorMessages)
 	{
 		Operation->AddErrorMessge(FText::FromString(String));

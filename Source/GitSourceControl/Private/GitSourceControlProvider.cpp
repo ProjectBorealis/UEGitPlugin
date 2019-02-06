@@ -37,6 +37,12 @@ void FGitSourceControlProvider::Init(bool bForceConnection)
 		}
 
 		CheckGitAvailability();
+
+		if (UsingGitLfsLocking == -1)
+		{
+			const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+			UsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
+		}
 	}
 
 	// bForceConnection: not used anymore
@@ -132,10 +138,6 @@ TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> FGitSourceControlProvide
 
 FText FGitSourceControlProvider::GetStatusText() const
 {
-	// TODO LFS IsUsingGitLfsLocking() should be cached in the Provider to avoid doing this here so frequently
-//	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-//	const bool bUsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
-
 	FFormatNamedArguments Args;
 	Args.Add( TEXT("RepositoryName"), FText::FromString(PathToRepositoryRoot) );
 	Args.Add( TEXT("RemoteUrl"), FText::FromString(RemoteUrl) );
@@ -179,13 +181,15 @@ ECommandResult::Type FGitSourceControlProvider::GetState( const TArray<FString>&
 		Execute(ISourceControlOperation::Create<FUpdateStatus>(), AbsoluteFiles);
 	}
 
-	// TODO LFS IsUsingGitLfsLocking() should be cached in the Provider to avoid doing this here so frequently
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-	const bool bUsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
+	if (UsingGitLfsLocking == -1)
+	{
+		const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+		UsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
+	}
 
 	for(const auto& AbsoluteFile : AbsoluteFiles)
 	{
-		OutState.Add(GetStateInternal(*AbsoluteFile, bUsingGitLfsLocking));
+		OutState.Add(GetStateInternal(*AbsoluteFile, UsingGitLfsLocking == 1));
 	}
 
 	return ECommandResult::Succeeded;
@@ -289,9 +293,7 @@ void FGitSourceControlProvider::CancelOperation( const TSharedRef<ISourceControl
 
 bool FGitSourceControlProvider::UsesLocalReadOnlyState() const
 {
-	// TODO LFS IsUsingGitLfsLocking() should be cached in the Provider to avoid doing this here so frequently
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-	return GitSourceControl.AccessSettings().IsUsingGitLfsLocking(); // Git LFS Lock uses read-only state
+	return UsingGitLfsLocking == 1;
 }
 
 bool FGitSourceControlProvider::UsesChangelists() const
@@ -301,9 +303,7 @@ bool FGitSourceControlProvider::UsesChangelists() const
 
 bool FGitSourceControlProvider::UsesCheckout() const
 {
-	// TODO LFS IsUsingGitLfsLocking() should be cached in the Provider to avoid doing this here so frequently
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-	return GitSourceControl.AccessSettings().IsUsingGitLfsLocking(); // Git LFS Lock uses read-only state
+	return UsingGitLfsLocking == 1;
 }
 
 TSharedPtr<IGitSourceControlWorker, ESPMode::ThreadSafe> FGitSourceControlProvider::CreateWorker(const FName& InOperationName) const
@@ -331,10 +331,12 @@ void FGitSourceControlProvider::OutputCommandMessages(const FGitSourceControlCom
 		SourceControlLog.Error(FText::FromString(InCommand.ErrorMessages[ErrorIndex]));
 	}
 
+#if UE_BUILD_DEBUG
 	for(int32 InfoIndex = 0; InfoIndex < InCommand.InfoMessages.Num(); ++InfoIndex)
 	{
 		SourceControlLog.Info(FText::FromString(InCommand.InfoMessages[InfoIndex]));
 	}
+#endif
 }
 
 void FGitSourceControlProvider::UpdateRepositoryStatus(const class FGitSourceControlCommand& InCommand)
@@ -438,7 +440,6 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 		}
 		else
 		{
-			// TODO LFS If the command failed, inform the user that they need to try again (see Perforce)
 			FMessageDialog::Open( EAppMsgType::Ok, LOCTEXT("Git_ServerUnresponsive", "Git LFS server command failed. Please check the output log for more information.") );
 			UE_LOG(LogSourceControl, Error, TEXT("Command '%s' Failed!"), *InCommand.Operation->GetName().ToString());
 		}
