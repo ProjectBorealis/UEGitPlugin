@@ -33,8 +33,8 @@ public:
 private:
 
 	/** Delegates to get Git binary path from/to settings */
-	FText GetBinaryPathText() const;
-	void OnBinaryPathTextCommited(const FText& InText, ETextCommit::Type InCommitType) const;
+	FString GetBinaryPathString() const;
+	void OnBinaryPathPicked(const FString & PickedPath) const;
 
 	/** Delegate to get repository root, user name and email from provider */
 	FText GetPathToRepositoryRoot() const;
