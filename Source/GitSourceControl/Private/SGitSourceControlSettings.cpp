@@ -396,16 +396,16 @@ SGitSourceControlSettings::~SGitSourceControlSettings()
 	RemoveInProgressNotification();
 }
 
-FText SGitSourceControlSettings::GetBinaryPathText() const
+FString SGitSourceControlSettings::GetBinaryPathString() const
 {
 	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-	return FText::FromString(GitSourceControl.AccessSettings().GetBinaryPath());
+	return GitSourceControl.AccessSettings().GetBinaryPath();
 }
 
-void SGitSourceControlSettings::OnBinaryPathTextCommited(const FText& InText, ETextCommit::Type InCommitType) const
+void SGitSourceControlSettings::OnBinaryPathPicked(const FString& PickedPath) const
 {
 	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-	const bool bChanged = GitSourceControl.AccessSettings().SetBinaryPath(InText.ToString());
+	const bool bChanged = GitSourceControl.AccessSettings().SetBinaryPath(PickedPath);
 	if(bChanged)
 	{
 		// Re-Check provided git binary path for each change

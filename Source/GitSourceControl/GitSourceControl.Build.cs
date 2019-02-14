@@ -27,6 +27,7 @@ public class GitSourceControl : ModuleRules
 				"LevelEditor",
 				"SourceControl",
 				"Projects",
+				"DesktopWidgets"
 			}
 		);
 	}
