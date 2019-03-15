@@ -178,7 +178,20 @@ ECommandResult::Type FGitSourceControlProvider::GetState( const TArray<FString>&
 
 	if(InStateCacheUsage == EStateCacheUsage::ForceUpdate)
 	{
-		Execute(ISourceControlOperation::Create<FUpdateStatus>(), AbsoluteFiles);
+		TArray<FString> ForceUpdate;
+		for(FString path : InFiles)
+		{
+			// Remove the path from the cache, so it's not ignored the next time we force check.
+			// If the file isn't in the cache, force update it now.
+			if (!RemoveFileFromIgnoreForceCache(path))
+			{
+				ForceUpdate.Add(path);
+			}
+		}
+		if (ForceUpdate.Num() > 0)
+		{
+			Execute(ISourceControlOperation::Create<FUpdateStatus>(), ForceUpdate);
+		}
 	}
 
 	if (UsingGitLfsLocking == -1)
@@ -212,6 +225,16 @@ TArray<FSourceControlStateRef> FGitSourceControlProvider::GetCachedStateByPredic
 bool FGitSourceControlProvider::RemoveFileFromCache(const FString& Filename)
 {
 	return StateCache.Remove(Filename) > 0;
+}
+
+bool FGitSourceControlProvider::AddFileToIgnoreForceCache(const FString& Filename)
+{
+	return IgnoreForceCache.Add(Filename) > 0;
+}
+
+bool FGitSourceControlProvider::RemoveFileFromIgnoreForceCache(const FString& Filename)
+{
+	return IgnoreForceCache.Remove(Filename) > 0;
 }
 
 /** Get files in cache */
@@ -352,9 +375,11 @@ void FGitSourceControlProvider::UpdateRepositoryStatus(const class FGitSourceCon
 void FGitSourceControlProvider::Tick()
 {	
 	bool bStatesUpdated = false;
+
 	for(int32 CommandIndex = 0; CommandIndex < CommandQueue.Num(); ++CommandIndex)
 	{
 		FGitSourceControlCommand& Command = *CommandQueue[CommandIndex];
+
 		if(Command.bExecuteProcessed)
 		{
 			// Remove command from the queue

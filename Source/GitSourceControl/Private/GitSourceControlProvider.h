@@ -144,8 +144,11 @@ public:
 	/** Get files in cache */
 	TArray<FString> GetFilesInCache();
 
-private:
+	bool AddFileToIgnoreForceCache(const FString& Filename);
 
+	bool RemoveFileFromIgnoreForceCache(const FString& Filename);
+
+private:
 	/** Is git binary found and working. */
 	bool bGitAvailable;
 
@@ -211,4 +214,10 @@ private:
 
 	/** Source Control Menu Extension */
 	FGitSourceControlMenu GitSourceControlMenu;
+
+	/**
+		Ignore these files when forcing status updates. We add to this list when we've just updated the status already.
+		UE4's SourceControl has a habit of performing a double status update, immediately after an operation.
+	*/
+	TArray<FString> IgnoreForceCache;
 };

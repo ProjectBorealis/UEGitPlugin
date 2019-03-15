@@ -52,12 +52,6 @@ bool FGitConnectWorker::Execute(FGitSourceControlCommand& InCommand)
 		else
 		{
 			GitSourceControlUtils::GetCommitInfo(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.CommitId, InCommand.CommitSummary);
-
-			if(InCommand.bUsingGitLfsLocking)
-			{
-				// Check server connection by checking lock status (when using Git LFS file Locking worflow)
-				InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("lfs locks"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, TArray<FString>(), TArray<FString>(), InCommand.InfoMessages, InCommand.ErrorMessages);
-			}
 		}
 	}
 	else
@@ -88,12 +82,8 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 		// lock files: execute the LFS command on relative filenames
 		InCommand.bCommandSuccessful = true;
 		const TArray<FString> RelativeFiles = GitSourceControlUtils::RelativeFilenames(InCommand.Files, InCommand.PathToRepositoryRoot);
-		for(const auto& RelativeFile : RelativeFiles)
-		{
-			TArray<FString> OneFile;
-			OneFile.Add(RelativeFile);
-			InCommand.bCommandSuccessful &= GitSourceControlUtils::RunCommand(TEXT("lfs lock"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, TArray<FString>(), OneFile, InCommand.InfoMessages, InCommand.ErrorMessages);
-		}
+
+		InCommand.bCommandSuccessful &= GitSourceControlUtils::RunLFSCommand(TEXT("lock"), InCommand.PathToRepositoryRoot, TArray<FString>(), RelativeFiles, InCommand.InfoMessages, InCommand.ErrorMessages);
 
 		// now update the status of our files
 		GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ErrorMessages, States);
@@ -196,12 +186,8 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 					if(LockedFiles.Num() > 0)
 					{
 						const TArray<FString> RelativeFiles = GitSourceControlUtils::RelativeFilenames(LockedFiles, InCommand.PathToRepositoryRoot);
-						for(const auto& RelativeFile : RelativeFiles)
-						{
-							TArray<FString> OneFile;
-							OneFile.Add(RelativeFile);
-							GitSourceControlUtils::RunCommand(TEXT("lfs unlock"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, TArray<FString>(), OneFile, InCommand.InfoMessages, InCommand.ErrorMessages);
-						}
+
+						GitSourceControlUtils::RunLFSCommand(TEXT("unlock"), InCommand.PathToRepositoryRoot, TArray<FString>(), RelativeFiles, InCommand.InfoMessages, InCommand.ErrorMessages);
 					}
 				}
 			}
@@ -231,8 +217,14 @@ bool FGitMarkForAddWorker::Execute(FGitSourceControlCommand& InCommand)
 
 	InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("add"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, TArray<FString>(), InCommand.Files, InCommand.InfoMessages, InCommand.ErrorMessages);
 
-	// now update the status of our files
-	GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ErrorMessages, States);
+	if (InCommand.bCommandSuccessful)
+	{
+		GitSourceControlUtils::UpdateCachedStates(InCommand.Files, EWorkingCopyState::Added, States);
+	}
+	else
+	{
+		GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ErrorMessages, States);
+	}
 
 	return InCommand.bCommandSuccessful;
 }
@@ -253,8 +245,14 @@ bool FGitDeleteWorker::Execute(FGitSourceControlCommand& InCommand)
 
 	InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("rm"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, TArray<FString>(), InCommand.Files, InCommand.InfoMessages, InCommand.ErrorMessages);
 
-	// now update the status of our files
-	GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ErrorMessages, States);
+	if (InCommand.bCommandSuccessful)
+	{
+		GitSourceControlUtils::UpdateCachedStates(InCommand.Files, EWorkingCopyState::Deleted, States);
+	}
+	else
+	{
+		GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ErrorMessages, States);
+	}
 
 	return InCommand.bCommandSuccessful;
 }
@@ -341,12 +339,8 @@ bool FGitRevertWorker::Execute(FGitSourceControlCommand& InCommand)
 		if(LockedFiles.Num() > 0)
 		{
 			const TArray<FString> RelativeFiles = GitSourceControlUtils::RelativeFilenames(LockedFiles, InCommand.PathToRepositoryRoot);
-			for(const auto& RelativeFile : RelativeFiles)
-			{
-				TArray<FString> OneFile;
-				OneFile.Add(RelativeFile);
-				GitSourceControlUtils::RunCommand(TEXT("lfs unlock"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, TArray<FString>(), OneFile, InCommand.InfoMessages, InCommand.ErrorMessages);
-			}
+
+			GitSourceControlUtils::RunLFSCommand(TEXT("unlock"), InCommand.PathToRepositoryRoot, TArray<FString>(), RelativeFiles, InCommand.InfoMessages, InCommand.ErrorMessages);
 		}
 	}
 
@@ -500,6 +494,11 @@ bool FGitCopyWorker::Execute(FGitSourceControlCommand& InCommand)
 	// The redirector needs to be commited with the new asset to perform a real rename.
 	// => the following is to "MarkForAdd" the redirector, but it still need to be committed by selecting the whole directory and "check-in"
 	InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("add"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, TArray<FString>(), InCommand.Files, InCommand.InfoMessages, InCommand.ErrorMessages);
+
+	if (InCommand.bCommandSuccessful)
+	{
+		GitSourceControlUtils::UpdateCachedStates(InCommand.Files, EWorkingCopyState::Added, States);
+	}
 
 	return InCommand.bCommandSuccessful;
 }
