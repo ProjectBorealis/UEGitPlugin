@@ -15,6 +15,7 @@
 #include "ISourceControlModule.h"
 #include "GitSourceControlModule.h"
 #include "GitSourceControlProvider.h"
+#include "IPluginManager.h"
 
 #if PLATFORM_LINUX
 #include <sys/ioctl.h>
@@ -24,7 +25,7 @@
 namespace GitSourceControlConstants
 {
 	/** The maximum number of files we submit in a single Git command */
-	const int32 MaxFilesPerBatch = 50;
+	const int32 MaxFilesPerBatch = 1000;
 }
 
 FGitScopedTempFile::FGitScopedTempFile(const FText& InText)
@@ -585,6 +586,20 @@ bool RunCommand(const FString& InCommand, const FString& InPathToGitBinary, cons
 	}
 
 	return bResult;
+}
+
+bool RunLFSCommand(const FString& InCommand, const FString& InRepositoryRoot, const TArray<FString>& InParameters, const TArray<FString>& InFiles, TArray<FString>& OutResults, TArray<FString>& OutErrorMessages)
+{
+	FString BaseDir = IPluginManager::Get().FindPlugin("GitSourceControl")->GetBaseDir();
+#if PLATFORM_WINDOWS
+	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs.exe"), *BaseDir);
+#elif PLATFORM_MAC
+	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs-mac"), *BaseDir);
+#else
+	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs"), *BaseDir);
+#endif
+
+	return GitSourceControlUtils::RunCommand(InCommand, LFSLockBinary, InRepositoryRoot, InParameters, InFiles, OutResults, OutErrorMessages);
 }
 
 // Run a Git "commit" command by batches
@@ -1424,9 +1439,30 @@ bool UpdateCachedStates(const TArray<FGitSourceControlState>& InStates)
 		TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(InState.LocalFilename, bUsingGitLfsLocking);
 		*State = InState;
 		State->TimeStamp = Now;
+
+		// We've just updated the state, no need for UpdateStatus to be ran for this file again.
+		Provider.AddFileToIgnoreForceCache(InState.LocalFilename);
 	}
 
 	return (InStates.Num() > 0);
+}
+
+bool UpdateCachedStates(const TArray<FString>& InFiles, EWorkingCopyState::Type WorkingState, TArray<FGitSourceControlState>& InStates)
+{
+	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+
+	TArray<TSharedRef<ISourceControlState, ESPMode::ThreadSafe>> LocalStates;
+	Provider.GetState(InFiles, LocalStates, EStateCacheUsage::Use);
+
+	for (auto& State : LocalStates)
+	{
+		auto NewState = StaticCastSharedRef<FGitSourceControlState>(State);
+		NewState->WorkingCopyState = WorkingState;
+		InStates.Add(NewState.Get());
+	}
+
+	return InStates.Num() > 0;
 }
 
 /**
