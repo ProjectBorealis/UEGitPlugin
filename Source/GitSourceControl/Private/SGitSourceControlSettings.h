@@ -52,6 +52,7 @@ private:
 	void OnCheckedCreateGitIgnore(ECheckBoxState NewCheckedState);
 	bool bAutoCreateGitIgnore;
 
+	/** Delegates to create a README.md file */
 	void OnCheckedCreateReadme(ECheckBoxState NewCheckedState);
 	bool GetAutoCreateReadme() const;
 	bool bAutoCreateReadme;
