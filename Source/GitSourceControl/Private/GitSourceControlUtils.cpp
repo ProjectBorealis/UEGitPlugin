@@ -25,7 +25,7 @@
 namespace GitSourceControlConstants
 {
 	/** The maximum number of files we submit in a single Git command */
-	const int32 MaxFilesPerBatch = 1000;
+	const int32 MaxFilesPerBatch = 50;
 }
 
 FGitScopedTempFile::FGitScopedTempFile(const FText& InText)
