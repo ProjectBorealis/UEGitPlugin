@@ -184,7 +184,7 @@ FString FindGitBinaryPath()
 	if(!bFound)
 	{
 		// else the install dir for the current user: C:\Users\UserName\AppData\Local\Programs\Git\cmd
-		FString AppDataLocalPath = FPlatformMisc::GetEnvironmentVariable(TEXT("LOCALAPPDATA"));
+		const FString AppDataLocalPath = FPlatformMisc::GetEnvironmentVariable(TEXT("LOCALAPPDATA"));
 		GitBinaryPath = FString::Printf(TEXT("%s/Programs/Git/cmd/git.exe"), *AppDataLocalPath);
 		bFound = CheckGitAvailability(GitBinaryPath);
 	}
@@ -206,7 +206,7 @@ FString FindGitBinaryPath()
 	if(!bFound)
 	{
 		// C:\Users\UserName\AppData\Local\Atlassian\SourceTree\git_local\bin
-		FString AppDataLocalPath = FPlatformMisc::GetEnvironmentVariable(TEXT("LOCALAPPDATA"));
+		const FString AppDataLocalPath = FPlatformMisc::GetEnvironmentVariable(TEXT("LOCALAPPDATA"));
 		GitBinaryPath = FString::Printf(TEXT("%s/Atlassian/SourceTree/git_local/bin/git.exe"), *AppDataLocalPath);
 		bFound = CheckGitAvailability(GitBinaryPath);
 	}
@@ -216,8 +216,8 @@ FString FindGitBinaryPath()
 	{
 		// The latest GitHub Desktop adds its binaries into the local appdata directory:
 		// C:\Users\UserName\AppData\Local\GitHub\PortableGit_c2ba306e536fdf878271f7fe636a147ff37326ad\cmd
-		FString AppDataLocalPath = FPlatformMisc::GetEnvironmentVariable(TEXT("LOCALAPPDATA"));
-		FString SearchPath = FString::Printf(TEXT("%s/GitHub/PortableGit_*"), *AppDataLocalPath);
+		const FString AppDataLocalPath = FPlatformMisc::GetEnvironmentVariable(TEXT("LOCALAPPDATA"));
+		const FString SearchPath = FString::Printf(TEXT("%s/GitHub/PortableGit_*"), *AppDataLocalPath);
 		TArray<FString> PortableGitFolders;
 		IFileManager::Get().FindFiles(PortableGitFolders, *SearchPath, false, true);
 		if(PortableGitFolders.Num() > 0)
@@ -1086,6 +1086,49 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 		{
 			ParseStatusResults(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, Files.Value, LockedFiles, Results, OutStates);
 		}
+		
+		// Using git diff, we can obtain a list of files that were modified between our current origin and HEAD. Assumes that fetch has been run to get accurate info.
+		
+		// First we get the current branch name, since we need origin of current branch
+		Parameters.Empty();
+		FString BranchName;
+		if (GitSourceControlUtils::GetBranchName(InPathToGitBinary, InRepositoryRoot, BranchName))
+		{
+			FString GitCommand = FString::Printf(TEXT("diff --name-only origin/%s HEAD"), *BranchName);
+
+			const bool bResultDiff = RunCommand(GitCommand, InPathToGitBinary, InRepositoryRoot, Parameters, OnePath, Results, ErrorMessages);
+			OutErrorMessages.Append(ErrorMessages);
+			if (bResultDiff)
+			{
+				const FDateTime Now = FDateTime::Now();
+				for (const auto& FileName : Results)
+				{
+					const FString AbsoluteFilePath = FPaths::ConvertRelativePathToFull(InRepositoryRoot, FileName);
+
+					// Check if already exists, and if so, update
+					bool FoundMatch = false;
+					for (INT i = 0; i < OutStates.Num(); i++)
+					{
+						FGitSourceControlState& FileState = OutStates[i];
+
+						if (FileState.LocalFilename != AbsoluteFilePath) continue;
+
+						FileState.bIsOutdated = true;
+
+						FoundMatch = true;
+						break;
+					}
+					if (FoundMatch) continue;
+
+					// If no match, add entry
+
+					FGitSourceControlState FileState(FileName, InUsingLfsLocking);
+					FileState.TimeStamp = Now;
+					FileState.bIsOutdated = true;
+				}
+			}
+		}
+		
 	}
 
 	return bResults;

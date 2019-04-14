@@ -47,6 +47,8 @@ public:
 		, WorkingCopyState(EWorkingCopyState::Unknown)
 		, LockState(ELockState::Unknown)
 		, TimeStamp(0)
+		, bIsOutdated(false)
+		
 	{
 		bUsingGitLfsLocking = InUsingLfsLocking && !InLocalFilename.Contains(TEXT(".ini")) && !InLocalFilename.Contains(TEXT(".uproject"));
 	}
@@ -110,4 +112,8 @@ public:
 
 	/** The timestamp of the last update */
 	FDateTime TimeStamp;
+	
+	// For use with FGitSourceControlState::IsCurrent
+	bool bIsOutdated;
+	
 };
