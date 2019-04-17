@@ -57,7 +57,7 @@ bool CheckGitAvailability(const FString& InPathToGitBinary, FGitVersion* OutVers
  */
  void ParseGitVersion(const FString& InVersionString, FGitVersion* OutVersion);
 
-/** 
+/**
  * Check git for various optional capabilities by various means.
  * @param InPathToGitBinary		The path to the Git binary
  * @param OutGitVersion			If provided, populate with the git version parsed from "version" command
@@ -150,9 +150,10 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
  * @param	InUsingLfsLocking	Tells if using the Git LFS file Locking workflow
  * @param	InFiles				The files to be operated on
  * @param	OutErrorMessages	Any errors (from StdErr) as an array per-line
+ * @param bUseLfsCache If we should use the cache for LFS locks
  * @returns true if the command succeeded and returned no errors
  */
-bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates);
+bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, const bool bUseLfsCache = false);
 
 /**
  * Run a Git "cat-file" command to dump the binary content of a revision into a file.
@@ -191,7 +192,7 @@ TArray<FString> RelativeFilenames(const TArray<FString>& InFileNames, const FStr
  */
 bool UpdateCachedStates(const TArray<FGitSourceControlState>& InStates);
 
-/** 
+/**
  * Remove redundant errors (that contain a particular string) and also
  * update the commands success status if all errors were removed.
  */

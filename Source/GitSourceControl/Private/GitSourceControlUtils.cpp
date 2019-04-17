@@ -1018,7 +1018,7 @@ static void ParseStatusResults(const FString& InPathToGitBinary, const FString& 
 }
 
 // Run a batch of Git "status" command to update status of given files and/or directories.
-bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates)
+bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, const bool bUseLfsCache = false)
 {
 	bool bResults = true;
 	TMap<FString, FString> LockedFiles;
@@ -1028,7 +1028,12 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	{
 		TArray<FString> Results;
 		TArray<FString> ErrorMessages;
-		bool bResult = RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, TArray<FString>(), TArray<FString>(), Results, ErrorMessages);
+		TArray<FString> Parameters;
+		if (bUseLfsCache)
+		{
+			Parameters.Add(TEXT("--cached"));
+		}
+		bool bResult = RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, Parameters, TArray<FString>(), Results, ErrorMessages);
 		for(const FString& Result : Results)
 		{
 			FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
@@ -1086,9 +1091,9 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 		{
 			ParseStatusResults(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, Files.Value, LockedFiles, Results, OutStates);
 		}
-		
+
 		// Using git diff, we can obtain a list of files that were modified between our current origin and HEAD. Assumes that fetch has been run to get accurate info.
-		
+
 		// First we get the current branch name, since we need origin of current branch
 		Parameters.Empty();
 		FString BranchName;
@@ -1128,7 +1133,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 				}
 			}
 		}
-		
+
 	}
 
 	return bResults;
