@@ -1018,7 +1018,7 @@ static void ParseStatusResults(const FString& InPathToGitBinary, const FString& 
 }
 
 // Run a batch of Git "status" command to update status of given files and/or directories.
-bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, const bool bUseLfsCache = false)
+bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, const bool bUseLfsCache)
 {
 	bool bResults = true;
 	TMap<FString, FString> LockedFiles;
