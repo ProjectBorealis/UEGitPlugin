@@ -1017,6 +1017,8 @@ static void ParseStatusResults(const FString& InPathToGitBinary, const FString& 
 	}
 }
 
+static 
+
 // Run a batch of Git "status" command to update status of given files and/or directories.
 bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, const bool bUseLfsCache)
 {
@@ -1031,7 +1033,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 		TArray<FString> Parameters;
 		if (bUseLfsCache)
 		{
-			Parameters.Add(TEXT("--cached"));
+			//Parameters.Add(TEXT("--cached"));
 		}
 		bool bResult = RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, Parameters, TArray<FString>(), Results, ErrorMessages);
 		for(const FString& Result : Results)
