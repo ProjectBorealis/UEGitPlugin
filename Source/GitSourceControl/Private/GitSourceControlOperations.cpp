@@ -84,8 +84,8 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 		const TArray<FString> RelativeFiles = GitSourceControlUtils::RelativeFilenames(InCommand.Files, InCommand.PathToRepositoryRoot);
 
 		InCommand.bCommandSuccessful &= GitSourceControlUtils::RunLFSCommand(TEXT("lock"), InCommand.PathToRepositoryRoot, TArray<FString>(), RelativeFiles, InCommand.InfoMessages, InCommand.ErrorMessages);
-		
-		if (InCommand.bCommandSuccessful)
+
+		/*if (InCommand.bCommandSuccessful)
 		{
 			FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
 			const FString LfsUserName = GitSourceControl.AccessSettings().GetLfsUserName();
@@ -106,7 +106,7 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 				UE_LOG(LogSourceControl, Log, TEXT("Status(%s) Locked by '%s'"), *File, *FileState.LockUser);
 #endif
 			}
-		}
+		}*/
 		// now update the status of our files
 		GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ErrorMessages, States);
 	}
