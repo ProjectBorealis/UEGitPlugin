@@ -31,7 +31,7 @@ Written and contributed by Sebastien Rombauts (sebastien.rombauts@gmail.com)
 - migrate an asset between two projects if both are using Git
 - solve a merge conflict on a blueprint
 - show current branch name in status text
-- Sync to Pull (rebase) the current branch if there is no localy modified files
+- Sync to Pull (rebase) the current branch
 - Git LFS (Github, Gitlab, Bitbucket) is working with Git 2.10+ under Windows
 - Git LFS 2 File Locking is working with Git 2.10+ and Git LFS 2.0.0
 - Windows, Mac and Linux
@@ -53,7 +53,6 @@ Use "TODO LFS" in the code to track things left to do/improve/refactor:
        - see SubversionSourceControl plugin that deals with such flags
        - this would need a rework of the way the "bIsUsingFileLocking" si propagated, since this would no more be a configuration (or not only) but a file state
      - else we should at least revert those read-only flags when going out of "Lock mode"
-4. Optimize usage of "git lfs locks", ie reduce the use of UpdateStatus() in Operations
 
 ### What *cannot* be done presently
 - Branch/Merge are not in the current Editor workflow

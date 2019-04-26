@@ -1019,12 +1019,27 @@ static void ParseStatusResults(const FString& InPathToGitBinary, const FString& 
 	}
 }
 
+static FDateTime LastUpdateStatus = FDateTime(0);
+
 // Run a batch of Git "status" command to update status of given files and/or directories.
 bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles,
-					 TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, const bool bUseLfsCache)
+					 TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, bool bUseLfsCache)
 {
 	bool bResults = true;
 	TMap<FString, FString> LockedFiles;
+
+	if (!bUseLfsCache)
+	{
+		FDateTime Now = FDateTime::UtcNow();
+		if (LastUpdateStatus + FTimespan(0, 0, 30) <= Now)
+		{
+			LastUpdateStatus = Now;
+		}
+		else
+		{
+			bUseLfsCache = true;
+		}
+	}
 
 	// 0) Issue a "git lfs locks" command at the root of the repository
 	if (InUsingLfsLocking)

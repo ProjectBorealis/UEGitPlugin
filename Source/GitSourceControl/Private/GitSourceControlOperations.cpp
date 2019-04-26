@@ -373,7 +373,6 @@ FName FGitSyncWorker::GetName() const
 bool FGitSyncWorker::Execute(FGitSourceControlCommand& InCommand)
 {
 	// pull the branch to get remote changes by rebasing any local commits (not merging them to avoid complex graphs)
-	// (this cannot work if any local files are modified but not commited)
 	TArray<FString> Parameters;
 	Parameters.Add(TEXT("--rebase"));
 	Parameters.Add(TEXT("--autostash"));
