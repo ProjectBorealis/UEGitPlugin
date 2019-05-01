@@ -179,13 +179,13 @@ ECommandResult::Type FGitSourceControlProvider::GetState( const TArray<FString>&
 	if(InStateCacheUsage == EStateCacheUsage::ForceUpdate)
 	{
 		TArray<FString> ForceUpdate;
-		for(FString path : InFiles)
+		for(FString Path : InFiles)
 		{
 			// Remove the path from the cache, so it's not ignored the next time we force check.
 			// If the file isn't in the cache, force update it now.
-			if (!RemoveFileFromIgnoreForceCache(path))
+			if (!RemoveFileFromIgnoreForceCache(Path))
 			{
-				ForceUpdate.Add(path);
+				ForceUpdate.Add(Path);
 			}
 		}
 		if (ForceUpdate.Num() > 0)
@@ -445,21 +445,18 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 		IssueCommand( InCommand );
 
 		// ... then wait for its completion (thus making it synchronous)
-		while(!InCommand.bExecuteProcessed)
+		while (CommandQueue.Contains(&InCommand))
 		{
 			// Tick the command queue and update progress.
 			Tick();
 
 			Progress.Tick();
 
-			// Sleep for a bit so we don't busy-wait so much.
-			FPlatformProcess::Sleep(0.01f);
+			// Switch
+			FPlatformProcess::Sleep(0.0f);
 		}
 
-		// always do one more Tick() to make sure the command queue is cleaned up.
-		Tick();
-
-		if(InCommand.bCommandSuccessful)
+		if (InCommand.bCommandSuccessful)
 		{
 			Result = ECommandResult::Succeeded;
 		}
@@ -470,15 +467,11 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 		}
 	}
 
-	// Delete the command now (asynchronous commands are deleted in the Tick() method)
-	check(!InCommand.bAutoDelete);
-
-	// ensure commands that are not auto deleted do not end up in the command queue
-	if ( CommandQueue.Contains( &InCommand ) )
+	// Delete the command now if not marked as auto-delete
+	if (!InCommand.bAutoDelete)
 	{
-		CommandQueue.Remove( &InCommand );
+		delete &InCommand;
 	}
-	delete &InCommand;
 
 	return Result;
 }

@@ -582,7 +582,7 @@ bool RunCommand(const FString& InCommand, const FString& InPathToGitBinary, cons
 	}
 	else
 	{
-		bResult &= RunCommandInternal(InCommand, InPathToGitBinary, InRepositoryRoot, InParameters, InFiles, OutResults, OutErrorMessages);
+		bResult = RunCommandInternal(InCommand, InPathToGitBinary, InRepositoryRoot, InParameters, InFiles, OutResults, OutErrorMessages);
 	}
 
 	return bResult;
@@ -1030,7 +1030,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 
 	if (!bUseLfsCache)
 	{
-		FDateTime Now = FDateTime::UtcNow();
+		FDateTime Now = FDateTime::Now();
 		if (LastUpdateStatus + FTimespan(0, 0, 30) <= Now)
 		{
 			LastUpdateStatus = Now;
