@@ -382,8 +382,6 @@ bool FGitSyncWorker::Execute(FGitSourceControlCommand& InCommand)
 	TArray<FString> Parameters;
 	Parameters.Add(TEXT("--rebase"));
 	Parameters.Add(TEXT("--autostash"));
-	Parameters.Add(TEXT("origin"));
-	Parameters.Add(TEXT("HEAD"));
 	InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("pull"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters, TArray<FString>(), InCommand.InfoMessages, InCommand.ErrorMessages);
 
 	// now update the status of our files
