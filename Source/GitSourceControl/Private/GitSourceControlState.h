@@ -46,9 +46,8 @@ public:
 		: LocalFilename(InLocalFilename)
 		, WorkingCopyState(EWorkingCopyState::Unknown)
 		, LockState(ELockState::Unknown)
+		, bNewerVersionOnServer(false)
 		, TimeStamp(0)
-		, bIsOutdated(false)
-		
 	{
 		bUsingGitLfsLocking = InUsingLfsLocking && !InLocalFilename.Contains(TEXT(".ini")) && !InLocalFilename.Contains(TEXT(".uproject"));
 	}
@@ -110,10 +109,9 @@ public:
 	/** Tells if using the Git LFS file Locking workflow */
 	bool bUsingGitLfsLocking;
 
+	/** Whether a newer version exists on the server */
+	bool bNewerVersionOnServer;
+
 	/** The timestamp of the last update */
 	FDateTime TimeStamp;
-	
-	// For use with FGitSourceControlState::IsCurrent
-	bool bIsOutdated;
-	
 };
