@@ -160,7 +160,7 @@ private:
 	 * 0: no
 	 * 1: yes
 	*/
-	int UsingGitLfsLocking;
+	int UsingGitLfsLocking = -1;
 
 	/** Helper function for Execute() */
 	TSharedPtr<class IGitSourceControlWorker, ESPMode::ThreadSafe> CreateWorker(const FName& InOperationName) const;
