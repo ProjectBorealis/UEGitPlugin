@@ -1,9 +1,5 @@
 {
-<<<<<<< HEAD
 	"BuildId": "7c5b0b9f-b3d7-468c-a619-943426472419",
-=======
-	"BuildId": "31150774-954c-49a3-8c42-590a7b8c0754",
->>>>>>> fd919e503e0b4c7fec37883b5ba9221083167ae2
 	"Modules": 
 	{
 		"GitSourceControl": "UE4Editor-GitSourceControl.dll"
