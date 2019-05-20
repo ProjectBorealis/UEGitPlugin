@@ -1,3 +1,4 @@
-/Binaries/*/*.pdb
-/Binaries/*/*Debug*
+# PBGet
+Binaries/
+
 /Intermediate
