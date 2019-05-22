@@ -470,15 +470,15 @@ void FGitSourceControlMenu::AddMenuExtension(FMenuBuilder& Builder)
 		)
 	);
 
-	Builder.AddMenuEntry(
-		LOCTEXT("GitSync",				"Sync/Pull"),
-		LOCTEXT("GitSyncTooltip",		"Update all files in the local repository to the latest version of the remote server."),
-		FSlateIcon(FEditorStyle::GetStyleSetName(), "SourceControl.Actions.Sync"),
-		FUIAction(
-			FExecuteAction::CreateRaw(this, &FGitSourceControlMenu::SyncClicked),
-			FCanExecuteAction::CreateRaw(this, &FGitSourceControlMenu::HaveRemoteUrl)
-		)
-	);
+	//Builder.AddMenuEntry(
+	//	LOCTEXT("GitSync",				"Sync/Pull"),
+	//	LOCTEXT("GitSyncTooltip",		"Update all files in the local repository to the latest version of the remote server."),
+	//	FSlateIcon(FEditorStyle::GetStyleSetName(), "SourceControl.Actions.Sync"),
+	//	FUIAction(
+	//		FExecuteAction::CreateRaw(this, &FGitSourceControlMenu::SyncClicked),
+	//		FCanExecuteAction::CreateRaw(this, &FGitSourceControlMenu::HaveRemoteUrl)
+	//	)
+	//);
 
 	Builder.AddMenuEntry(
 		LOCTEXT("GitRevert",			"Revert"),
