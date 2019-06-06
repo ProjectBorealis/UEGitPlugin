@@ -1041,6 +1041,8 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 			bUseLfsCache = true;
 		}
 	}
+	
+	bUseLfsCache = false;
 
 	// 0) Issue a "git lfs locks" command at the root of the repository
 	if (InUsingLfsLocking)
