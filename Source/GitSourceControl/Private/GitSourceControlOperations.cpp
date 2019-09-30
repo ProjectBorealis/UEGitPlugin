@@ -12,8 +12,8 @@
 #include "GitSourceControlModule.h"
 #include "GitSourceControlCommand.h"
 #include "GitSourceControlUtils.h"
-#include "HAL/IPlatformFileProfilerWrapper.h"
-#include "HAL/PlatformFilemanager.h"
+#include "IPlatformFileProfilerWrapper.h"
+#include "PlatformFilemanager.h"
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
 
