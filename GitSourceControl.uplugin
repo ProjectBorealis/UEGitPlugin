@@ -1,7 +1,7 @@
 {
 	"FileVersion" : 3,
-	"Version" : 32,
-	"VersionName" : "2.12.1",
+	"Version" : 35,
+	"VersionName" : "2.15.1",
 	"FriendlyName" : "Git LFS 2",
 	"Description" : "Git source control management (dev)",
 	"Category" : "Source Control",
