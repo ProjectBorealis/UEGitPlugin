@@ -141,6 +141,8 @@ FName FGitCheckInWorker::GetName() const
 
 bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 {
+    UE_LOG(LogTemp, Log, TEXT("FGitCheckInWorker::Execute"));
+    
 	check(InCommand.Operation->GetName() == GetName());
 
 	TSharedRef<FCheckIn, ESPMode::ThreadSafe> Operation = StaticCastSharedRef<FCheckIn>(InCommand.Operation);
@@ -318,6 +320,8 @@ bool FGitRevertWorker::Execute(FGitSourceControlCommand& InCommand)
 	TArray<FString> AllExistingFiles;
 	TArray<FString> OtherThanAddedExistingFiles;
 	GetMissingVsExistingFiles(InCommand.Files, MissingFiles, AllExistingFiles, OtherThanAddedExistingFiles);
+    
+    UE_LOG(LogTemp, Log, TEXT("FGitRevertWorker::Execute"));
 
 	InCommand.bCommandSuccessful = true;
 	if(MissingFiles.Num() > 0)
@@ -433,6 +437,8 @@ bool FGitUpdateStatusWorker::Execute(FGitSourceControlCommand& InCommand)
 	check(InCommand.Operation->GetName() == GetName());
 
 	TSharedRef<FUpdateStatus, ESPMode::ThreadSafe> Operation = StaticCastSharedRef<FUpdateStatus>(InCommand.Operation);
+    
+    UE_LOG(LogTemp, Log, TEXT("FGitUpdateStatusWorker::Execute"));
 
 	if(InCommand.Files.Num() > 0)
 	{

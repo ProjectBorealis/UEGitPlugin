@@ -352,6 +352,7 @@ void FGitSourceControlMenu::RevertClicked()
 
 void FGitSourceControlMenu::RefreshClicked()
 {
+    UE_LOG(LogTemp, Log, TEXT("FGitSourceControlMenu::RefreshClicked"));
 	if (!OperationInProgressNotification.IsValid())
 	{
 		// Launch an "UpdateStatus" Operation
