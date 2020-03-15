@@ -169,8 +169,6 @@ const FName& FGitSourceControlProvider::GetName(void) const
 
 ECommandResult::Type FGitSourceControlProvider::GetState( const TArray<FString>& InFiles, TArray< TSharedRef<ISourceControlState, ESPMode::ThreadSafe> >& OutState, EStateCacheUsage::Type InStateCacheUsage )
 {
-    UE_LOG(LogTemp, Log, TEXT("FGitSourceControlProvider::GetState"));
-    
 	if(!IsEnabled())
 	{
 		return ECommandResult::Failed;
@@ -180,7 +178,6 @@ ECommandResult::Type FGitSourceControlProvider::GetState( const TArray<FString>&
 
 	if(InStateCacheUsage == EStateCacheUsage::ForceUpdate)
 	{
-        UE_LOG(LogTemp, Log, TEXT("FORCED UPDATE!"));
 		TArray<FString> ForceUpdate;
 		for(FString Path : InFiles)
 		{
@@ -367,7 +364,6 @@ void FGitSourceControlProvider::OutputCommandMessages(const FGitSourceControlCom
 
 void FGitSourceControlProvider::UpdateRepositoryStatus(const class FGitSourceControlCommand& InCommand)
 {
-    UE_LOG(LogTemp, Log, TEXT("FGitSourceControlProvider::UpdateRepositoryStatus"));
 	// For all operations running UpdateStatus, get Commit informations:
 	if (!InCommand.CommitId.IsEmpty())
 	{
