@@ -52,12 +52,6 @@ bool FGitConnectWorker::Execute(FGitSourceControlCommand& InCommand)
 		else
 		{
 			GitSourceControlUtils::GetCommitInfo(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.CommitId, InCommand.CommitSummary);
-
-			if(InCommand.bUsingGitLfsLocking)
-			{
-				// Check server connection by checking lock status (when using Git LFS file Locking worflow)
-				InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("lfs locks"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, TArray<FString>(), TArray<FString>(), InCommand.InfoMessages, InCommand.ErrorMessages);
-			}
 		}
 	}
 	else
