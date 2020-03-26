@@ -1004,15 +1004,26 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	// 0) Issue a "git lfs locks" command at the root of the repository
 	if(InUsingLfsLocking)
 	{
-		TArray<FString> Results;
-		TArray<FString> ErrorMessages;
-		bool bResult = RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, TArray<FString>(), TArray<FString>(), Results, ErrorMessages);
-		for(const FString& Result : Results)
+		FTimespan CacheTimeElapsed = FDateTime::UtcNow() - LockedFilesCacheLastUpdate;
+		bool bCacheExpired = CacheTimeElapsed > FTimespan(0, 2, 0);
+		if (bCacheExpired)
 		{
-			FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
-			// TODO LFS Debug log
-			UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
-			LockedFiles.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+			TArray<FString> Results;
+			TArray<FString> ErrorMessages;
+			bool bResult = RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, TArray<FString>(), TArray<FString>(), Results, ErrorMessages);
+			for (const FString& Result : Results)
+			{
+				FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
+				// TODO LFS Debug log
+				UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
+				LockedFiles.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+			}
+
+			LockedFilesCache = &LockedFiles;
+		}
+		else
+		{
+			LockedFiles = *LockedFilesCache;
 		}
 	}
 
