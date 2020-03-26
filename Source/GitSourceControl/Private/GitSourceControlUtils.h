@@ -36,7 +36,7 @@ struct FGitVersion;
 namespace GitSourceControlUtils
 {
 static FDateTime LockedFilesCacheLastUpdate;
-static TMap<FString, FString>* LockedFilesCache = nullptr;
+static TMap<FString, FString> LockedFilesCache;
 
 /**
  * Find the path to the Git binary, looking into a few places (standalone Git install, and other common tools embedding Git)

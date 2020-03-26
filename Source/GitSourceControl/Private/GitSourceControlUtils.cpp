@@ -15,6 +15,8 @@
 #include "ISourceControlModule.h"
 #include "GitSourceControlModule.h"
 #include "GitSourceControlProvider.h"
+#include "Misc/DateTime.h"
+#include "Misc/Timespan.h"
 
 #if PLATFORM_LINUX
 #include <sys/ioctl.h>
@@ -1004,8 +1006,11 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	// 0) Issue a "git lfs locks" command at the root of the repository
 	if(InUsingLfsLocking)
 	{
-		FTimespan CacheTimeElapsed = FDateTime::UtcNow() - LockedFilesCacheLastUpdate;
-		bool bCacheExpired = CacheTimeElapsed > FTimespan(0, 2, 0);
+		const FDateTime CurrentTime = FDateTime::UtcNow();
+		const FDateTime LastUpdated = LockedFilesCacheLastUpdate;
+		const FTimespan CacheTimeElapsed = CurrentTime - LastUpdated;
+		const FTimespan CacheLimit = FTimespan::FromMinutes(3);
+		bool bCacheExpired = (LockedFilesCache.Num() < 1) || CacheTimeElapsed > CacheLimit;
 		if (bCacheExpired)
 		{
 			TArray<FString> Results;
@@ -1019,11 +1024,28 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 				LockedFiles.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 			}
 
-			LockedFilesCache = &LockedFiles;
+			LockedFilesCache = LockedFiles;
+			LockedFilesCacheLastUpdate = FDateTime::UtcNow();
 		}
 		else
 		{
-			LockedFiles = *LockedFilesCache;
+			LockedFiles = LockedFilesCache;
+
+			TArray<FString> Params;
+			Params.Add(TEXT("--local"));
+
+			TArray<FString> Results;
+			TArray<FString> ErrorMessages;
+			bool bResult = RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, Params, TArray<FString>(), Results, ErrorMessages);
+			for (const FString& Result : Results)
+			{
+				FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
+				// TODO LFS Debug log
+				UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
+				LockedFiles.FindOrAdd(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+			}
+
+			LockedFilesCache = LockedFiles;
 		}
 	}
 
