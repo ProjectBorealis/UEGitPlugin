@@ -12,4 +12,6 @@
 #include "ISourceControlRevision.h"
 #include "ISourceControlState.h"
 #include "Misc/Paths.h"
+#include "Misc/DateTime.h"
+#include "Misc/Timespan.h"
 #include "Modules/ModuleManager.h"

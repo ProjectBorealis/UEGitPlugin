@@ -55,6 +55,9 @@ const FString& FGitScopedTempFile::GetFilename() const
 }
 
 
+FDateTime FGitLockedFilesCache::LastUpdated = FDateTime::MinValue();
+TMap<FString, FString> FGitLockedFilesCache::LockedFiles = TMap<FString, FString>();
+
 namespace GitSourceControlUtils
 {
 
@@ -997,6 +1000,8 @@ static void ParseStatusResults(const FString& InPathToGitBinary, const FString& 
 	}
 }
 
+
+
 // Run a batch of Git "status" command to update status of given files and/or directories.
 bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates)
 {
@@ -1007,10 +1012,9 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	if(InUsingLfsLocking)
 	{
 		const FDateTime CurrentTime = FDateTime::UtcNow();
-		const FDateTime LastUpdated = LockedFilesCacheLastUpdate;
-		const FTimespan CacheTimeElapsed = CurrentTime - LastUpdated;
-		const FTimespan CacheLimit = FTimespan::FromMinutes(3);
-		bool bCacheExpired = (LockedFilesCache.Num() < 1) || CacheTimeElapsed > CacheLimit;
+		FTimespan CacheTimeElapsed = CurrentTime - FGitLockedFilesCache::LastUpdated;
+		FTimespan CacheLimit = FTimespan::FromMinutes(3);
+		bool bCacheExpired = (FGitLockedFilesCache::LockedFiles.Num() < 1) || CacheTimeElapsed > CacheLimit;
 		if (bCacheExpired)
 		{
 			TArray<FString> Results;
@@ -1024,12 +1028,12 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 				LockedFiles.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 			}
 
-			LockedFilesCache = LockedFiles;
-			LockedFilesCacheLastUpdate = FDateTime::UtcNow();
+			FGitLockedFilesCache::LockedFiles = LockedFiles;
+			FGitLockedFilesCache::LastUpdated = FDateTime::UtcNow();
 		}
 		else
 		{
-			LockedFiles = LockedFilesCache;
+			LockedFiles = FGitLockedFilesCache::LockedFiles;
 
 			TArray<FString> Params;
 			Params.Add(TEXT("--local"));
@@ -1045,7 +1049,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 				LockedFiles.FindOrAdd(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 			}
 
-			LockedFilesCache = LockedFiles;
+			FGitLockedFilesCache::LockedFiles = LockedFiles;
 		}
 	}
 
