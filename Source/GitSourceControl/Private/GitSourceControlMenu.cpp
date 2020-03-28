@@ -408,11 +408,11 @@ void FGitSourceControlMenu::RevertAllCallback(const FSourceControlOperationRef& 
 	RemoveInProgressNotification();
 	if (Result != ECommandResult::Succeeded)
 	{
-		DisplayFailureNotification(InOperation->GetName());
+		DisplayFailureNotification(TEXT("Revert"));
 	}
 	else
 	{
-		DisplaySucessNotification(InOperation->GetName());
+		DisplaySucessNotification(TEXT("Revert"));
 	}
 
 	ReloadPackages(LoadedPackages);
