@@ -1003,7 +1003,7 @@ static void ParseStatusResults(const FString& InPathToGitBinary, const FString& 
 
 
 // Run a batch of Git "status" command to update status of given files and/or directories.
-bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates)
+bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, bool bInvalidateCache)
 {
 	bool bResults = true;
 	TMap<FString, FString> LockedFiles;
@@ -1015,7 +1015,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 		FTimespan CacheTimeElapsed = CurrentTime - FGitLockedFilesCache::LastUpdated;
 		FTimespan CacheLimit = FTimespan::FromMinutes(3);
 		bool bCacheExpired = (FGitLockedFilesCache::LockedFiles.Num() < 1) || CacheTimeElapsed > CacheLimit;
-		if (bCacheExpired)
+		if (bInvalidateCache || bCacheExpired)
 		{
 			TArray<FString> Results;
 			TArray<FString> ErrorMessages;
