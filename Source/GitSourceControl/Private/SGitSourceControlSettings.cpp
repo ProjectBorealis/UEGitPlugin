@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018 Sebastien Rombauts (sebastien.rombauts@gmail.com)
+// Copyright (c) 2014-2020 Sebastien Rombauts (sebastien.rombauts@gmail.com)
 //
 // Distributed under the MIT License (MIT) (See accompanying file LICENSE.txt
 // or copy at http://opensource.org/licenses/MIT)
@@ -340,7 +340,7 @@ void SGitSourceControlSettings::Construct(const FArguments& InArgs)
 			[
 				SNew(SHorizontalBox)
 				.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
-				.ToolTipText(LOCTEXT("InitialGitCommit_Tooltip", "Make the initial Git Commit"))
+				.ToolTipText(LOCTEXT("InitialGitCommit_Tooltip", "Make the initial Git commit"))
 				+SHorizontalBox::Slot()
 				.FillWidth(0.1f)
 				[
