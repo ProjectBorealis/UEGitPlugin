@@ -1033,21 +1033,6 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	bool bResults = true;
 	TMap<FString, FString> LockedFiles;
 
-	if (!bUseLfsCache)
-	{
-		FDateTime Now = FDateTime::Now();
-		if (LastUpdateStatus + FTimespan(0, 0, 30) <= Now)
-		{
-			LastUpdateStatus = Now;
-		}
-		else
-		{
-			bUseLfsCache = true;
-		}
-	}
-	
-	bUseLfsCache = false;
-
 	// 0) Issue a "git lfs locks" command at the root of the repository
 	if (InUsingLfsLocking)
 	{
