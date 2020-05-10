@@ -1033,7 +1033,6 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 				 TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates)
 {
 	// Using git diff, we can obtain a list of files that were modified between our current origin and HEAD. Assumes that fetch has been run to get accurate info.
-	// TODO: should do a fetch (at least periodically).
 
 	// Gather valid remote branches
 	TArray<FString> Results;
@@ -1065,17 +1064,30 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 		// still add to check as a local
 		BranchesToDiff.Add(CurrentBranchName);
 	}
+	TArray<FString> ParametersFetch;
 	TArray<FString> ParametersDiff;
 	for (auto& Branch : BranchesToDiff)
 	{
 		ParametersDiff.Add(TEXT("--name-only"));
+		bool bFetch;
 		if (Branch.Equals(CurrentBranchName))
 		{
+			bFetch = bDiffAgainstRemoteCurrent;
 			ParametersDiff.Add(bDiffAgainstRemoteCurrent ? FString::Printf(TEXT("origin/%s "), *Branch) : Branch);
 		}
 		else
 		{
+			bFetch = true;
 			ParametersDiff.Add(FString::Printf(TEXT("origin/%s "), *Branch));
+		}
+		if (bFetch)
+		{
+			// TODO: periodic fetch?
+			ParametersFetch.Add(TEXT("origin"));
+			ParametersFetch.Add(Branch);
+			// Attempt fetch
+			RunCommand(TEXT("fetch"), InPathToGitBinary, InRepositoryRoot, ParametersFetch, TArray<FString>(), Results, ErrorMessages);
+			ParametersFetch.Reset();
 		}
 		ParametersDiff.Add(TEXT("HEAD"));
 		const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, ParametersDiff, OnePath, Results, ErrorMessages);
