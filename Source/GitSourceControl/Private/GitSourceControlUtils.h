@@ -150,6 +150,18 @@ bool RunCommand(const FString& InCommand, const FString& InPathToGitBinary, cons
 bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& InParameters, const TArray<FString>& InFiles, TArray<FString>& OutResults, TArray<FString>& OutErrorMessages);
 
 /**
+ * Checks remote branches to see file differences.
+ *
+ * @param	CurrentBranchName The current branch we are on.
+ * @param	InPathToGitBinary	The path to the Git binary
+ * @param	InRepositoryRoot	The Git repository from where to run the command - usually the Game directory
+ * @param	OnePath				The file to be checked
+ * @param	OutErrorMessages	Any errors (from StdErr) as an array per-line
+ */
+void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& OnePath,
+				 TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates);
+
+/**
  * Run a Git "status" command and parse it.
  *
  * @param	InPathToGitBinary	The path to the Git binary

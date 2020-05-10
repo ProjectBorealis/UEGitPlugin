@@ -604,8 +604,10 @@ bool RunLFSCommand(const FString& InCommand, const FString& InRepositoryRoot, co
 	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs.exe"), *BaseDir);
 #elif PLATFORM_MAC
 	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs-mac"), *BaseDir);
-#else
+#elif PLATFORM_LINUX
 	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs"), *BaseDir);
+#else
+	checkf(false, TEXT("Unhandled platform for LFS binary!"));
 #endif
 
 	return GitSourceControlUtils::RunCommand(InCommand, LFSLockBinary, InRepositoryRoot, InParameters, InFiles, OutResults, OutErrorMessages);
@@ -1027,6 +1029,76 @@ static void ParseStatusResults(const FString& InPathToGitBinary, const FString& 
 	}
 }
 
+void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& OnePath,
+				 TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates)
+{
+	// Using git diff, we can obtain a list of files that were modified between our current origin and HEAD. Assumes that fetch has been run to get accurate info.
+	// TODO: should do a fetch (at least periodically).
+
+	// Gather valid remote branches
+	TArray<FString> Results;
+	TArray<FString> ErrorMessages;
+	TSet<FString> Branches;
+	TArray<FString> ParametersLsRemote;
+	// TODO: make branch names configurable
+	Branches.Add(TEXT("master"));
+	Branches.Add(TEXT("trunk"));
+	Branches.Add(TEXT("promoted"));
+	Branches.Add(CurrentBranchName);
+	TSet<FString> BranchesToDiff;
+	for (auto& Branch : Branches)
+	{
+		ParametersLsRemote.Add(TEXT("origin"));
+		ParametersLsRemote.Add(Branch);
+		const bool bResultLsRemote = RunCommand(TEXT("ls-remote"), InPathToGitBinary, InRepositoryRoot, ParametersLsRemote, OnePath, Results, ErrorMessages);
+		if (bResultLsRemote && Results.Num())
+		{
+			BranchesToDiff.Add(Branch);
+		}
+		ParametersLsRemote.Reset(2);
+		Results.Reset();
+	}
+
+	const bool bDiffAgainstRemoteCurrent = BranchesToDiff.Contains(CurrentBranchName);
+	if (!bDiffAgainstRemoteCurrent)
+	{
+		// still add to check as a local
+		BranchesToDiff.Add(CurrentBranchName);
+	}
+	TArray<FString> ParametersDiff;
+	for (auto& Branch : BranchesToDiff)
+	{
+		ParametersDiff.Add(TEXT("--name-only"));
+		if (Branch.Equals(CurrentBranchName))
+		{
+			ParametersDiff.Add(bDiffAgainstRemoteCurrent ? FString::Printf(TEXT("origin/%s "), *Branch) : Branch);
+		}
+		else
+		{
+			ParametersDiff.Add(FString::Printf(TEXT("origin/%s "), *Branch));
+		}
+		ParametersDiff.Add(TEXT("HEAD"));
+		const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, ParametersDiff, OnePath, Results, ErrorMessages);
+		if (bResultDiff)
+		{
+			for (const FString& NewerFileName : Results)
+			{
+				const FString NewerFilePath = FPaths::ConvertRelativePathToFull(InRepositoryRoot, NewerFileName);
+
+				// Find existing corresponding file state to update it (not found would mean new file or not in the current path)
+				if (FGitSourceControlState* FileStatePtr =
+						OutStates.FindByPredicate([NewerFilePath](FGitSourceControlState& FileState) { return FileState.LocalFilename == NewerFilePath; }))
+				{
+					FileStatePtr->bNewerVersionOnServer = true;
+				}
+			}
+		}
+		ParametersDiff.Reset();
+	}
+
+	OutErrorMessages.Append(ErrorMessages);
+}
+
 // Run a batch of Git "status" command to update status of given files and/or directories.
 bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, bool bInvalidateCache)
 {
@@ -1048,6 +1120,9 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 			for (const FString& Result : Results)
 			{
 				FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
+#if UE_BUILD_DEBUG
+				UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
+#endif
 				LockedFiles.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 			}
 
@@ -1067,8 +1142,9 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 			for (const FString& Result : Results)
 			{
 				FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
-				// TODO LFS Debug log
+#if UE_BUILD_DEBUG
 				UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
+#endif
 				LockedFiles.FindOrAdd(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 			}
 
@@ -1132,38 +1208,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 
 		if (!BranchName.IsEmpty())
 		{
-			// Using git diff, we can obtain a list of files that were modified between our current origin and HEAD. Assumes that fetch has been run to get accurate info.
-			// TODO: should do a fetch (at least periodically).
-			TArray<FString> Results;
-			TArray<FString> ErrorMessages;
-			TArray<FString> ParametersLsRemote;
-			ParametersLsRemote.Add(TEXT("origin"));
-			ParametersLsRemote.Add(BranchName);
-			const bool bResultLsRemote = RunCommand(TEXT("ls-remote"), InPathToGitBinary, InRepositoryRoot, ParametersLsRemote, OnePath, Results, ErrorMessages);
-			// If the command is successful and there is only 1 line on the output the branch exists on remote
-			const bool bDiffAgainstRemote = bResultLsRemote && Results.Num();
-
-			Results.Reset();
-			ErrorMessages.Reset();
-			TArray<FString> ParametersDiff;
-			ParametersDiff.Add(TEXT("--name-only"));
-			ParametersDiff.Add(bDiffAgainstRemote ? FString::Printf(TEXT("origin/%s "), *BranchName) : BranchName);
-			ParametersDiff.Add(TEXT("HEAD"));
-			const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, ParametersDiff, OnePath, Results, ErrorMessages);
-			OutErrorMessages.Append(ErrorMessages);
-			if (bResultDiff)
-			{
-				for (const FString& NewerFileName : Results)
-				{
-					const FString NewerFilePath = FPaths::ConvertRelativePathToFull(InRepositoryRoot, NewerFileName);
-
-					// Find existing corresponding file state to update it (not found would mean new file or not in the current path)
-					if (FGitSourceControlState* FileStatePtr = OutStates.FindByPredicate([NewerFilePath](FGitSourceControlState& FileState) { return FileState.LocalFilename == NewerFilePath; }))
-					{
-						FileStatePtr->bNewerVersionOnServer = true;
-					}
-				}
-			}
+			CheckRemote(BranchName, InPathToGitBinary, InRepositoryRoot, OnePath, OutErrorMessages, OutStates);
 		}
 	}
 
