@@ -33,6 +33,13 @@ private:
 
 struct FGitVersion;
 
+class FGitLockedFilesCache
+{
+public:
+	static FDateTime LastUpdated;
+	static TMap<FString, FString> LockedFiles;
+};
+
 namespace GitSourceControlUtils
 {
 
@@ -153,7 +160,7 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
  * @param bUseLfsCache If we should use the cache for LFS locks
  * @returns true if the command succeeded and returned no errors
  */
-bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, bool bUseLfsCache = false);
+bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, bool bInvalidateCache = false);
 
 /**
  * Run a Git "cat-file" command to dump the binary content of a revision into a file.

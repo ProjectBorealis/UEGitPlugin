@@ -24,13 +24,19 @@ public:
 	void RevertClicked();
 	void RefreshClicked();
 
+protected:
+	static void RevertAllCallback(const FSourceControlOperationRef& InOperation, ECommandResult::Type InResult);
+	static void RevertAllCancelled(FSourceControlOperationRef InOperation);
+
 private:
 	bool HaveRemoteUrl() const;
 
 	bool				SaveDirtyPackages();
 	TArray<FString>		ListAllPackages();
 	TArray<UPackage*>	UnlinkPackages(const TArray<FString>& InPackageNames);
-	void				ReloadPackages(TArray<UPackage*>& InPackagesToReload);
+
+	/** Hot reload packages, remove deleted packages from memory */
+	static void			ReloadPackages(TArray<UPackage*>& InPackagesToReload);
 
 	bool StashAwayAnyModifications();
 	void ReApplyStashedModifications();
@@ -39,10 +45,10 @@ private:
 
 	TSharedRef<class FExtender> OnExtendLevelEditorViewMenu(const TSharedRef<class FUICommandList> CommandList);
 
-	void DisplayInProgressNotification(const FText& InOperationInProgressString);
-	void RemoveInProgressNotification();
-	void DisplaySucessNotification(const FName& InOperationName);
-	void DisplayFailureNotification(const FName& InOperationName);
+	static void DisplayInProgressNotification(const FText& InOperationInProgressString);
+	static void RemoveInProgressNotification();
+	static void DisplaySucessNotification(const FName& InOperationName);
+	static void DisplayFailureNotification(const FName& InOperationName);
 
 private:
 	FDelegateHandle ViewMenuExtenderHandle;
@@ -54,7 +60,7 @@ private:
 	TArray<UPackage*> PackagesToReload;
 
 	/** Current source control operation from extended menu if any */
-	TWeakPtr<class SNotificationItem> OperationInProgressNotification;
+	static TWeakPtr<class SNotificationItem> OperationInProgressNotification;
 
 	/** Delegate called when a source control operation has completed */
 	void OnSourceControlOperationComplete(const FSourceControlOperationRef& InOperation, ECommandResult::Type InResult);

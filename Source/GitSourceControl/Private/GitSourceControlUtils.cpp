@@ -17,6 +17,11 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
+#include "ISourceControlModule.h"
+#include "GitSourceControlModule.h"
+#include "GitSourceControlProvider.h"
+#include "Misc/DateTime.h"
+#include "Misc/Timespan.h"
 
 #if PLATFORM_LINUX
 #include <sys/ioctl.h>
@@ -52,6 +57,9 @@ const FString& FGitScopedTempFile::GetFilename() const
 {
 	return Filename;
 }
+
+FDateTime FGitLockedFilesCache::LastUpdated = FDateTime::MinValue();
+TMap<FString, FString> FGitLockedFilesCache::LockedFiles = TMap<FString, FString>();
 
 namespace GitSourceControlUtils
 {
@@ -1019,11 +1027,8 @@ static void ParseStatusResults(const FString& InPathToGitBinary, const FString& 
 	}
 }
 
-static FDateTime LastUpdateStatus = FDateTime(0);
-
 // Run a batch of Git "status" command to update status of given files and/or directories.
-bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles,
-					 TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, bool bUseLfsCache)
+bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, bool bInvalidateCache)
 {
 	bool bResults = true;
 	TMap<FString, FString> LockedFiles;
@@ -1046,38 +1051,45 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	// 0) Issue a "git lfs locks" command at the root of the repository
 	if (InUsingLfsLocking)
 	{
-		TArray<FString> Results;
-		TArray<FString> ErrorMessages;
-		
-		bool bResult;
-		if (bUseLfsCache)
+		const FDateTime CurrentTime = FDateTime::UtcNow();
+		FTimespan CacheTimeElapsed = CurrentTime - FGitLockedFilesCache::LastUpdated;
+		FTimespan CacheLimit = FTimespan::FromMinutes(3);
+		bool bCacheExpired = (FGitLockedFilesCache::LockedFiles.Num() < 1) || CacheTimeElapsed > CacheLimit;
+		if (bInvalidateCache || bCacheExpired)
 		{
-			TArray<FString> CachedParameters;
-			CachedParameters.Add(TEXT("--cached"));
-			bResult = RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, CachedParameters, TArray<FString>(), Results, ErrorMessages);
-			TArray<FString> LocalParameters;
-			LocalParameters.Add(TEXT("--local"));
-			TArray<FString> LocalResults;
-			bResult &= RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, LocalParameters, TArray<FString>(), LocalResults, ErrorMessages);
-			for (const FString& LocalResult : LocalResults)
+			TArray<FString> Results;
+			TArray<FString> ErrorMessages;
+			bool bResult = RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, TArray<FString>(), TArray<FString>(), Results, ErrorMessages);
+			for (const FString& Result : Results)
 			{
-				if (!Results.Contains(LocalResult))
-				{
-					Results.Add(LocalResult);
-				}
+				FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
+				// TODO LFS Debug log
+				UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
+				LockedFiles.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 			}
+
+			FGitLockedFilesCache::LockedFiles = LockedFiles;
+			FGitLockedFilesCache::LastUpdated = FDateTime::UtcNow();
 		}
 		else
 		{
-			bResult = RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, TArray<FString>(), TArray<FString>(), Results, ErrorMessages);
-		}
-		for (const FString& Result : Results)
-		{
-			FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
-#if UE_BUILD_DEBUG
-			UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
-#endif
-			LockedFiles.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+			LockedFiles = FGitLockedFilesCache::LockedFiles;
+
+			TArray<FString> Params;
+			Params.Add(TEXT("--local"));
+
+			TArray<FString> Results;
+			TArray<FString> ErrorMessages;
+			bool bResult = RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, Params, TArray<FString>(), Results, ErrorMessages);
+			for (const FString& Result : Results)
+			{
+				FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
+				// TODO LFS Debug log
+				UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
+				LockedFiles.FindOrAdd(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+			}
+
+			FGitLockedFilesCache::LockedFiles = LockedFiles;
 		}
 	}
 
@@ -1139,20 +1151,12 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 		{
 			// Using git diff, we can obtain a list of files that were modified between our current origin and HEAD. Assumes that fetch has been run to get accurate info.
 			// TODO: should do a fetch (at least periodically).
+
 			TArray<FString> Results;
 			TArray<FString> ErrorMessages;
-			TArray<FString> ParametersLsRemote;
-			ParametersLsRemote.Add(TEXT("origin"));
-			ParametersLsRemote.Add(BranchName);
-			const bool bResultLsRemote = RunCommand(TEXT("ls-remote"), InPathToGitBinary, InRepositoryRoot, ParametersLsRemote, OnePath, Results, ErrorMessages);
-			// If the command is successful and there is only 1 line on the output the branch exists on remote
-			const bool bDiffAgainstRemote = bResultLsRemote && Results.Num();
-
-			Results.Reset();
-			ErrorMessages.Reset();
 			TArray<FString> ParametersDiff;
 			ParametersDiff.Add(TEXT("--name-only"));
-			ParametersDiff.Add(bDiffAgainstRemote ? FString::Printf(TEXT("origin/%s "), *BranchName) : BranchName);
+			ParametersDiff.Add(BranchName);
 			ParametersDiff.Add(TEXT("HEAD"));
 			const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, ParametersDiff, OnePath, Results, ErrorMessages);
 			OutErrorMessages.Append(ErrorMessages);

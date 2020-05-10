@@ -25,10 +25,13 @@
 #include "FileHelpers.h"
 
 #include "Logging/MessageLog.h"
+#include "SourceControlHelpers.h"
 
 static const FName GitSourceControlMenuTabName("GitSourceControlMenu");
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
+
+TWeakPtr<SNotificationItem> FGitSourceControlMenu::OperationInProgressNotification;
 
 void FGitSourceControlMenu::Register()
 {
@@ -161,10 +164,10 @@ void FGitSourceControlMenu::ReloadPackages(TArray<UPackage*>& InPackagesToReload
 	});
 
 	// Hot-reload the new packages...
-	PackageTools::ReloadPackages(InPackagesToReload);
+	UPackageTools::ReloadPackages(InPackagesToReload);
 
 	// Unload any deleted packages...
-	PackageTools::UnloadPackages(PackagesToUnload);
+	UPackageTools::UnloadPackages(PackagesToUnload);
 }
 
 // Ask the user if he wants to stash any modification and try to unstash them afterward, which could lead to conflicts
@@ -312,42 +315,108 @@ void FGitSourceControlMenu::PushClicked()
 
 void FGitSourceControlMenu::RevertClicked()
 {
-	if (!OperationInProgressNotification.IsValid())
-	{
-		// Ask the user before reverting all!
-		const FText DialogText(LOCTEXT("SourceControlMenu_Revert_Ask", "Revert all modifications of the working tree?"));
-		const EAppReturnType::Type Choice = FMessageDialog::Open(EAppMsgType::OkCancel, DialogText);
-		if (Choice == EAppReturnType::Ok)
-		{
-			// NOTE No need to force the user to SaveDirtyPackages(); since he will be presented with a choice by the Editor
-
-			// Find and Unlink all packages in Content directory to allow to update them
-			PackagesToReload = UnlinkPackages(ListAllPackages());
-
-			// Launch a "Revert" Operation
-			FGitSourceControlModule& GitSourceControl = FModuleManager::LoadModuleChecked<FGitSourceControlModule>("GitSourceControl");
-			FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
-			TSharedRef<FRevert, ESPMode::ThreadSafe> RevertOperation = ISourceControlOperation::Create<FRevert>();
-			const ECommandResult::Type Result = Provider.Execute(RevertOperation, TArray<FString>(), EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateRaw(this, &FGitSourceControlMenu::OnSourceControlOperationComplete));
-			if (Result == ECommandResult::Succeeded)
-			{
-				// Display an ongoing notification during the whole operation
-				DisplayInProgressNotification(RevertOperation->GetInProgressString());
-			}
-			else
-			{
-				// Report failure with a notification and Reload all packages
-				DisplayFailureNotification(RevertOperation->GetName());
-				ReloadPackages(PackagesToReload);
-			}
-		}
-	}
-	else
+	if (OperationInProgressNotification.IsValid())
 	{
 		FMessageLog SourceControlLog("SourceControl");
 		SourceControlLog.Warning(LOCTEXT("SourceControlMenu_InProgress", "Source control operation already in progress"));
 		SourceControlLog.Notify();
+		return;
 	}
+
+	// Ask the user before reverting all!
+	const FText DialogText(LOCTEXT("SourceControlMenu_Revert_Ask", "Revert all modifications of the working tree?"));
+	const EAppReturnType::Type Choice = FMessageDialog::Open(EAppMsgType::OkCancel, DialogText);
+	if (Choice != EAppReturnType::Ok)
+	{
+		return;
+	}
+
+	// make sure we update the SCC status of all packages (this could take a long time, so we will run it as a background task)
+	TArray<FString> Filenames;
+	Filenames.Add(FPaths::ConvertRelativePathToFull(FPaths::EngineContentDir()));
+	Filenames.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()));
+	Filenames.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
+	Filenames.Add(FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()));
+
+	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
+	FSourceControlOperationRef Operation = ISourceControlOperation::Create<FUpdateStatus>();
+	SourceControlProvider.Execute(Operation, Filenames, EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateStatic(&FGitSourceControlMenu::RevertAllCallback));
+
+	FNotificationInfo Info(LOCTEXT("SourceControlMenuRevertAll", "Checking for assets to revert..."));
+	Info.bFireAndForget = false;
+	Info.ExpireDuration = 0.0f;
+	Info.FadeOutDuration = 1.0f;
+
+	if (SourceControlProvider.CanCancelOperation(Operation))
+	{
+		Info.ButtonDetails.Add(FNotificationButtonInfo(
+			LOCTEXT("SourceControlMenuRevertAll_CancelButton", "Cancel"),
+			LOCTEXT("SourceControlMenuRevertAll_CancelButtonTooltip", "Cancel the revert operation."),
+			FSimpleDelegate::CreateStatic(&FGitSourceControlMenu::RevertAllCancelled, Operation)
+		));
+	}
+
+	OperationInProgressNotification = FSlateNotificationManager::Get().AddNotification(Info);
+	if (OperationInProgressNotification.IsValid())
+	{
+		OperationInProgressNotification.Pin()->SetCompletionState(SNotificationItem::CS_Pending);
+	}
+}
+
+void FGitSourceControlMenu::RevertAllCallback(const FSourceControlOperationRef& InOperation, ECommandResult::Type InResult)
+{
+	if (InResult != ECommandResult::Succeeded)
+	{
+		return;
+	}
+
+	// Get a list of all the checked out packages
+	TArray<FString> PackageNames;
+	TArray<UPackage*> LoadedPackages;
+	TMap<FString, FSourceControlStatePtr> PackageStates;
+	FEditorFileUtils::FindAllSubmittablePackageFiles(PackageStates, true);
+
+	for (TMap<FString, FSourceControlStatePtr>::TConstIterator PackageIter(PackageStates); PackageIter; ++PackageIter)
+	{
+		const FString PackageName = *PackageIter.Key();
+		const FSourceControlStatePtr CurPackageSCCState = PackageIter.Value();
+
+		UPackage* Package = FindPackage(nullptr, *PackageName);
+		if (Package != nullptr)
+		{
+			LoadedPackages.Add(Package);
+
+			if (!Package->IsFullyLoaded())
+			{
+				FlushAsyncLoading();
+				Package->FullyLoad();
+			}
+			ResetLoaders(Package);
+		}
+
+		PackageNames.Add(PackageName);
+	}
+
+	const auto FileNames = SourceControlHelpers::PackageFilenames(PackageNames);
+
+	// Launch a "Revert" Operation
+	FGitSourceControlModule& GitSourceControl = FModuleManager::LoadModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+	const TSharedRef<FRevert, ESPMode::ThreadSafe> RevertOperation = ISourceControlOperation::Create<FRevert>();
+	const auto Result = Provider.Execute(RevertOperation, FileNames);
+
+	RemoveInProgressNotification();
+	if (Result != ECommandResult::Succeeded)
+	{
+		DisplayFailureNotification(TEXT("Revert"));
+	}
+	else
+	{
+		DisplaySucessNotification(TEXT("Revert"));
+	}
+
+	ReloadPackages(LoadedPackages);
+	Provider.Execute(ISourceControlOperation::Create<FUpdateStatus>(), TArray<FString>(), EConcurrency::Asynchronous);
 }
 
 void FGitSourceControlMenu::RefreshClicked()
@@ -394,6 +463,19 @@ void FGitSourceControlMenu::DisplayInProgressNotification(const FText& InOperati
 			OperationInProgressNotification.Pin()->SetCompletionState(SNotificationItem::CS_Pending);
 		}
 	}
+}
+
+void FGitSourceControlMenu::RevertAllCancelled(FSourceControlOperationRef InOperation)
+{
+	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
+	SourceControlProvider.CancelOperation(InOperation);
+
+	if (OperationInProgressNotification.IsValid())
+	{
+		OperationInProgressNotification.Pin()->ExpireAndFadeout();
+	}
+
+	OperationInProgressNotification.Reset();
 }
 
 // Remove the ongoing notification at the end of the operation
