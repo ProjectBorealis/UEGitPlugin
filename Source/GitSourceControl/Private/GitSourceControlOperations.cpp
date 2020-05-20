@@ -22,6 +22,7 @@ FName FGitPush::GetName() const
 
 FText FGitPush::GetInProgressString() const
 {
+	// TODO Configure origin
 	return LOCTEXT("SourceControl_Push", "Pushing local commits to remote origin...");
 }
 
@@ -185,7 +186,11 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 			// git-lfs: push and unlock files
 			if(InCommand.bUsingGitLfsLocking && InCommand.bCommandSuccessful)
 			{
-				InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("push origin HEAD"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, TArray<FString>(), TArray<FString>(), InCommand.InfoMessages, InCommand.ErrorMessages);
+				TArray<FString> Parameters2;
+				// TODO Configure origin
+				Parameters2.Add(TEXT("origin"));
+				Parameters2.Add(TEXT("HEAD"));
+				InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("push"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters2, TArray<FString>(), InCommand.InfoMessages, InCommand.ErrorMessages);
 				if(InCommand.bCommandSuccessful)
 				{
 					// unlock files: execute the LFS command on relative filenames
@@ -403,6 +408,9 @@ bool FGitSyncWorker::Execute(FGitSourceControlCommand& InCommand)
 	TArray<FString> Parameters;
 	Parameters.Add(TEXT("--rebase"));
 	Parameters.Add(TEXT("--autostash"));
+	// TODO Configure origin
+	Parameters.Add(TEXT("origin"));
+	Parameters.Add(TEXT("HEAD"));
 	InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("pull"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters, TArray<FString>(), InCommand.InfoMessages, InCommand.ErrorMessages);
 
 	// now update the status of our files
@@ -430,6 +438,7 @@ bool FGitPushWorker::Execute(FGitSourceControlCommand& InCommand)
 	// (works only if the default remote "origin" is set and does not require authentication)
 	TArray<FString> Parameters;
 	Parameters.Add(TEXT("--set-upstream"));
+	// TODO Configure origin
 	Parameters.Add(TEXT("origin"));
 	Parameters.Add(TEXT("HEAD"));
 	InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("push"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters, TArray<FString>(), InCommand.InfoMessages, InCommand.ErrorMessages);
@@ -502,14 +511,13 @@ bool FGitUpdateStatusWorker::UpdateStates() const
 
 	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>( "GitSourceControl" );
 	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
-	const bool bUsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
 
 	const FDateTime Now = FDateTime::Now();
 
 	// add history, if any
 	for(const auto& History : Histories)
 	{
-		TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(History.Key, bUsingGitLfsLocking);
+		TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(History.Key);
 		State->History = History.Value;
 		State->TimeStamp = Now;
 		bUpdated = true;

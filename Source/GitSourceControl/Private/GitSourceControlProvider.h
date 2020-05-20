@@ -130,7 +130,7 @@ public:
 	}
 
 	/** Helper function used to update state cache */
-	TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> GetStateInternal(const FString& Filename, const bool bUsingGitLfsLocking);
+	TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> GetStateInternal(const FString& Filename);
 
 	/**
 	 * Register a worker with the provider.

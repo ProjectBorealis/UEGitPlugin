@@ -140,7 +140,8 @@ static bool RunCommandInternalRaw(const FString& InCommand, const FString& InPat
 	FPlatformProcess::ExecProcess(*PathToGitOrEnvBinary, *FullCommand, &ReturnCode, &OutResults, &OutErrors);
 
 #if UE_BUILD_DEBUG
-	UE_LOG(LogSourceControl, Log, TEXT("RunCommand(%s):\n%s"), *InCommand, *OutResults);
+	// TODO: add a setting to easily enable Verbose logging
+	UE_LOG(LogSourceControl, Verbose, TEXT("RunCommand(%s):\n%s"), *InCommand, *OutResults);
 #endif
 	if(ReturnCode != ExpectedReturnCode || OutErrors.Len() > 0)
 	{
@@ -1564,7 +1565,7 @@ bool UpdateCachedStates(const TArray<FGitSourceControlState>& InStates)
 
 	for (const auto& InState : InStates)
 	{
-		TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(InState.LocalFilename, bUsingGitLfsLocking);
+		TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(InState.LocalFilename);
 		*State = InState;
 		State->TimeStamp = Now;
 

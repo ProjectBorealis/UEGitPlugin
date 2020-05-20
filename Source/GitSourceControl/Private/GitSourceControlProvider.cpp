@@ -119,7 +119,7 @@ void FGitSourceControlProvider::Close()
 	UserEmail.Empty();
 }
 
-TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> FGitSourceControlProvider::GetStateInternal(const FString& Filename, const bool bUsingGitLfsLocking)
+TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> FGitSourceControlProvider::GetStateInternal(const FString& Filename)
 {
 	TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe>* State = StateCache.Find(Filename);
 	if(State != NULL)
@@ -130,7 +130,7 @@ TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> FGitSourceControlProvide
 	else
 	{
 		// cache an unknown state for this item
-		TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> NewState = MakeShareable( new FGitSourceControlState(Filename, bUsingGitLfsLocking) );
+		TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> NewState = MakeShareable( new FGitSourceControlState(Filename, UsingGitLfsLocking == 1) );
 		StateCache.Add(Filename, NewState);
 		return NewState;
 	}
@@ -194,15 +194,9 @@ ECommandResult::Type FGitSourceControlProvider::GetState( const TArray<FString>&
 		}
 	}
 
-	if (UsingGitLfsLocking == -1)
-	{
-		const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-		UsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
-	}
-
 	for(const auto& AbsoluteFile : AbsoluteFiles)
 	{
-		OutState.Add(GetStateInternal(*AbsoluteFile, UsingGitLfsLocking == 1));
+		OutState.Add(GetStateInternal(*AbsoluteFile));
 	}
 
 	return ECommandResult::Succeeded;
@@ -316,7 +310,7 @@ void FGitSourceControlProvider::CancelOperation( const TSharedRef<ISourceControl
 
 bool FGitSourceControlProvider::UsesLocalReadOnlyState() const
 {
-	return UsingGitLfsLocking == 1;
+	return UsingGitLfsLocking == 1; // Git LFS Lock uses read-only state
 }
 
 bool FGitSourceControlProvider::UsesChangelists() const
@@ -326,7 +320,7 @@ bool FGitSourceControlProvider::UsesChangelists() const
 
 bool FGitSourceControlProvider::UsesCheckout() const
 {
-	return UsingGitLfsLocking == 1;
+	return UsingGitLfsLocking == 1; // Git LFS Lock uses read-only state
 }
 
 TSharedPtr<IGitSourceControlWorker, ESPMode::ThreadSafe> FGitSourceControlProvider::CreateWorker(const FName& InOperationName) const
@@ -452,7 +446,7 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 
 			Progress.Tick();
 
-			// Switch
+			// Sleep so we don't busy-wait so much.
 			FPlatformProcess::Sleep(0.0f);
 		}
 
