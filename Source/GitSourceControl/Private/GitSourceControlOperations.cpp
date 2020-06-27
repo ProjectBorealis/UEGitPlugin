@@ -251,7 +251,7 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 						}
 						if (!bStashNeeded || bStashed)
 						{
-							InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("pull --rebase"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, TArray<FString>(), TArray<FString>(), InCommand.InfoMessages, InCommand.ErrorMessages);
+							InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("pull --rebase --no-autostash"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, TArray<FString>(), TArray<FString>(), InCommand.InfoMessages, InCommand.ErrorMessages);
 							if (InCommand.bCommandSuccessful)
 							{
 								// Repeat the push
