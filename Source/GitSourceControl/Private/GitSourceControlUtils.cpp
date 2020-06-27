@@ -1104,19 +1104,6 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 
 bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool bAbsolutePaths, TArray<FString>& OutErrorMessages, TMap<FString, FString>& OutLocks, bool bInvalidateCache)
 {
-	TArray<FString> Results;
-	TArray<FString> ErrorMessages;
-	const bool bResult = RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, TArray<FString>(), TArray<FString>(), Results, ErrorMessages);
-	for(const FString& Result : Results)
-	{
-		FGitLfsLocksParser LockFile(InRepositoryRoot, Result, bAbsolutePaths);
-		// TODO LFS Debug log
-		UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
-		OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
-	}
-
-	return bResult;
-
 	const FDateTime CurrentTime = FDateTime::UtcNow();
 	FTimespan CacheTimeElapsed = CurrentTime - FGitLockedFilesCache::LastUpdated;
 	FTimespan CacheLimit = FTimespan::FromMinutes(3);
@@ -1133,15 +1120,15 @@ bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRo
 #if UE_BUILD_DEBUG
 			UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
 #endif
-			LockedFiles.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+			OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 		}
 
-		FGitLockedFilesCache::LockedFiles = LockedFiles;
+		FGitLockedFilesCache::LockedFiles = OutLocks;
 		FGitLockedFilesCache::LastUpdated = FDateTime::UtcNow();
 	}
 	else
 	{
-		LockedFiles = FGitLockedFilesCache::LockedFiles;
+		OutLocks = FGitLockedFilesCache::LockedFiles;
 
 		TArray<FString> Params;
 		Params.Add(TEXT("--local"));
@@ -1155,10 +1142,10 @@ bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRo
 #if UE_BUILD_DEBUG
 			UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
 #endif
-			LockedFiles.FindOrAdd(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+			OutLocks.FindOrAdd(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 		}
 
-		FGitLockedFilesCache::LockedFiles = LockedFiles;
+		FGitLockedFilesCache::LockedFiles = OutLocks;
 	}
 	return bResult;
 }
@@ -1310,23 +1297,56 @@ bool RunDumpToFile(const FString& InPathToGitBinary, const FString& InRepository
 	FProcHandle ProcessHandle = FPlatformProcess::CreateProc(*PathToGitOrEnvBinary, *FullCommand, bLaunchDetached, bLaunchHidden, bLaunchReallyHidden, nullptr, 0, *InRepositoryRoot, PipeWrite);
 	if(ProcessHandle.IsValid())
 	{
-		FPlatformProcess::Sleep(0.01);
+		FPlatformProcess::Sleep(0.01f);
 
 		TArray<uint8> BinaryFileContent;
+		bool bRemovedLFSMessage = false;
 		while (FPlatformProcess::IsProcRunning(ProcessHandle))
 		{
 			TArray<uint8> BinaryData;
 			FPlatformProcess::ReadPipeToArray(PipeRead, BinaryData);
 			if (BinaryData.Num() > 0)
 			{
-				BinaryFileContent.Append(MoveTemp(BinaryData));
+				// @todo: this is hacky!
+				if (BinaryData[0] == 68) // Check for D in "Downloading"
+				{
+					if (BinaryData[BinaryData.Num() - 1] == 10) // Check for newline
+					{
+						BinaryData.Empty();
+						bRemovedLFSMessage = true;
+					}
+				}
+				else
+				{
+					BinaryFileContent.Append(MoveTemp(BinaryData));
+				}
 			}
 		}
 		TArray<uint8> BinaryData;
 		FPlatformProcess::ReadPipeToArray(PipeRead, BinaryData);
 		if (BinaryData.Num() > 0)
 		{
-			BinaryFileContent.Append(MoveTemp(BinaryData));
+			// @todo: this is hacky!
+			if (!bRemovedLFSMessage && BinaryData[0] == 68) // Check for D in "Downloading"
+			{
+				int32 NewLineIndex = 0;
+				for (int32 Index = 0; Index < BinaryData.Num(); Index++)
+				{
+					if (BinaryData[Index] == 10) // Check for newline
+					{
+						NewLineIndex = Index;
+						break;
+					}
+				}
+				if (NewLineIndex > 0)
+				{
+					BinaryData.RemoveAt(0, NewLineIndex + 1);
+				}
+			}
+			else
+			{
+				BinaryFileContent.Append(MoveTemp(BinaryData));
+			}
 		}
 
 		FPlatformProcess::GetProcReturnCode(ProcessHandle, &ReturnCode);
@@ -1549,6 +1569,10 @@ bool RunGetHistory(const FString& InPathToGitBinary, const FString& InRepository
 			// @todo does not work for a cherry-pick! Test for a rebase.
 			Parameters.Add(TEXT("MERGE_HEAD"));
 			Parameters.Add(TEXT("--max-count 1"));
+		}
+		else
+		{
+			Parameters.Add(TEXT("--max-count 250")); // Increase default count to 250 from 100
 		}
 		TArray<FString> Files;
 		Files.Add(*InFile);
