@@ -106,7 +106,7 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 			{
 				FString AbsoluteFile = FPaths::Combine(InCommand.PathToRepositoryRoot, RelativeFile);
 				FPaths::NormalizeFilename(AbsoluteFile);
-				TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> FileState = Provider.GetStateInternal(AbsoluteFile, true);
+				TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> FileState = Provider.GetStateInternal(AbsoluteFile);
 				FileState->LockState = ELockState::Locked;
 				FileState->LockUser = GitSourceControl.AccessSettings().GetLfsUserName();
 				FileState->TimeStamp = Now;
