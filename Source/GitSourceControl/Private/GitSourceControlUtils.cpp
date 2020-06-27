@@ -1075,11 +1075,11 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 		ParametersDiff.Add(TEXT("--name-only"));
 		if (Branch.Equals(CurrentBranchName))
 		{
-			ParametersDiff.Add(bDiffAgainstRemoteCurrent ? FString::Printf(TEXT("HEAD..origin/%s "), *Branch) : FString::Printf(TEXT("HEAD..%s"), *Branch));
+			ParametersDiff.Add(bDiffAgainstRemoteCurrent ? FString::Printf(TEXT("HEAD...origin/%s "), *Branch) : FString::Printf(TEXT("HEAD...%s"), *Branch));
 		}
 		else
 		{
-			ParametersDiff.Add(FString::Printf(TEXT("HEAD..origin/%s"), *Branch));
+			ParametersDiff.Add(FString::Printf(TEXT("HEAD...origin/%s"), *Branch));
 		}
 		const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, ParametersDiff, OnePath, Results, ErrorMessages);
 		if (bResultDiff)
