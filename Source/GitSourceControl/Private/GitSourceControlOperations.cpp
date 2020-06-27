@@ -5,6 +5,7 @@
 
 #include "GitSourceControlOperations.h"
 
+#include "CoreMinimal.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "SourceControlOperations.h"
@@ -86,17 +87,36 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 {
 	check(InCommand.Operation->GetName() == GetName());
 
+	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+
+	const FDateTime Now = FDateTime::Now();
+
 	if(InCommand.bUsingGitLfsLocking)
 	{
 		// lock files: execute the LFS command on relative filenames
 		InCommand.bCommandSuccessful = true;
 		const TArray<FString> RelativeFiles = GitSourceControlUtils::RelativeFilenames(InCommand.Files, InCommand.PathToRepositoryRoot);
 
-		InCommand.bCommandSuccessful &= GitSourceControlUtils::RunLFSCommand(TEXT("lock"), InCommand.PathToRepositoryRoot, TArray<FString>(), RelativeFiles, InCommand.InfoMessages, InCommand.ErrorMessages);
+		bool bSuccess = GitSourceControlUtils::RunLFSCommand(TEXT("lock"), InCommand.PathToRepositoryRoot, TArray<FString>(), RelativeFiles, InCommand.InfoMessages, InCommand.ErrorMessages);
+		InCommand.bCommandSuccessful &= bSuccess;
+		if (bSuccess)
+		{
+			for (const auto& RelativeFile : RelativeFiles)
+			{
+				FString AbsoluteFile = FPaths::Combine(InCommand.PathToRepositoryRoot, RelativeFile);
+				FPaths::NormalizeFilename(AbsoluteFile);
+				TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> FileState = Provider.GetStateInternal(AbsoluteFile, true);
+				FileState->LockState = ELockState::Locked;
+				FileState->LockUser = GitSourceControl.AccessSettings().GetLfsUserName();
+				FileState->TimeStamp = Now;
+				States.Add(*FileState);
+			}
+		}
 
 		// now update the status of our files
-		GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ErrorMessages, States, true);
-		GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
+		// GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ErrorMessages, States, true);
+		// GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
 	}
 	else
 	{
