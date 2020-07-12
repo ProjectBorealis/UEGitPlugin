@@ -1156,6 +1156,9 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	bool bResults = true;
 	TMap<FString, FString> LockedFiles;
 
+	// Remove files that aren't in the repository
+	TArray<FString> RepoFiles = InFiles.FilterByPredicate([InRepositoryRoot](const FString& elt) {return elt.StartsWith(InRepositoryRoot); });
+
 	// 0) Issue a "git lfs locks" command at the root of the repository
 	if (InUsingLfsLocking)
 	{
@@ -1166,7 +1169,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	// Git status does not show any "untracked files" when called with files from different subdirectories! (issue #3)
 	// 1) So here we group files by path (ie. by subdirectory)
 	TMap<FString, TArray<FString>> GroupOfFiles;
-	for (const auto& File : InFiles)
+	for(const auto& File : RepoFiles)
 	{
 		const FString Path = FPaths::GetPath(*File);
 		TArray<FString>* Group = GroupOfFiles.Find(Path);
