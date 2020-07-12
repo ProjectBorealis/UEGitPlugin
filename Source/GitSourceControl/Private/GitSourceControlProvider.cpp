@@ -430,6 +430,7 @@ TSharedRef<class SWidget> FGitSourceControlProvider::MakeSettingsWidget() const
 ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSourceControlCommand& InCommand, const FText& Task)
 {
 	ECommandResult::Type Result = ECommandResult::Failed;
+	int i = 0;
 
 	// Display the progress dialog if a string was provided
 	{
@@ -444,7 +445,11 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 			// Tick the command queue and update progress.
 			Tick();
 
-			Progress.Tick();
+			if (i >= 20) {
+				Progress.Tick();
+				i = 0;
+			}
+			i++;
 
 			// Sleep so we don't busy-wait so much.
 			FPlatformProcess::Sleep(0.01f);
