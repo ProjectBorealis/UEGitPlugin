@@ -21,6 +21,7 @@
 #include "GitSourceControlModule.h"
 #include "GitSourceControlProvider.h"
 #include "Misc/DateTime.h"
+#include "Misc/ScopeLock.h"
 #include "Misc/Timespan.h"
 
 #if PLATFORM_LINUX
@@ -137,7 +138,16 @@ static bool RunCommandInternalRaw(const FString& InCommand, const FString& InPat
 		FullCommand = FString::Printf(TEXT("PATH=\"%s%s%s\" \"%s\" %s"), *GitInstallPath, FPlatformMisc::GetPathVarDelimiter(), *PathEnv, *InPathToGitBinary, *FullCommand);
 	}
 #endif
-	FPlatformProcess::ExecProcess(*PathToGitOrEnvBinary, *FullCommand, &ReturnCode, &OutResults, &OutErrors);
+
+	{
+		// Lock here so we know we can never exec more than one Git command at a time
+		// Commands should be fast enough this doesn't present an issue, if they aren't
+		// then we need to look at improving the performance of those commands by reducing their scope
+		GitCommandMutex.Lock();
+		FPlatformProcess::ExecProcess(*PathToGitOrEnvBinary, *FullCommand, &ReturnCode, &OutResults, &OutErrors);
+		GitCommandMutex.Unlock();
+	}
+	
 
 #if UE_BUILD_DEBUG
 	// TODO: add a setting to easily enable Verbose logging
