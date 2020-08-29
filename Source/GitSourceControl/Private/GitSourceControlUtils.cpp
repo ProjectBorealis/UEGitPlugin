@@ -1746,4 +1746,27 @@ void RemoveRedundantErrors(FGitSourceControlCommand& InCommand, const FString& I
 	}
 }
 
+bool IsFileLFSLockable(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const FString& InFile, TArray<FString>& OutErrorMessages)
+{
+	TArray<FString> Results;
+	TArray<FString> Parameters;
+	Parameters.Add(TEXT("lockable")); // follow file renames
+
+	TArray<FString> Files;
+	Files.Add(*InFile);
+	const bool bResults = RunCommand(TEXT("check-attr"), InPathToGitBinary, InRepositoryRoot, Parameters, Files, Results, OutErrorMessages);
+	if (!bResults)
+	{
+		return false;
+	}
+
+	if (Results.Num() != 1)
+	{
+		OutErrorMessages.Add(TEXT("invalid results returned attempting to check if file was lockable"));
+		return false;
+	}
+
+	return Results[0].EndsWith(TEXT("lockable: set"));
+}
+
 } // namespace GitSourceControlUtils
