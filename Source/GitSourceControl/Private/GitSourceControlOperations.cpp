@@ -516,7 +516,6 @@ FName FGitPushWorker::GetName() const
 
 bool FGitPushWorker::Execute(FGitSourceControlCommand& InCommand)
 {
-
 	// If we have any locked files, check if we should unlock them
 	TArray<FString> FilesToUnlock;
 	if (InCommand.bUsingGitLfsLocking)
@@ -593,7 +592,7 @@ bool FGitPushWorker::Execute(FGitSourceControlCommand& InCommand)
 		// We need to update status if we unlock
 		// This command needs absolute filenames
 		TArray<FString> AbsFilesToUnlock = GitSourceControlUtils::AbsoluteFilenames(FilesToUnlock, InCommand.PathToRepositoryRoot);
-		GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, AbsFilesToUnlock, InCommand.ErrorMessages, States);
+		GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, AbsFilesToUnlock, InCommand.ErrorMessages, States, true);
 		
 	}
 
