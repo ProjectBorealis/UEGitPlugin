@@ -1039,29 +1039,34 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 	// Using git diff, we can obtain a list of files that were modified between our current origin and HEAD. Assumes that fetch has been run to get accurate info.
 	// TODO: should do a fetch (at least periodically).
 
+	TArray<FString> EmptyFilesList;
+
 	// Gather valid remote branches
 	TArray<FString> Results;
 	TArray<FString> ErrorMessages;
 	TSet<FString> Branches;
 	TArray<FString> ParametersLsRemote;
+	ParametersLsRemote.Add(TEXT("origin"));
 	// TODO: make branch names configurable
-	Branches.Add(TEXT("master"));
-	Branches.Add(TEXT("trunk"));
-	Branches.Add(TEXT("promoted"));
-	Branches.Add(CurrentBranchName);
+	ParametersLsRemote.Add(TEXT("master"));
+	ParametersLsRemote.Add(TEXT("trunk"));
+	ParametersLsRemote.Add(TEXT("promoted"));
+	ParametersLsRemote.Add(CurrentBranchName);
 	TSet<FString> BranchesToDiff;
+	const bool bResultLsRemote = RunCommand(TEXT("ls-remote"), InPathToGitBinary, InRepositoryRoot, ParametersLsRemote, EmptyFilesList, Results, ErrorMessages);
+	
 	for (auto& Branch : Branches)
 	{
-		ParametersLsRemote.Add(TEXT("origin"));
-		ParametersLsRemote.Add(Branch);
-		const bool bResultLsRemote = RunCommand(TEXT("ls-remote"), InPathToGitBinary, InRepositoryRoot, ParametersLsRemote, OnePath, Results, ErrorMessages);
-		if (bResultLsRemote && Results.Num())
+		for (auto& Result : Results)
 		{
-			BranchesToDiff.Add(Branch);
+			if (Result.Contains(Branch))
+			{
+				BranchesToDiff.Add(Branch);
+			}
 		}
-		ParametersLsRemote.Reset(2);
-		Results.Reset();
 	}
+
+	Results.Reset();
 
 	const bool bDiffAgainstRemoteCurrent = BranchesToDiff.Contains(CurrentBranchName);
 	if (!bDiffAgainstRemoteCurrent)
@@ -1223,7 +1228,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 
 	if (bInvalidateCache && !BranchName.IsEmpty())
 	{
-		CheckRemote(BranchName, InPathToGitBinary, InRepositoryRoot, OnePath, OutErrorMessages, OutStates);
+		CheckRemote(BranchName, InPathToGitBinary, InRepositoryRoot, RepoFiles, OutErrorMessages, OutStates);
 	}
 
 	return bResults;
