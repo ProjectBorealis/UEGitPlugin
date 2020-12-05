@@ -971,6 +971,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 static void ParseDirectoryStatusResult(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking,
 									   const TArray<FString>& InResults, TArray<FGitSourceControlState>& OutStates)
 {
+	const FDateTime Now = FDateTime::Now();
 	// Iterate on each line of result of the status command
 	for (const FString& Result : InResults)
 	{
@@ -983,7 +984,7 @@ static void ParseDirectoryStatusResult(const FString& InPathToGitBinary, const F
 			(EWorkingCopyState::NotControlled == StatusParser.State))
 		{
 			FileState.WorkingCopyState = StatusParser.State;
-			FileState.TimeStamp.Now();
+			FileState.TimeStamp = Now;
 			OutStates.Add(MoveTemp(FileState));
 		}
 	}
@@ -1047,14 +1048,21 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 	TSet<FString> Branches;
 	TArray<FString> ParametersLsRemote;
 	ParametersLsRemote.Add(TEXT("origin"));
+
 	// TODO: make branch names configurable
-	ParametersLsRemote.Add(TEXT("master"));
-	ParametersLsRemote.Add(TEXT("trunk"));
-	ParametersLsRemote.Add(TEXT("promoted"));
-	ParametersLsRemote.Add(CurrentBranchName);
+	Branches.Add(TEXT("master"));
+	Branches.Add(TEXT("trunk"));
+	Branches.Add(TEXT("promoted"));
+	Branches.Add(CurrentBranchName);
+
+	for (auto& Branch : Branches)
+	{
+		ParametersLsRemote.Add(Branch);
+	}
+
 	TSet<FString> BranchesToDiff;
 	const bool bResultLsRemote = RunCommand(TEXT("ls-remote"), InPathToGitBinary, InRepositoryRoot, ParametersLsRemote, EmptyFilesList, Results, ErrorMessages);
-	
+
 	for (auto& Branch : Branches)
 	{
 		for (auto& Result : Results)
@@ -1136,7 +1144,7 @@ bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRo
 		OutLocks = FGitLockedFilesCache::LockedFiles;
 
 		TArray<FString> Params;
-		Params.Add(TEXT("--local"));
+		Params.Add(TEXT("--cached"));
 
 		TArray<FString> Results;
 		TArray<FString> ErrorMessages;
@@ -1226,7 +1234,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 		}
 	}
 
-	if (bInvalidateCache && !BranchName.IsEmpty())
+	if (!BranchName.IsEmpty())
 	{
 		CheckRemote(BranchName, InPathToGitBinary, InRepositoryRoot, RepoFiles, OutErrorMessages, OutStates);
 	}
