@@ -1219,11 +1219,11 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 				ParseStatusResults(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, Files.Value, LockedFiles, Results, OutStates);
 			}
 		}
+	}
 
-		if (!BranchName.IsEmpty())
-		{
-			CheckRemote(BranchName, InPathToGitBinary, InRepositoryRoot, OnePath, OutErrorMessages, OutStates);
-		}
+	if (bInvalidateCache && !BranchName.IsEmpty())
+	{
+		CheckRemote(BranchName, InPathToGitBinary, InRepositoryRoot, OnePath, OutErrorMessages, OutStates);
 	}
 
 	return bResults;
