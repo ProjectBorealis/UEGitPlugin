@@ -1050,9 +1050,7 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 	ParametersLsRemote.Add(TEXT("origin"));
 
 	// TODO: make branch names configurable
-	Branches.Add(TEXT("master"));
 	Branches.Add(TEXT("trunk"));
-	Branches.Add(TEXT("promoted"));
 	Branches.Add(CurrentBranchName);
 
 	for (auto& Branch : Branches)
