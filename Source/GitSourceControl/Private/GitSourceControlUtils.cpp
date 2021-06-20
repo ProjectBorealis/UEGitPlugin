@@ -9,6 +9,8 @@
 #include "GitSourceControlModule.h"
 #include "GitSourceControlPrivatePCH.h"
 #include "GitSourceControlProvider.h"
+#include "HAL/PlatformProcess.h"
+#include "HAL/PlatformFileManager.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFilemanager.h"
 #include "HAL/PlatformProcess.h"
