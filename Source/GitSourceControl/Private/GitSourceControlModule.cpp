@@ -7,8 +7,9 @@
 
 #include "Misc/App.h"
 #include "Modules/ModuleManager.h"
-#include "GitSourceControlOperations.h"
 #include "Features/IModularFeatures.h"
+
+#include "GitSourceControlOperations.h"
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
 
@@ -58,6 +59,15 @@ void FGitSourceControlModule::SaveSettings()
 	}
 
 	GitSourceControlSettings.SaveSettings();
+}
+
+void FGitSourceControlModule::SetLastErrors(const TArray<FText>& InErrors)
+{
+	FGitSourceControlModule* Module = FModuleManager::GetModulePtr<FGitSourceControlModule>("GitSourceControl");
+	if (Module)
+	{
+		Module->GetProvider().SetLastErrors(InErrors);
+	}
 }
 
 IMPLEMENT_MODULE(FGitSourceControlModule, GitSourceControl);

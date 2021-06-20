@@ -6,7 +6,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Modules/ModuleInterface.h"
+#include "Modules/ModuleManager.h"
+
 #include "GitSourceControlSettings.h"
 #include "GitSourceControlProvider.h"
 
@@ -84,6 +87,7 @@ public:
 	{
 		return GitSourceControlSettings;
 	}
+
 	const FGitSourceControlSettings& AccessSettings() const
 	{
 		return GitSourceControlSettings;
@@ -97,13 +101,28 @@ public:
 	{
 		return GitSourceControlProvider;
 	}
+
 	const FGitSourceControlProvider& GetProvider() const
 	{
 		return GitSourceControlProvider;
 	}
 
+	/**
+	 * Singleton-like access to this module's interface.  This is just for convenience!
+	 * Beware of calling this during the shutdown phase, though.  Your module might have been unloaded already.
+	 *
+	 * @return Returns singleton instance, loading the module on demand if needed
+	 */
+	static inline FGitSourceControlModule& Get()
+	{
+		return FModuleManager::LoadModuleChecked< FGitSourceControlModule >("GitSourceControl");
+	}
+
+	/** Set list of error messages that occurred after last git command */
+	static void SetLastErrors(const TArray<FText>& InErrors);
+
 private:
-	/** The Git source control provider */
+	/** The one and only Git source control provider */
 	FGitSourceControlProvider GitSourceControlProvider;
 
 	/** The settings for Git source control */

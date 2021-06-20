@@ -32,6 +32,8 @@
 
 void SGitSourceControlSettings::Construct(const FArguments& InArgs)
 {
+	FGitSourceControlModule& GitSourceControl = FModuleManager::LoadModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	
 	const FSlateFontInfo Font = FEditorStyle::GetFontStyle(TEXT("SourceControl.LoginWindow.Font"));
 
 	bAutoCreateGitIgnore = true;
