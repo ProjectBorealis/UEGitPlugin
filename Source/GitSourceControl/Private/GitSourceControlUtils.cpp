@@ -354,7 +354,7 @@ bool CheckGitAvailability(const FString& InPathToGitBinary, FGitVersion* OutVers
 	bool bGitAvailable = RunCommandInternalRaw(TEXT("version"), InPathToGitBinary, FString(), TArray<FString>(), TArray<FString>(), InfoMessages, ErrorMessages);
 	if (bGitAvailable)
 	{
-		if (!InfoMessages.Contains("git"))
+		if (!InfoMessages.StartsWith("git version"))
 		{
 			bGitAvailable = false;
 		}
@@ -371,32 +371,47 @@ bool CheckGitAvailability(const FString& InPathToGitBinary, FGitVersion* OutVers
 
 void ParseGitVersion(const FString& InVersionString, FGitVersion* OutVersion)
 {
-	// Parse "git version 2.11.0.windows.3" into the string tokens "git", "version", "2.11.0.windows.3"
-	TArray<FString> TokenizedString;
-	InVersionString.ParseIntoArrayWS(TokenizedString);
-
-	// Select the string token containing the version "2.11.0.windows.3"
-	const FString* TokenVersionStringPtr = TokenizedString.FindByPredicate([](FString& s) { return TChar<TCHAR>::IsDigit(s[0]); });
-	if (TokenVersionStringPtr)
+	// Parse "git version 2.31.1.vfs.0.3" into the string "2.31.1.vfs.0.3"
+	const FString& TokenVersionStringPtr = InVersionString.RightChop(12);
+	if (!TokenVersionStringPtr.IsEmpty())
 	{
 		// Parse the version into its numerical components
 		TArray<FString> ParsedVersionString;
-		TokenVersionStringPtr->ParseIntoArray(ParsedVersionString, TEXT("."));
-		if (ParsedVersionString.Num() >= 3)
+		TokenVersionStringPtr.ParseIntoArray(ParsedVersionString, TEXT("."));
+		const int Num = ParsedVersionString.Num();
+		if (Num >= 3)
 		{
 			if (ParsedVersionString[0].IsNumeric() && ParsedVersionString[1].IsNumeric() && ParsedVersionString[2].IsNumeric())
 			{
 				OutVersion->Major = FCString::Atoi(*ParsedVersionString[0]);
 				OutVersion->Minor = FCString::Atoi(*ParsedVersionString[1]);
 				OutVersion->Patch = FCString::Atoi(*ParsedVersionString[2]);
-				if (ParsedVersionString.Num() >= 5)
+				if (Num >= 5)
 				{
-					if ((ParsedVersionString[3] == TEXT("windows")) && ParsedVersionString[4].IsNumeric())
+					// If labeled with fork
+					if (!ParsedVersionString[3].IsNumeric())
 					{
-						OutVersion->Windows = FCString::Atoi(*ParsedVersionString[4]);
+						OutVersion->Fork = ParsedVersionString[3];
+						OutVersion->bIsFork = true;
+						OutVersion->ForkMajor = FCString::Atoi(*ParsedVersionString[4]);
+						if (Num >= 6)
+						{
+							OutVersion->ForkMinor = FCString::Atoi(*ParsedVersionString[5]);
+							if (Num >= 7)
+							{
+								OutVersion->ForkPatch = FCString::Atoi(*ParsedVersionString[6]);
+							}
+						}
 					}
 				}
-				UE_LOG(LogSourceControl, Log, TEXT("Git version %d.%d.%d(%d)"), OutVersion->Major, OutVersion->Minor, OutVersion->Patch, OutVersion->Windows);
+				if (OutVersion->bIsFork)
+				{
+					UE_LOG(LogSourceControl, Log, TEXT("Git version %d.%d.%d.%s.%d.%d.%d"), OutVersion->Major, OutVersion->Minor, OutVersion->Patch, *OutVersion->Fork, OutVersion->ForkMajor, OutVersion->ForkMinor, OutVersion->ForkPatch);
+				}
+				else
+				{
+					UE_LOG(LogSourceControl, Log, TEXT("Git version %d.%d.%d"), OutVersion->Major, OutVersion->Minor, OutVersion->Patch);
+				}
 			}
 		}
 	}
@@ -406,7 +421,7 @@ void FindGitCapabilities(const FString& InPathToGitBinary, FGitVersion* OutVersi
 {
 	FString InfoMessages;
 	FString ErrorMessages;
-	RunCommandInternalRaw(TEXT("cat-file -h"), InPathToGitBinary, FString(), TArray<FString>(), TArray<FString>(), InfoMessages, ErrorMessages, 129);
+	RunCommandInternalRaw(TEXT("cat-file"), InPathToGitBinary, FString(), TArray<FString>(), TArray<FString>(), InfoMessages, ErrorMessages, 129);
 	if (InfoMessages.Contains("--filters"))
 	{
 		OutVersion->bHasCatFileWithFilters = true;
@@ -417,7 +432,7 @@ void FindGitLfsCapabilities(const FString& InPathToGitBinary, FGitVersion* OutVe
 {
 	FString InfoMessages;
 	FString ErrorMessages;
-	bool bGitLfsAvailable = RunCommandInternalRaw(TEXT("lfs version"), InPathToGitBinary, FString(), TArray<FString>(), TArray<FString>(), InfoMessages, ErrorMessages);
+	const bool bGitLfsAvailable = RunCommandInternalRaw(TEXT("lfs version"), InPathToGitBinary, FString(), TArray<FString>(), TArray<FString>(), InfoMessages, ErrorMessages);
 	if (bGitLfsAvailable)
 	{
 		OutVersion->bHasGitLfs = true;

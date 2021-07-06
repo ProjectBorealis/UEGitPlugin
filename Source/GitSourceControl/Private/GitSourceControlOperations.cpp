@@ -17,6 +17,30 @@
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
 
+/**
+ * Helper struct for RemoveRedundantErrors()
+ */
+struct FRemoveRedundantErrors
+{
+	FRemoveRedundantErrors(const FString& InFilter)
+		: Filter(InFilter)
+	{
+	}
+
+	bool operator()(const FText& Text) const
+	{
+		if (Text.ToString().Contains(Filter))
+		{
+			return true;
+		}
+
+		return false;
+	}
+
+	/** The filter string we try to identify in the reported error */
+	FString Filter;
+};
+
 FName FGitPush::GetName() const
 {
 	return "Push";
@@ -36,46 +60,58 @@ FName FGitConnectWorker::GetName() const
 
 bool FGitConnectWorker::Execute(FGitSourceControlCommand& InCommand)
 {
+	// The connect worker checks if we are connected to the remote server.
 	check(InCommand.Operation->GetName() == GetName());
 	TSharedRef<FConnect, ESPMode::ThreadSafe> Operation = StaticCastSharedRef<FConnect>(InCommand.Operation);
 
-	// Check Git Availability
-	if((InCommand.PathToGitBinary.Len() > 0) && GitSourceControlUtils::CheckGitAvailability(InCommand.PathToGitBinary))
+	// Skip login operations, since Git does not have to login.
+	// It's not a big deal for async commands though, so let those go through.
+	// More information: this is a heuristic for cases where UE4 is trying to create
+	// a valid Perforce connection as a side effect for the connect worker. For Git,
+	// the connect worker has no side effects. It is simply a query to retrieve information
+	// to be displayed to the user, like in the source control settings or on init.
+	// Therefore, there is no need for synchronously establishing a connection if not there.
+	if (InCommand.Concurrency == EConcurrency::Synchronous && !Operation->GetPassword().IsEmpty())
 	{
-		// Now update the status of assets in Content/ directory and also Config files
-		TArray<FString> ProjectDirs;
-		ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()));
-		ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
-		InCommand.bCommandSuccessful = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, ProjectDirs, InCommand.ErrorMessages, States);
-		GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
-		if(!InCommand.bCommandSuccessful || InCommand.ErrorMessages.Num() > 0)
-		{
-			Operation->SetErrorText(LOCTEXT("NotAGitRepository", "Failed to enable Git source control. You need to initialize the project as a Git repository first."));
-			InCommand.bCommandSuccessful = false;
-		}
-		else
-		{
-			GitSourceControlUtils::GetCommitInfo(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.CommitId, InCommand.CommitSummary);
-
-			if(InCommand.bUsingGitLfsLocking)
-			{
-				// Check server connection by checking lock status (when using Git LFS file Locking worflow)
-				InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("lfs locks"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, TArray<FString>(), TArray<FString>(), InCommand.InfoMessages, InCommand.ErrorMessages);
-			}
-		}
+		InCommand.bCommandSuccessful = true;
+		return true;
 	}
-	else
+
+	// Check Git availability
+	// We already know that Git is available if PathToGitBinary is not empty, since it is validated then.
+	if (InCommand.PathToGitBinary.IsEmpty())
 	{
-		Operation->SetErrorText(LOCTEXT("GitNotFound", "Failed to enable Git source control. You need to install Git and specify a valid path to git executable."));
+		const FText& NotFound = LOCTEXT("GitNotFound", "Failed to enable Git source control. You need to install Git and ensure the plugin has a valid path to the git executable.");
+		InCommand.ErrorMessages.Add(NotFound.ToString());
+		Operation->SetErrorText(NotFound);
 		InCommand.bCommandSuccessful = false;
+		return false;
 	}
 
+	TArray<FString> Parameters;
+	// Check if remote matches our refs.
+	// Could be useful in the future, but all we want to know right now is if connection is up.
+	//Parameters.Add("--exit-code");
+	// Only limit to branches
+	Parameters.Add("-h");
+	// Skip printing out remote URL, we don't use it
+	Parameters.Add("-q");
+
+	InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("ls-remote"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, TArray<FString>(), TArray<FString>(), InCommand.InfoMessages, InCommand.ErrorMessages);
+	if (!InCommand.bCommandSuccessful)
+	{
+		const FText& NotFound = LOCTEXT("GitRemoteFailed", "Failed Git remote connection. Ensure your repo is initialized, and check your connection to the Git host.");
+		InCommand.ErrorMessages.Add(NotFound.ToString());
+		Operation->SetErrorText(NotFound);
+	}
+
+	// TODO: always return true, and enter an offline mode if could not connect to remote
 	return InCommand.bCommandSuccessful;
 }
 
 bool FGitConnectWorker::UpdateStates() const
 {
-	return GitSourceControlUtils::UpdateCachedStates(States);
+	return false;
 }
 
 FName FGitCheckOutWorker::GetName() const

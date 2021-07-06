@@ -38,6 +38,12 @@ public:
 	 */
 	virtual void DoThreadedWork() override;
 
+	/** Attempt to cancel the operation */
+	void Cancel();
+
+	/** Is the operation canceled? */
+	bool IsCanceled() const;
+
 	/** Save any results and call any registered callbacks. */
 	ECommandResult::Type ReturnResults();
 
