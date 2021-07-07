@@ -122,7 +122,7 @@ void FGitSourceControlProvider::Close()
 TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> FGitSourceControlProvider::GetStateInternal(const FString& Filename)
 {
 	TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe>* State = StateCache.Find(Filename);
-	if(State != NULL)
+	if (State != NULL)
 	{
 		// found cached item
 		return (*State);
@@ -169,34 +169,21 @@ const FName& FGitSourceControlProvider::GetName(void) const
 
 ECommandResult::Type FGitSourceControlProvider::GetState( const TArray<FString>& InFiles, TArray< TSharedRef<ISourceControlState, ESPMode::ThreadSafe> >& OutState, EStateCacheUsage::Type InStateCacheUsage )
 {
-	if(!IsEnabled())
+	if (!IsEnabled())
 	{
 		return ECommandResult::Failed;
 	}
 
 	TArray<FString> AbsoluteFiles = SourceControlHelpers::AbsoluteFilenames(InFiles);
 
-	if(InStateCacheUsage == EStateCacheUsage::ForceUpdate)
+	if (InStateCacheUsage == EStateCacheUsage::ForceUpdate)
 	{
-		TArray<FString> ForceUpdate;
-		for(FString Path : InFiles)
-		{
-			// Remove the path from the cache, so it's not ignored the next time we force check.
-			// If the file isn't in the cache, force update it now.
-			if (!RemoveFileFromIgnoreForceCache(Path))
-			{
-				ForceUpdate.Add(Path);
-			}
-		}
-		if (ForceUpdate.Num() > 0)
-		{
-			Execute(ISourceControlOperation::Create<FUpdateStatus>(), ForceUpdate);
-		}
+		Execute(ISourceControlOperation::Create<FUpdateStatus>(), AbsoluteFiles);
 	}
 
-	for(const auto& AbsoluteFile : AbsoluteFiles)
+	for (TArray<FString>::TConstIterator It(AbsoluteFiles); It; It++)
 	{
-		OutState.Add(GetStateInternal(*AbsoluteFile));
+		OutState.Add(GetStateInternal(*It));
 	}
 
 	return ECommandResult::Succeeded;

@@ -88,6 +88,8 @@ bool FGitConnectWorker::Execute(FGitSourceControlCommand& InCommand)
 		return false;
 	}
 
+	// Get default branch: git remote show
+	
 	TArray<FString> Parameters;
 	// Check if remote matches our refs.
 	// Could be useful in the future, but all we want to know right now is if connection is up.
@@ -220,17 +222,16 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 		Parameters.Add(ParamCommitMsgFilename);
 
 		InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommit(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters, InCommand.Files, InCommand.InfoMessages, InCommand.ErrorMessages);
-		if(InCommand.bCommandSuccessful)
+		if (InCommand.bCommandSuccessful)
 		{
 			// Remove any deleted files from status cache
-			FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-			FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+			FGitSourceControlProvider& Provider = FGitSourceControlModule::Get().GetProvider();
 
 			TArray<TSharedRef<ISourceControlState, ESPMode::ThreadSafe>> LocalStates;
 			Provider.GetState(InCommand.Files, LocalStates, EStateCacheUsage::Use);
-			for(const auto& State : LocalStates)
+			for (const auto& State : LocalStates)
 			{
-				if(State->IsDeleted())
+				if (State->IsDeleted())
 				{
 					Provider.RemoveFileFromCache(State->GetFilename());
 				}

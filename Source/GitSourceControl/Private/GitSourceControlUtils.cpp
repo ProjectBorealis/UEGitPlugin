@@ -1688,22 +1688,19 @@ bool UpdateCachedStates(const TArray<FGitSourceControlState>& InStates)
 	return (InStates.Num() > 0);
 }
 
-bool UpdateCachedStates(const TArray<FString>& InFiles, EWorkingCopyState::Type WorkingState, TArray<FGitSourceControlState>& InStates)
+bool UpdateCachedStates(const TMap<FString, EWorkingCopyState::Type>& InResults)
 {
-	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
-
-	TArray<TSharedRef<ISourceControlState, ESPMode::ThreadSafe>> LocalStates;
-	Provider.GetState(InFiles, LocalStates, EStateCacheUsage::Use);
-
-	for (auto& State : LocalStates)
+	
+	for (TMap<FString, EWorkingCopyState::Type>::TConstIterator It(InResults); It; ++It)
 	{
-		auto NewState = StaticCastSharedRef<FGitSourceControlState>(State);
-		NewState->WorkingCopyState = WorkingState;
-		InStates.Add(NewState.Get());
+		TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(It.Key());
+		State->WorkingCopyState = It.Value();
+		State->TimeStamp = FDateTime::Now();
 	}
 
-	return InStates.Num() > 0;
+	return InResults.Num() > 0;
 }
 
 /**

@@ -10,21 +10,50 @@
 #include "ISourceControlRevision.h"
 #include "GitSourceControlRevision.h"
 
-namespace EWorkingCopyState
+namespace EFileState
 {
 	enum Type
 	{
 		Unknown,
-		Unchanged, // called "clean" in SVN, "Pristine" in Perforce
 		Added,
+		Copied,
 		Deleted,
 		Modified,
 		Renamed,
-		Copied,
 		Missing,
-		Conflicted,
-		NotControlled,
+		Unmerged,
+	};
+}
+
+namespace ETreeState
+{
+	enum Type
+	{
+		/** This file is synced to commit */
+		Unmodified,
+		/** This file is modified, but not in staging tree */
+		Working,
+		/** This file is in staging tree (git add) */
+		Staged,
+		/** This file is not tracked in the repo yet */
+		Untracked,
+		/** This file is ignored by the repo */
 		Ignored,
+		/** This file is outside the repo folder */
+		NotInRepo,
+	};
+}
+
+namespace ERemoteState
+{
+	enum Type
+	{
+		/** Not at current branch's HEAD */
+		NotAtHead,
+		/** Not at the latest revision amongst the tracked branches */
+		NotLatest,
+		/** We want to branch off and ignore modified state */
+		Branched,
 	};
 }
 
@@ -33,18 +62,27 @@ namespace ELockState
 	enum Type
 	{
 		Unknown,
+		Unlockable,
 		NotLocked,
 		Locked,
 		LockedOther,
 	};
 }
 
+struct FGitState
+{
+	EFileState::Type FileState;
+	ETreeState::Type TreeState;
+	ERemoteState::Type RemoteState;
+	ELockState::Type LockState;
+};
+
 class FGitSourceControlState : public ISourceControlState, public TSharedFromThis<FGitSourceControlState, ESPMode::ThreadSafe>
 {
 public:
 	FGitSourceControlState( const FString& InLocalFilename, const bool InUsingLfsLocking)
 		: LocalFilename(InLocalFilename)
-		, WorkingCopyState(EWorkingCopyState::Unknown)
+		, WorkingCopyState(EFileState::Unknown)
 		, LockState(ELockState::Unknown)
 		, bNewerVersionOnServer(false)
 		, TimeStamp(0)
@@ -67,23 +105,23 @@ public:
 	virtual bool CanCheckIn() const override;
 	virtual bool CanCheckout() const override;
 	virtual bool IsCheckedOut() const override;
-	virtual bool IsCheckedOutOther(FString* Who = nullptr) const override;
-	virtual bool IsCheckedOutInOtherBranch(const FString& CurrentBranch = FString()) const /* UE4.20 override */ { return false;  }
-	virtual bool IsModifiedInOtherBranch(const FString& CurrentBranch = FString()) const /* UE4.20 override */ { return false; }
-	virtual bool IsCheckedOutOrModifiedInOtherBranch(const FString& CurrentBranch = FString()) const /* UE4.20 override */ { return IsCheckedOutInOtherBranch(CurrentBranch) || IsModifiedInOtherBranch(CurrentBranch); }
-	virtual TArray<FString> GetCheckedOutBranches() const /* UE4.20 override */ { return TArray<FString>(); }
-	virtual FString GetOtherUserBranchCheckedOuts() const /* UE4.20 override */ { return FString(); }
-	virtual bool GetOtherBranchHeadModification(FString& HeadBranchOut, FString& ActionOut, int32& HeadChangeListOut) const /* UE4.20 override */ { return false; }
+	virtual bool IsCheckedOutOther(FString* Who = NULL) const override;
+	virtual bool IsCheckedOutInOtherBranch(const FString& CurrentBranch = FString()) const override;
+	virtual bool IsModifiedInOtherBranch(const FString& CurrentBranch = FString()) const override;
+	virtual bool IsCheckedOutOrModifiedInOtherBranch(const FString& CurrentBranch = FString()) const override { return IsCheckedOutInOtherBranch(CurrentBranch) || IsModifiedInOtherBranch(CurrentBranch); }
+	virtual TArray<FString> GetCheckedOutBranches() const override { return TArray<FString>(); }
+	virtual FString GetOtherUserBranchCheckedOuts() const override { return FString(); }
+	virtual bool GetOtherBranchHeadModification(FString& HeadBranchOut, FString& ActionOut, int32& HeadChangeListOut) const override;
 	virtual bool IsCurrent() const override;
 	virtual bool IsSourceControlled() const override;
 	virtual bool IsAdded() const override;
 	virtual bool IsDeleted() const override;
 	virtual bool IsIgnored() const override;
 	virtual bool CanEdit() const override;
-	virtual bool CanDelete() const override;
 	virtual bool IsUnknown() const override;
 	virtual bool IsModified() const override;
 	virtual bool CanAdd() const override;
+	virtual bool CanDelete() const override;
 	virtual bool IsConflicted() const override;
 	virtual bool CanRevert() const override;
 
@@ -97,20 +135,10 @@ public:
 	/** File Id with which our local revision diverged from the remote revision */
 	FString PendingMergeBaseFileHash;
 
-	/** State of the working copy */
-	EWorkingCopyState::Type WorkingCopyState;
-
-	/** Lock state */
-	ELockState::Type LockState;
+	FGitState State;
 
 	/** Name of user who has locked the file */
 	FString LockUser;
-
-	/** Tells if using the Git LFS file Locking workflow */
-	bool bUsingGitLfsLocking;
-
-	/** Whether a newer version exists on the server */
-	bool bNewerVersionOnServer;
 
 	/** The timestamp of the last update */
 	FDateTime TimeStamp;

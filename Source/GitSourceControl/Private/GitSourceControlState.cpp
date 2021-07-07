@@ -18,13 +18,13 @@ TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlS
 	return History[HistoryIndex];
 }
 
-TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlState::FindHistoryRevision( int32 RevisionNumber ) const
+TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlState::FindHistoryRevision(int32 RevisionNumber) const
 {
-	for(const auto& Revision : History)
+	for (auto Iter(History.CreateConstIterator()); Iter; Iter++)
 	{
-		if(Revision->GetRevisionNumber() == RevisionNumber)
+		if ((*Iter)->GetRevisionNumber() == RevisionNumber)
 		{
-			return Revision;
+			return *Iter;
 		}
 	}
 
@@ -33,9 +33,9 @@ TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlS
 
 TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlState::FindHistoryRevision(const FString& InRevision) const
 {
-	for(const auto& Revision : History)
+	for (const auto& Revision : History)
 	{
-		if(Revision->GetRevision() == InRevision)
+		if (Revision->GetRevision() == InRevision)
 		{
 			return Revision;
 		}
@@ -74,7 +74,7 @@ FName FGitSourceControlState::GetIconName() const
 		return FName("Subversion.NotAtHeadRevision");
 	}
 
-	switch(WorkingCopyState)
+	switch(State)
 	{
 	case EWorkingCopyState::Modified:
 		if(bUsingGitLfsLocking)
@@ -122,7 +122,7 @@ FName FGitSourceControlState::GetSmallIconName() const
 		return FName("Subversion.NotAtHeadRevision_Small");
 	}
 
-	switch(WorkingCopyState)
+	switch(State)
 	{
 	case EWorkingCopyState::Modified:
 		if(bUsingGitLfsLocking)
@@ -170,7 +170,7 @@ FText FGitSourceControlState::GetDisplayName() const
 		return LOCTEXT("NotCurrent", "Not current");
 	}
 
-	switch(WorkingCopyState)
+	switch(State)
 	{
 	case EWorkingCopyState::Unknown:
 		return LOCTEXT("Unknown", "Unknown");
@@ -214,7 +214,7 @@ FText FGitSourceControlState::GetDisplayTooltip() const
 		return LOCTEXT("NotCurrent_Tooltip", "The file(s) are not at the head revision");
 	}
 
-	switch(WorkingCopyState)
+	switch(State)
 	{
 	case EWorkingCopyState::Unknown:
 		return LOCTEXT("Unknown_Tooltip", "Unknown source control state");
@@ -256,42 +256,55 @@ const FDateTime& FGitSourceControlState::GetTimeStamp() const
 // Deleted and Missing assets cannot appear in the Content Browser, but the do in the Submit files to Source Control window!
 bool FGitSourceControlState::CanCheckIn() const
 {
-	if(bUsingGitLfsLocking)
+	// We can check in if this is new content
+	if (IsAdded())
 	{
-		return ( ( (LockState == ELockState::Locked) && !IsConflicted() ) || (WorkingCopyState == EWorkingCopyState::Added) ) && IsCurrent();
+		return true;
 	}
-	else
+
+	// Cannot check back in if conflicted or not current 
+	if (!IsCurrent() || IsConflicted())
 	{
-		return (WorkingCopyState == EWorkingCopyState::Added
-			|| WorkingCopyState == EWorkingCopyState::Deleted
-			|| WorkingCopyState == EWorkingCopyState::Missing
-			|| WorkingCopyState == EWorkingCopyState::Modified
-			|| WorkingCopyState == EWorkingCopyState::Renamed) && IsCurrent();
+		return false;
 	}
+
+	// We can check back in if we checked out.
+	if (IsCheckedOut())
+	{
+		return true;
+	}
+
+	// We can check in any file that's not lockable but has been modified.
+	if (State.LockState == ELockState::Unlockable && IsModified())
+	{
+		return true;
+	}
+
+	return false;
 }
 
 bool FGitSourceControlState::CanCheckout() const
 {
-	if(bUsingGitLfsLocking)
+	if (State.LockState == ELockState::Unlockable)
 	{
-		// We don't want to allow checkout if the file is out-of-date, as modifying an out-of-date binary file will most likely result in a merge conflict
-		return (WorkingCopyState == EWorkingCopyState::Unchanged || WorkingCopyState == EWorkingCopyState::Modified) && LockState == ELockState::NotLocked && IsCurrent();
+		// Everything is already available for check in (checked out).
+		return false;
 	}
 	else
 	{
-		return false; // With Git all tracked files in the working copy are always already checked-out (as opposed to Perforce)
+		// We don't want to allow checkout if the file is out-of-date, as modifying an out-of-date binary file will most likely result in a merge conflict
+		return State.LockState == ELockState::NotLocked && IsCurrent();
 	}
 }
 
 bool FGitSourceControlState::IsCheckedOut() const
 {
-	if (bUsingGitLfsLocking)
+	if (State.LockState == ELockState::Unlockable)
 	{
-		return LockState == ELockState::Locked;
+		return IsSourceControlled();
 	}
-	else
 	{
-		return IsSourceControlled(); // With Git all tracked files in the working copy are always checked-out (as opposed to Perforce)
+		return State.LockState == ELockState::Locked;
 	}
 }
 
@@ -301,86 +314,78 @@ bool FGitSourceControlState::IsCheckedOutOther(FString* Who) const
 	{
 		*Who = LockUser;
 	}
-	return LockState == ELockState::LockedOther;
+	return State.LockState == ELockState::LockedOther;
 }
 
 bool FGitSourceControlState::IsCurrent() const
 {
-	return !bNewerVersionOnServer;
+	return State.RemoteState != ERemoteState::NotAtHead;
 }
 
 bool FGitSourceControlState::IsSourceControlled() const
 {
-	return WorkingCopyState != EWorkingCopyState::NotControlled && WorkingCopyState != EWorkingCopyState::Ignored && WorkingCopyState != EWorkingCopyState::Unknown;
+	return State.TreeState != ETreeState::Untracked || State.TreeState != ETreeState::Ignored && State.TreeState != ETreeState::NotInRepo;
 }
 
 bool FGitSourceControlState::IsAdded() const
 {
-	return WorkingCopyState == EWorkingCopyState::Added;
+	// Untracked files are always eventually added. Added is when a file was untracked and was already added.
+	return State.FileState == EFileState::Added;
 }
 
 bool FGitSourceControlState::IsDeleted() const
 {
-	return WorkingCopyState == EWorkingCopyState::Deleted || WorkingCopyState == EWorkingCopyState::Missing;
+	return State.FileState == EFileState::Deleted;
 }
 
 bool FGitSourceControlState::IsIgnored() const
 {
-	return WorkingCopyState == EWorkingCopyState::Ignored;
+	return State.TreeState == ETreeState::Ignored;
 }
 
 bool FGitSourceControlState::CanEdit() const
 {
-	return IsCurrent(); // With Git all files in the working copy are always editable (as opposed to Perforce)
+	// Perforce does not care about it being current
+	return IsCheckedOut() || IsAdded();
 }
 
 bool FGitSourceControlState::CanDelete() const
 {
-	return !IsCheckedOutOther() && IsSourceControlled() && IsCurrent();
+	// Perforce enforces that a deleted file must be current.
+	if (!IsCurrent())
+	{
+		return false;
+	}
+	// If someone else hasn't checked it out, we can delete source controlled files.
+	return !IsCheckedOutOther() && IsSourceControlled();
 }
 
 bool FGitSourceControlState::IsUnknown() const
 {
-	return WorkingCopyState == EWorkingCopyState::Unknown;
+	return State.FileState == EFileState::Unknown;
 }
 
 bool FGitSourceControlState::IsModified() const
 {
-	// Warning: for Perforce, a checked-out file is locked for modification (whereas with Git all tracked files are checked-out),
-	// so for a clean "check-in" (commit) checked-out files unmodified should be removed from the changeset (the index)
-	// http://stackoverflow.com/questions/12357971/what-does-revert-unchanged-files-mean-in-perforce
-	//
-	// Thus, before check-in UE4 Editor call RevertUnchangedFiles() in PromptForCheckin() and CheckinFiles().
-	//
-	// So here we must take care to enumerate all states that need to be commited,
-	// all other will be discarded :
-	//  - Unknown
-	//  - Unchanged
-	//  - NotControlled
-	//  - Ignored
-	return WorkingCopyState == EWorkingCopyState::Added
-		|| WorkingCopyState == EWorkingCopyState::Deleted
-		|| WorkingCopyState == EWorkingCopyState::Modified
-		|| WorkingCopyState == EWorkingCopyState::Renamed
-		|| WorkingCopyState == EWorkingCopyState::Copied
-		|| WorkingCopyState == EWorkingCopyState::Missing
-		|| WorkingCopyState == EWorkingCopyState::Conflicted;
+	return State.TreeState == ETreeState::Working ||
+		State.TreeState == ETreeState::Untracked ||
+		State.TreeState == ETreeState::Staged;
 }
 
 
 bool FGitSourceControlState::CanAdd() const
 {
-	return WorkingCopyState == EWorkingCopyState::NotControlled;
+	return State.TreeState == ETreeState::Untracked;
 }
 
 bool FGitSourceControlState::IsConflicted() const
 {
-	return WorkingCopyState == EWorkingCopyState::Conflicted;
+	return State.FileState == EFileState::Unmerged;
 }
 
 bool FGitSourceControlState::CanRevert() const
 {
-	return CanCheckIn();
+	return IsConflicted() || CanCheckIn();
 }
 
 #undef LOCTEXT_NAMESPACE
