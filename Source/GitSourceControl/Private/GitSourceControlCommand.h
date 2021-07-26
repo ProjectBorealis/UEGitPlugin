@@ -16,7 +16,7 @@ class FGitSourceControlCommand : public IQueuedWork
 {
 public:
 
-	FGitSourceControlCommand(const TSharedRef<class ISourceControlOperation, ESPMode::ThreadSafe>& InOperation, const TSharedRef<class IGitSourceControlWorker, ESPMode::ThreadSafe>& InWorker, const FSourceControlOperationComplete& InOperationCompleteDelegate = FSourceControlOperationComplete() );
+	FGitSourceControlCommand(const TSharedRef<class ISourceControlOperation, ESPMode::ThreadSafe>& InOperation, const TSharedRef<class IGitSourceControlWorker, ESPMode::ThreadSafe>& InWorker, const FSourceControlOperationComplete& InOperationCompleteDelegate = FSourceControlOperationComplete());
 
 	/**
 	 * This is where the real thread work is done. All work that is done for
@@ -69,11 +69,11 @@ public:
 	/**If true, this command has been processed by the source control thread*/
 	volatile int32 bExecuteProcessed;
 
+	/**If true, this command has been cancelled*/
+	volatile int32 bCancelled;
+
 	/**If true, the source control command succeeded*/
 	bool bCommandSuccessful;
-
-	/** TODO LFS If true, the source control connection was dropped while this command was being executed*/
-	bool bConnectionDropped;
 
 	/** Current Commit full SHA1 */
 	FString CommitId;
@@ -90,9 +90,9 @@ public:
 	/** Files to perform this operation on */
 	TArray<FString> Files;
 
-	/**Info and/or warning message storage*/
-	TArray<FString> InfoMessages;
+	/** Potential error, warning and info message storage */
+	FSourceControlResultInfo ResultInfo;
 
-	/**Potential error message storage*/
-	TArray<FString> ErrorMessages;
+	/** Branch names for status queries */
+	TArray< FString > StatusBranchNames;
 };

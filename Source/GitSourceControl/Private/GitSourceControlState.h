@@ -10,6 +10,33 @@
 #include "ISourceControlRevision.h"
 #include "GitSourceControlRevision.h"
 
+/** A consolidation of state priorities. */
+namespace EGitState
+{
+	enum Type
+	{
+		NotAtHead,
+		AddedAtHead,
+		DeletedAtHead,
+		LockedOther,
+		NotLatest,
+		/** Unmerged state (modified, but conflicts) */
+		Unmerged,
+		Added,
+		Deleted,
+		Modified,
+		/** Not modified, but locked explicitly. */
+		CheckedOut,
+		Untracked,
+		Lockable,
+		Unmodified,
+		Ignored,
+		/** Whatever else. */
+		None,
+	};
+}
+
+/** Corresponds to diff file states. */
 namespace EFileState
 {
 	enum Type
@@ -25,6 +52,7 @@ namespace EFileState
 	};
 }
 
+/** Where in the world is this file? */
 namespace ETreeState
 {
 	enum Type
@@ -44,19 +72,25 @@ namespace ETreeState
 	};
 }
 
+/** What is this file doing at HEAD? */
 namespace ERemoteState
 {
 	enum Type
 	{
-		/** Not at current branch's HEAD */
+		/** Local version is behind remote */
 		NotAtHead,
+		/** Remote file does not exist on local */
+		AddedAtHead,
+		/** Local was deleted on remote */
+		DeletedAtHead,
 		/** Not at the latest revision amongst the tracked branches */
 		NotLatest,
-		/** We want to branch off and ignore modified state */
+		/** We want to branch off and ignore tracked branches */
 		Branched,
 	};
 }
 
+/** LFS locks status of this file */
 namespace ELockState
 {
 	enum Type
@@ -69,25 +103,30 @@ namespace ELockState
 	};
 }
 
+/** Combined state, for updating cache in a map. */
 struct FGitState
 {
 	EFileState::Type FileState;
 	ETreeState::Type TreeState;
 	ERemoteState::Type RemoteState;
 	ELockState::Type LockState;
+
+	FGitState()
+		: FileState(EFileState::Unknown)
+		, TreeState(ETreeState::NotInRepo)
+		, RemoteState(ERemoteState::Branched)
+		, LockState(ELockState::Unknown)
+	{
+	}
 };
 
 class FGitSourceControlState : public ISourceControlState, public TSharedFromThis<FGitSourceControlState, ESPMode::ThreadSafe>
 {
 public:
-	FGitSourceControlState( const FString& InLocalFilename, const bool InUsingLfsLocking)
+	FGitSourceControlState( const FString& InLocalFilename)
 		: LocalFilename(InLocalFilename)
-		, WorkingCopyState(EFileState::Unknown)
-		, LockState(ELockState::Unknown)
-		, bNewerVersionOnServer(false)
 		, TimeStamp(0)
 	{
-		bUsingGitLfsLocking = InUsingLfsLocking && !InLocalFilename.Contains(TEXT(".ini")) && !InLocalFilename.Contains(TEXT(".uproject"));
 	}
 
 	/** ISourceControlState interface */
@@ -125,6 +164,9 @@ public:
 	virtual bool IsConflicted() const override;
 	virtual bool CanRevert() const override;
 
+private:
+	EGitState::Type GetGitState() const;
+
 public:
 	/** History of the item, if any */
 	TGitSourceControlHistory History;
@@ -142,4 +184,16 @@ public:
 
 	/** The timestamp of the last update */
 	FDateTime TimeStamp;
+
+	/** The branch with the latest commit for this file */
+	FString HeadBranch;
+
+	/** The action within the head branch */
+	FString HeadAction;
+
+	/** The last file modification time in the head branch */
+	int64 HeadModTime;
+
+	/** The change list the last modification */
+	FString HeadCommit;
 };

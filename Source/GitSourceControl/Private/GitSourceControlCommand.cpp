@@ -20,7 +20,7 @@ FGitSourceControlCommand::FGitSourceControlCommand(const TSharedRef<class ISourc
 {
 	// grab the providers settings here, so we don't access them once the worker thread is launched
 	check(IsInGameThread());
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>( "GitSourceControl" );
+	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
 	bUsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
 	PathToRepositoryRoot = GitSourceControl.GetProvider().GetPathToRepositoryRoot();
@@ -45,22 +45,23 @@ void FGitSourceControlCommand::DoThreadedWork()
 	DoWork();
 }
 
+void FGitSourceControlCommand::Cancel()
+{
+	FPlatformAtomics::InterlockedExchange(&bCancelled, 1);
+}
+
+bool FGitSourceControlCommand::IsCancelled() const
+{
+	return bCancelled != 0;
+}
+
 ECommandResult::Type FGitSourceControlCommand::ReturnResults()
 {
 	// Save any messages that have accumulated
-#if UE_BUILD_DEBUG
-	for (FString& String : InfoMessages)
-	{
-		Operation->AddInfoMessge(FText::FromString(String));
-	}
-#endif
-	for (FString& String : ErrorMessages)
-	{
-		Operation->AddErrorMessge(FText::FromString(String));
-	}
+	Operation->AppendResultInfo(ResultInfo);
 
 	// run the completion delegate if we have one bound
-	ECommandResult::Type Result = bCommandSuccessful ? ECommandResult::Succeeded : ECommandResult::Failed;
+	ECommandResult::Type Result = bCancelled ? ECommandResult::Cancelled : (bCommandSuccessful ? ECommandResult::Succeeded : ECommandResult::Failed);
 	OperationCompleteDelegate.ExecuteIfBound(Operation, Result);
 
 	return Result;
