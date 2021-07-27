@@ -14,7 +14,6 @@ FGitSourceControlCommand::FGitSourceControlCommand(const TSharedRef<class ISourc
 	, OperationCompleteDelegate(InOperationCompleteDelegate)
 	, bExecuteProcessed(0)
 	, bCommandSuccessful(false)
-	, bConnectionDropped(false)
 	, bAutoDelete(true)
 	, Concurrency(EConcurrency::Synchronous)
 {
@@ -50,7 +49,7 @@ void FGitSourceControlCommand::Cancel()
 	FPlatformAtomics::InterlockedExchange(&bCancelled, 1);
 }
 
-bool FGitSourceControlCommand::IsCancelled() const
+bool FGitSourceControlCommand::IsCanceled() const
 {
 	return bCancelled != 0;
 }
