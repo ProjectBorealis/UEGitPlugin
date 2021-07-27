@@ -18,30 +18,6 @@
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
 
-/**
- * Helper struct for RemoveRedundantErrors()
- */
-struct FRemoveRedundantErrors
-{
-	FRemoveRedundantErrors(const FString& InFilter)
-		: Filter(InFilter)
-	{
-	}
-
-	bool operator()(const FText& Text) const
-	{
-		if (Text.ToString().Contains(Filter))
-		{
-			return true;
-		}
-
-		return false;
-	}
-
-	/** The filter string we try to identify in the reported error */
-	FString Filter;
-};
-
 FName FGitPush::GetName() const
 {
 	return "Push";
@@ -52,7 +28,6 @@ FText FGitPush::GetInProgressString() const
 	// TODO Configure origin
 	return LOCTEXT("SourceControl_Push", "Pushing local commits to remote origin...");
 }
-
 
 FName FGitConnectWorker::GetName() const
 {
@@ -83,7 +58,7 @@ bool FGitConnectWorker::Execute(FGitSourceControlCommand& InCommand)
 	if (InCommand.PathToGitBinary.IsEmpty())
 	{
 		const FText& NotFound = LOCTEXT("GitNotFound", "Failed to enable Git source control. You need to install Git and ensure the plugin has a valid path to the git executable.");
-		InCommand.ResultInfo.ErrorMessages.Add(NotFound);
+		InCommand.ResultInfo.ErrorMessages.Add(NotFound.ToString());
 		Operation->SetErrorText(NotFound);
 		InCommand.bCommandSuccessful = false;
 		return false;
@@ -104,7 +79,7 @@ bool FGitConnectWorker::Execute(FGitSourceControlCommand& InCommand)
 	if (!InCommand.bCommandSuccessful)
 	{
 		const FText& NotFound = LOCTEXT("GitRemoteFailed", "Failed Git remote connection. Ensure your repo is initialized, and check your connection to the Git host.");
-		InCommand.ResultInfo.ErrorMessages.Add(NotFound);
+		InCommand.ResultInfo.ErrorMessages.Add(NotFound.ToString());
 		Operation->SetErrorText(NotFound);
 	}
 
@@ -161,20 +136,14 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 	InCommand.bCommandSuccessful = bSuccess;
 	if (bSuccess)
 	{
-		FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-		const FString& User = GitSourceControl.AccessSettings().GetLfsUserName();
-		FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
-		const FDateTime Now = FDateTime::Now();
+		TArray<FString> AbsoluteFiles;
 		for (const auto& RelativeFile : RelativeFiles)
 		{
 			FString AbsoluteFile = FPaths::Combine(InCommand.PathToRepositoryRoot, RelativeFile);
 			FPaths::NormalizeFilename(AbsoluteFile);
-			TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> FileState = Provider.GetStateInternal(AbsoluteFile);
-			FileState->State.LockState = ELockState::Locked;
-			FileState->LockUser = User;
-			FileState->TimeStamp = Now;
-			States.Add(*FileState);
+			AbsoluteFiles.Add(AbsoluteFile);
 		}
+		GitSourceControlUtils::CollectNewStates(AbsoluteFiles, States, EFileState::Unset, ETreeState::Unset, ELockState::Locked);
 	}
 
 	return InCommand.bCommandSuccessful;
@@ -238,6 +207,8 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 		Parameters.Add(ParamCommitMsgFilename);
 
 		InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommit(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters, InCommand.Files, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
+
+		// If we commit, we can push up the deleted state to gone
 		if (InCommand.bCommandSuccessful)
 		{
 			// Remove any deleted files from status cache
@@ -252,55 +223,96 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 					Provider.RemoveFileFromCache(State->GetFilename());
 				}
 			}
-
 			Operation->SetSuccessMessage(ParseCommitResults(InCommand.ResultInfo.InfoMessages));
 			const FString Message = (InCommand.ResultInfo.InfoMessages.Num() > 0) ? InCommand.ResultInfo.InfoMessages[0] : TEXT("");
 			UE_LOG(LogSourceControl, Log, TEXT("commit successful: %s"), *Message);
+		}
 
-			// git-lfs: push and unlock files
-			if(InCommand.bUsingGitLfsLocking && InCommand.bCommandSuccessful)
+		// Collect difference between, if commit failed (no newly staged files)
+		// Do it now, assuming up to date, because if we're not, we will fail the push and won't unlock
+		TArray<FString> CommittedFiles;
+		FString BranchName;
+		GitSourceControlUtils::GetBranchName(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, BranchName);
+		
+		Parameters.Empty(2);
+		Parameters.Add(FString::Printf(TEXT("origin/%s...HEAD"), *BranchName));
+
+		bool bSuccess = GitSourceControlUtils::RunCommand(TEXT("diff"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters, TArray<FString>(), CommittedFiles, InCommand.ResultInfo.ErrorMessages);
+		if (!bSuccess)
+		{
+			CommittedFiles.Empty();
+		}
+
+		Parameters.Empty(2);
+		// TODO: configure remote
+		Parameters.Add(TEXT("origin"));
+		Parameters.Add(TEXT("HEAD"));
+		InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("push"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters, TArray<FString>(), InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
+		if ( !InCommand.bCommandSuccessful )
+		{
+			// if out of date, pull first, then try again
+			bool bWasOutOfDate = false;
+			for (const auto& PushError : InCommand.ResultInfo.ErrorMessages)
 			{
-                TArray<FString> Parameters2;
-                // TODO Configure origin
-                Parameters2.Add(TEXT("origin"));
-                Parameters2.Add(TEXT("HEAD"));
-				InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("push"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters2, TArray<FString>(), InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
-				if(!InCommand.bCommandSuccessful)
+				if (PushError.Contains(TEXT("[rejected]")) && PushError.Contains(TEXT("non-fast-forward")))
 				{
-					// if out of date, pull first, then try again
-					bool bWasOutOfDate = false;
-					for (const auto& PushError : InCommand.ResultInfo.ErrorMessages)
+					// Don't do it during iteration, want to append pull results to InCommand.ResultInfo.ErrorMessages
+					bWasOutOfDate = true;
+					break;
+				}
+			}
+			if (bWasOutOfDate)
+			{
+				// Trying to resolve this automatically can cause too many problems because UE being open prevents
+				// LFS files from being replaced, meaning the rebase fails which is a nasty place to be for
+				// unfamiliar Git users. Better to ask them to close UE and pull externally to be safe
+				FText PushFailMessage(LOCTEXT("GitPush_OutOfDate_Msg", "Git Push failed because there are changes you need to pull. \n"
+					"However, pulling while the Unreal Editor is open can cause conflicts since files cannot always be replaced. We recommend"
+					"you exit the editor, and update the project again."));
+				FText PushFailTitle(LOCTEXT("GitPush_OutOfDate_Title", "Git Pull Required"));
+				FMessageDialog::Open(EAppMsgType::Ok, PushFailMessage, &PushFailTitle);
+				UE_LOG(LogSourceControl, Log, TEXT("Push failed because we're out of date, prompting user to resolve manually"));
+			}
+		}
+
+		// git-lfs: unlock files
+		if( InCommand.bUsingGitLfsLocking )
+		{
+			// If we successfully pushed, we can unlock pushed files
+			if ( InCommand.bCommandSuccessful )
+			{
+				// unlock files: execute the LFS command on relative filenames
+				// (unlock only locked files, that is, not Added files)
+				const TArray<FString> LockedFiles = GetLockedFiles(InCommand.Files);
+				if (LockedFiles.Num() > 0)
+				{
+					const TArray<FString> RelativeFiles = GitSourceControlUtils::RelativeFilenames(LockedFiles, InCommand.PathToRepositoryRoot);
+					TArray<FString> FilesToUnlock;
+					// if we couldn't collect, just do the old behavior
+					if (CommittedFiles.Num() == 0)
 					{
-						if (PushError.Contains(TEXT("[rejected]")) && PushError.Contains(TEXT("non-fast-forward")))
+						FilesToUnlock = RelativeFiles;
+					}
+					// only unlock files that we have pushed to the remote
+					else
+					{
+						for (const auto& LockedFile : RelativeFiles)
 						{
-							// Don't do it during iteration, want to append pull results to InCommand.ResultInfo.ErrorMessages
-							bWasOutOfDate = true;
-							break;
+							if (CommittedFiles.Contains(LockedFile))
+							{
+								FilesToUnlock.Add(LockedFile);
+								CommittedFiles.Remove(LockedFile);
+							}
+							if (!CommittedFiles.Num())
+							{
+								break;
+							}
 						}
 					}
-					if (bWasOutOfDate)
-					{
-						// Trying to resolve this automatically can cause too many problems because UE being open prevents
-						// LFS files from being replaced, meaning the rebase fails which is a nasty place to be for
-						// unfamiliar Git users. Better to ask them to close UE and pull externally to be safe
-						FText PushFailMessage(LOCTEXT("GitPush_OutOfDate_Msg", "Git Push failed because there are changes you need to pull. \n"
-							"However, pulling while the Unreal Editor is open can cause conflicts since files cannot always be replaced. We recommend"
-							"you exit the editor, and update the project again."));
-						FText PushFailTitle(LOCTEXT("GitPush_OutOfDate_Title", "Git Pull Required"));
-						FMessageDialog::Open(EAppMsgType::Ok, PushFailMessage, &PushFailTitle);
-						UE_LOG(LogSourceControl, Log, TEXT("Push failed because we're out of date, prompting user to resolve manually"));
-					}
-				}
-				if(InCommand.bCommandSuccessful)
-				{
-					// unlock files: execute the LFS command on relative filenames
-					// (unlock only locked files, that is, not Added files)
-					const TArray<FString> LockedFiles = GetLockedFiles(InCommand.Files);
-					if(LockedFiles.Num() > 0)
-					{
-						const TArray<FString> RelativeFiles = GitSourceControlUtils::RelativeFilenames(LockedFiles, InCommand.PathToRepositoryRoot);
 
-						GitSourceControlUtils::RunLFSCommand(TEXT("unlock"), InCommand.PathToRepositoryRoot, TArray<FString>(), RelativeFiles, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
+					if (FilesToUnlock.Num() > 0)
+					{
+						GitSourceControlUtils::RunLFSCommand(TEXT("unlock"), InCommand.PathToRepositoryRoot, TArray<FString>(), FilesToUnlock, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 					}
 				}
 			}
@@ -308,7 +320,12 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 	}
 
 	// now update the status of our files
-	GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.ErrorMessages, States, true);
+	TArray<FGitSourceControlState> UpdatedStates;
+	bool bSuccess = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.ErrorMessages, UpdatedStates, true);
+	if (bSuccess)
+	{
+		GitSourceControlUtils::CollectNewStates(UpdatedStates, States);
+	}
 	GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
 	GitSourceControlUtils::GetCommitInfo(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.CommitId, InCommand.CommitSummary);
 
@@ -333,11 +350,16 @@ bool FGitMarkForAddWorker::Execute(FGitSourceControlCommand& InCommand)
 
 	if (InCommand.bCommandSuccessful)
 	{
-		GitSourceControlUtils::UpdateCachedStates(InCommand.Files, EWorkingCopyState::Added, States);
+		GitSourceControlUtils::CollectNewStates(InCommand.Files, States, EFileState::Added);
 	}
 	else
 	{
-		GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.ErrorMessages, States);
+		TArray<FGitSourceControlState> UpdatedStates;
+		bool bSuccess = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.ErrorMessages, UpdatedStates);
+		if (bSuccess)
+		{
+			GitSourceControlUtils::CollectNewStates(UpdatedStates, States);
+		}
 		GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
 	}
 
@@ -362,11 +384,16 @@ bool FGitDeleteWorker::Execute(FGitSourceControlCommand& InCommand)
 
 	if (InCommand.bCommandSuccessful)
 	{
-		GitSourceControlUtils::UpdateCachedStates(InCommand.Files, EWorkingCopyState::Deleted, States);
+		GitSourceControlUtils::CollectNewStates(InCommand.Files, States, EFileState::Deleted);
 	}
 	else
 	{
-		GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.ErrorMessages, States);
+		TArray<FGitSourceControlState> UpdatedStates;
+		bool bSuccess = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.ErrorMessages, UpdatedStates);
+		if (bSuccess)
+		{
+			GitSourceControlUtils::CollectNewStates(UpdatedStates, States);
+		}
 		GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
 	}
 
@@ -534,6 +561,8 @@ FName FGitPushWorker::GetName() const
 
 bool FGitPushWorker::Execute(FGitSourceControlCommand& InCommand)
 {
+	return false;
+#if 0
 	// If we have any locked files, check if we should unlock them
 	TArray<FString> FilesToUnlock;
 	if (InCommand.bUsingGitLfsLocking)
@@ -611,10 +640,10 @@ bool FGitPushWorker::Execute(FGitSourceControlCommand& InCommand)
 		// This command needs absolute filenames
 		TArray<FString> AbsFilesToUnlock = GitSourceControlUtils::AbsoluteFilenames(FilesToUnlock, InCommand.PathToRepositoryRoot);
 		GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, AbsFilesToUnlock, InCommand.ResultInfo.ErrorMessages, States, true);
-		
 	}
 
 	return InCommand.bCommandSuccessful;
+#endif
 }
 
 bool FGitPushWorker::UpdateStates() const
@@ -636,17 +665,18 @@ bool FGitUpdateStatusWorker::Execute(FGitSourceControlCommand& InCommand)
     bool bRefreshCache = Operation->ShouldCheckAllFiles();
 	if(InCommand.Files.Num() > 0)
 	{
-		InCommand.bCommandSuccessful = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.ErrorMessages, States, bRefreshCache);
+		TArray<FGitSourceControlState> UpdatedStates;
+		InCommand.bCommandSuccessful = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.ErrorMessages, UpdatedStates, bRefreshCache);
 		GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
 
 		if(Operation->ShouldUpdateHistory())
 		{
-			for(int32 Index = 0; Index < States.Num(); Index++)
+			for(int32 Index = 0; Index < UpdatedStates.Num(); Index++)
 			{
 				FString& File = InCommand.Files[Index];
 				TGitSourceControlHistory History;
 
-				if(States[Index].IsConflicted())
+				if(UpdatedStates[Index].IsConflicted())
 				{
 					// In case of a merge conflict, we first need to get the tip of the "remote branch" (MERGE_HEAD)
 					GitSourceControlUtils::RunGetHistory(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, File, true, InCommand.ResultInfo.ErrorMessages, History);
@@ -663,8 +693,13 @@ bool FGitUpdateStatusWorker::Execute(FGitSourceControlCommand& InCommand)
 		TArray<FString> ProjectDirs;
 		ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()));
 		ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
-		InCommand.bCommandSuccessful = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, ProjectDirs, InCommand.ResultInfo.ErrorMessages, States, bRefreshCache);
+		TArray<FGitSourceControlState> UpdatedStates;
+		InCommand.bCommandSuccessful = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, ProjectDirs, InCommand.ResultInfo.ErrorMessages, UpdatedStates, bRefreshCache);
 		GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
+		if (InCommand.bCommandSuccessful)
+		{
+			GitSourceControlUtils::CollectNewStates(UpdatedStates, States);
+		}
 	}
 
 	GitSourceControlUtils::GetCommitInfo(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.CommitId, InCommand.CommitSummary);
@@ -712,7 +747,17 @@ bool FGitCopyWorker::Execute(FGitSourceControlCommand& InCommand)
 
 	if (InCommand.bCommandSuccessful)
 	{
-		GitSourceControlUtils::UpdateCachedStates(InCommand.Files, EWorkingCopyState::Added, States);
+		GitSourceControlUtils::CollectNewStates(InCommand.Files, States, EFileState::Added);
+	}
+	else
+	{
+		TArray<FGitSourceControlState> UpdatedStates;
+		const bool bSuccess = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.ErrorMessages, UpdatedStates, true);
+		GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
+		if (bSuccess)
+		{
+			GitSourceControlUtils::CollectNewStates(UpdatedStates, States);
+		}
 	}
 
 	return InCommand.bCommandSuccessful;
@@ -737,8 +782,20 @@ bool FGitResolveWorker::Execute( class FGitSourceControlCommand& InCommand )
 	InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("add"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, TArray<FString>(), InCommand.Files, Results, InCommand.ResultInfo.ErrorMessages);
 
 	// now update the status of our files
-	GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.ErrorMessages, States, true);
-	GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
+	if (InCommand.bCommandSuccessful)
+	{
+		GitSourceControlUtils::CollectNewStates(InCommand.Files, States, EFileState::Added);
+	}
+	else
+	{
+		TArray<FGitSourceControlState> UpdatedStates;
+		const bool bSuccess = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.ErrorMessages, UpdatedStates, true);
+		GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
+		if (bSuccess)
+		{
+			GitSourceControlUtils::CollectNewStates(UpdatedStates, States);
+		}
+	}
 
 	return InCommand.bCommandSuccessful;
 }

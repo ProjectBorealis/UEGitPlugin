@@ -9,6 +9,24 @@
 #include "ISourceControlProvider.h"
 #include "Misc/IQueuedWork.h"
 
+/** Accumulated error and info messages for a source control operation.  */
+struct FGitSourceControlResultInfo
+{
+	/** Append any messages from another FSourceControlResultInfo, ensuring to keep any already accumulated info. */
+	void Append(const FGitSourceControlResultInfo& InResultInfo)
+	{
+		InfoMessages.Append(InResultInfo.InfoMessages);
+		ErrorMessages.Append(InResultInfo.ErrorMessages);
+	}
+
+	/** Info and/or warning message storage */
+	TArray<FString> InfoMessages;
+
+	/** Potential error message storage */
+	TArray<FString> ErrorMessages;
+};
+
+
 /**
  * Used to execute Git commands multi-threaded.
  */
@@ -91,7 +109,7 @@ public:
 	TArray<FString> Files;
 
 	/** Potential error, warning and info message storage */
-	FSourceControlResultInfo ResultInfo;
+	FGitSourceControlResultInfo ResultInfo;
 
 	/** Branch names for status queries */
 	TArray< FString > StatusBranchNames;

@@ -164,6 +164,16 @@ public:
 
 	bool RemoveFileFromIgnoreForceCache(const FString& Filename);
 
+	const FString& GetBranchName() const
+	{
+		return BranchName;
+	}
+
+	const TArray<FString>& GetStatusBranchNames() const
+	{
+		return StatusBranchNames;
+	}
+
 private:
 	/** Is git binary found and working. */
 	bool bGitAvailable;

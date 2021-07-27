@@ -19,7 +19,10 @@
 #include "ScopedSourceControlProgress.h"
 #include "SourceControlHelpers.h"
 #include "SourceControlOperations.h"
+#include "GenericPlatform/GenericPlatformFile.h"
+#include "HAL/FileManager.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/EngineVersion.h"
 #include "Misc/MessageDialog.h"
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
@@ -151,7 +154,7 @@ TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> FGitSourceControlProvide
 	else
 	{
 		// cache an unknown state for this item
-		TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> NewState = MakeShareable( new FGitSourceControlState(Filename, UsingGitLfsLocking == 1) );
+		TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> NewState = MakeShareable( new FGitSourceControlState(Filename) );
 		StateCache.Add(Filename, NewState);
 		return NewState;
 	}
@@ -208,12 +211,25 @@ ECommandResult::Type FGitSourceControlProvider::GetState( const TArray<FString>&
 		return ECommandResult::Failed;
 	}
 
-	TArray<FString> AbsoluteFiles = SourceControlHelpers::AbsoluteFilenames(InFiles);
-
 	if (InStateCacheUsage == EStateCacheUsage::ForceUpdate)
 	{
-		Execute(ISourceControlOperation::Create<FUpdateStatus>(), AbsoluteFiles);
+		TArray<FString> ForceUpdate;
+		for (FString Path : InFiles)
+		{
+			// Remove the path from the cache, so it's not ignored the next time we force check.
+			// If the file isn't in the cache, force update it now.
+			if (!RemoveFileFromIgnoreForceCache(Path))
+			{
+				ForceUpdate.Add(Path);
+			}
+		}
+		if (ForceUpdate.Num() > 0)
+		{
+			Execute(ISourceControlOperation::Create<FUpdateStatus>(), ForceUpdate);
+		}
 	}
+
+	const TArray<FString>& AbsoluteFiles = SourceControlHelpers::AbsoluteFilenames(InFiles);
 
 	for (TArray<FString>::TConstIterator It(AbsoluteFiles); It; It++)
 	{
@@ -310,7 +326,7 @@ ECommandResult::Type FGitSourceControlProvider::Execute( const TSharedRef<ISourc
 		Command->bAutoDelete = false;
 
 		UE_LOG(LogSourceControl, Log, TEXT("ExecuteSynchronousCommand(%s)"), *InOperation->GetName().ToString());
-		return ExecuteSynchronousCommand(*Command, InOperation->GetInProgressString());
+		return ExecuteSynchronousCommand(*Command, InOperation->GetInProgressString(), false);
 	}
 	else
 	{
@@ -388,13 +404,13 @@ void FGitSourceControlProvider::OutputCommandMessages(const FGitSourceControlCom
 
 	for (int32 ErrorIndex = 0; ErrorIndex < InCommand.ResultInfo.ErrorMessages.Num(); ++ErrorIndex)
 	{
-		SourceControlLog.Error(InCommand.ResultInfo.ErrorMessages[ErrorIndex]);
+		SourceControlLog.Error(FText::FromString(InCommand.ResultInfo.ErrorMessages[ErrorIndex]));
 	}
 
 #if UE_BUILD_DEBUG
 	for (int32 InfoIndex = 0; InfoIndex < InCommand.ResultInfo.InfoMessages.Num(); ++InfoIndex)
 	{
-		SourceControlLog.Info(InCommand.ResultInfo.InfoMessages[InfoIndex]);
+		SourceControlLog.Info(FText::FromString(InCommand.ResultInfo.InfoMessages[InfoIndex]));
 	}
 #endif
 }
@@ -577,55 +593,21 @@ ECommandResult::Type FGitSourceControlProvider::IssueCommand(FGitSourceControlCo
 
 bool FGitSourceControlProvider::QueryStateBranchConfig(const FString& ConfigSrc, const FString& ConfigDest)
 {
-
+	// Check similar preconditions to Perforce (valid src and dest), 
 	if (ConfigSrc.Len() == 0 || ConfigDest.Len() == 0)
 	{
 		return false;
 	}
 
-	// Request branch configuration from depot
-	FPerforceSourceControlModule& PerforceSourceControl = FModuleManager::LoadModuleChecked<FPerforceSourceControlModule>("PerforceSourceControl");
-	FScopedPerforceConnection ScopedConnection(EConcurrency::Synchronous, PerforceSourceControl.AccessSettings().GetConnectionInfo());
-	if (ScopedConnection.IsValid())
+	if (!bGitAvailable || !bGitRepositoryFound)
 	{
-		FPerforceConnection& Connection = ScopedConnection.GetConnection();
-		FP4RecordSet Records;
-		TArray<FString> Parameters;
-		TArray<FText> ErrorMessages;
-		Parameters.Add(TEXT("-o"));
-		Parameters.Add(*ConfigDest);
-		Parameters.Add(*ConfigSrc);
-
-		FText GeneralErrorMessage = LOCTEXT("StatusBranchConfigGeneralFailure", "Unable to retrieve status branch configuration from repo");
-
-		bool bConnectionDropped = false;
-		if (Connection.RunCommand(TEXT("print"), Parameters, Records, ErrorMessages, FOnIsCancelled(), bConnectionDropped))
-		{
-			if (Records.Num() < 1 || Records[0][TEXT("depotFile")] != ConfigSrc)
-			{
-				FMessageLog("SourceControl").Error(GeneralErrorMessage);
-				return false;
-			}
-		}
-		else
-		{
-			FMessageLog("SourceControl").Error(GeneralErrorMessage);
-
-			// output specific errors if any
-			for (int32 ErrorIndex = 0; ErrorIndex < ErrorMessages.Num(); ++ErrorIndex)
-			{
-				FMessageLog("SourceControl").Error(ErrorMessages[ErrorIndex]);
-			}
-
-			return false;
-		}
-	}
-	else
-	{
-		FMessageLog("SourceControl").Error(LOCTEXT("StatusBranchConfigNoConnection", "Unable to retrieve status branch configuration from depot, no connection"));
+		FMessageLog("SourceControl").Error(LOCTEXT("StatusBranchConfigNoConnection", "Unable to retrieve status branch configuration from repo, no connection"));
 		return false;
 	}
 
+	// Otherwise, we can assume that whatever our user is doing to config state branches is properly synced, so just copy.
+	// TODO: maybe don't assume, and use git show instead?
+	IFileManager::Get().Copy(*ConfigDest, *ConfigSrc);
 	return true;
 }
 
@@ -636,6 +618,26 @@ void FGitSourceControlProvider::RegisterStateBranches(const TArray<FString>& Bra
 
 int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& BranchName) const
 {
+	const int32 CurrentBranchStatusIndex = StatusBranchNames.IndexOfByKey(this->BranchName);
+	const bool bCurrentBranchInStatusBranches = CurrentBranchStatusIndex != INDEX_NONE;
+
+	// Check if we are checking the index of the current branch
+	// UE uses FEngineVersion for the current branch name because of UEGames setup, but we want to handle otherwise for Git repos.
+	if (BranchName == FEngineVersion::Current().GetBranch())
+	{
+		// If the user's current branch is tracked as a status branch, give the proper index
+		if (bCurrentBranchInStatusBranches)
+		{
+			return StatusBranchNames.IndexOfByKey(this->BranchName);
+		}
+		// If the current branch is not a status branch, make it the highest branch
+		// This is semantically correct, since if a branch is not marked as a status branch
+		// by a user, it is a downstream branch that merges changes between the status branches
+		return INT32_MAX;
+	}
+	
+	// If we're not checking the current branch, then we don't need to do special handling.
+	// If it is not a status branch, there is no message
 	return StatusBranchNames.IndexOfByKey(BranchName);
 }
 

@@ -7,6 +7,8 @@
 
 #include "CoreMinimal.h"
 
+#include "GitSourceControlState.h"
+
 class IGitSourceControlWorker
 {
 public:
@@ -25,6 +27,10 @@ public:
 	 * @returns true if states were updated
 	 */
 	virtual bool UpdateStates() const = 0;
+
+protected:
+	/** Temporary states for results */
+	TMap<const FString, FGitState> States;
 };
 
 typedef TSharedRef<IGitSourceControlWorker, ESPMode::ThreadSafe> FGitSourceControlWorkerRef;

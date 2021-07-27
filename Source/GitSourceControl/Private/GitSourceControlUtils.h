@@ -6,6 +6,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "GitSourceControlState.h"
 
 class FGitSourceControlCommand;
@@ -215,12 +216,6 @@ TArray<FString> RelativeFilenames(const TArray<FString>& InFileNames, const FStr
 TArray<FString> AbsoluteFilenames(const TArray<FString>& InFileNames, const FString& InRelativeTo);
 
 /**
- * Helper function for various commands to update cached states.
- * @returns true if any states were updated
- */
-bool UpdateCachedStates(const TArray<FGitSourceControlState>& InStates);
-
-/**
  * Remove redundant errors (that contain a particular string) and also
  * update the commands success status if all errors were removed.
  */
@@ -228,7 +223,23 @@ void RemoveRedundantErrors(FGitSourceControlCommand& InCommand, const FString& I
 
 bool RunLFSCommand(const FString& InCommand, const FString& InRepositoryRoot, const TArray<FString>& InParameters, const TArray<FString>& InFiles, TArray<FString>& OutResults, TArray<FString>& OutErrorMessages);
 
-bool UpdateCachedStates(const TArray<FString>& InFiles, EWorkingCopyState::Type WorkingState, TArray<FGitSourceControlState>& InStates);
+/**
+ * Helper function for various commands to update cached states.
+ * @returns true if any states were updated
+ */
+bool UpdateCachedStates(const TMap<const FString, FGitState>& InResults);
+
+/**
+* Helper function for various commands to collect new states.
+* @returns true if any states were updated
+*/
+bool CollectNewStates(const TArray<FGitSourceControlState>& InStates, TMap<const FString, FGitState>& OutResults);
+	
+/**
+ * Helper function for various commands to collect new states.
+ * @returns true if any states were updated
+ */
+bool CollectNewStates(const TArray<FString>& InFiles, TMap<const FString, FGitState>& OutResults, EFileState::Type FileState, ETreeState::Type TreeState = ETreeState::Unset, ELockState::Type LockState = ELockState::Unset, ERemoteState::Type RemoteState = ERemoteState::Unset);
 
 /**
  * Run 'git lfs locks" to extract all lock information for all files in the repository

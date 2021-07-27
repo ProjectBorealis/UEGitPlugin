@@ -64,8 +64,6 @@ FName FGitSourceControlState::GetIconName() const
 	switch (GetGitState())
 	{
 	case EGitState::NotAtHead:
-	case EGitState::AddedAtHead:
-	case EGitState::DeletedAtHead:
 		return FName("Perforce.NotAtHeadRevision");
 	case EGitState::LockedOther:
 		return FName("Perforce.CheckedOutByOtherUser");
@@ -93,8 +91,6 @@ FName FGitSourceControlState::GetSmallIconName() const
 	switch (GetGitState())
 	{
 	case EGitState::NotAtHead:
-	case EGitState::AddedAtHead:
-	case EGitState::DeletedAtHead:
 		return FName("Perforce.NotAtHeadRevision_Small");
 	case EGitState::LockedOther:
 		return FName("Perforce.CheckedOutByOtherUser_Small");
@@ -122,8 +118,6 @@ FText FGitSourceControlState::GetDisplayName() const
 	switch (GetGitState())
 	{
 	case EGitState::NotAtHead:
-	case EGitState::AddedAtHead:
-	case EGitState::DeletedAtHead:
 		return LOCTEXT("NotCurrent", "Not current");
 	case EGitState::LockedOther:
 		return FText::Format(LOCTEXT("CheckedOutOther", "Checked out by: {0}"), FText::FromString(LockUser));
@@ -156,8 +150,6 @@ FText FGitSourceControlState::GetDisplayTooltip() const
 	switch (GetGitState())
 	{
 	case EGitState::NotAtHead:
-	case EGitState::AddedAtHead:
-	case EGitState::DeletedAtHead:
 		return LOCTEXT("NotCurrent_Tooltip", "The file(s) are not at the head revision");
 	case EGitState::LockedOther:
 		return FText::Format(LOCTEXT("CheckedOutOther_Tooltip", "Checked out by: {0}"), FText::FromString(LockUser));
@@ -259,9 +251,31 @@ bool FGitSourceControlState::IsCheckedOutOther(FString* Who) const
 	return State.LockState == ELockState::LockedOther;
 }
 
+bool FGitSourceControlState::IsCheckedOutInOtherBranch(const FString& CurrentBranch) const
+{
+	return IsCheckedOutOther();
+}
+
+bool FGitSourceControlState::IsModifiedInOtherBranch(const FString& CurrentBranch) const
+{
+	return State.RemoteState == ERemoteState::NotLatest;
+}
+
+bool FGitSourceControlState::GetOtherBranchHeadModification(FString& HeadBranchOut, FString& ActionOut, int32& HeadChangeListOut) const
+{
+	if (State.RemoteState == ERemoteState::NotAtHead)
+	{
+		return false;
+	}
+
+	HeadBranchOut = HeadBranch;
+	ActionOut = HeadAction; // TODO: from ERemoteState
+	HeadChangeListOut = 0; // TODO: get head commit
+}
+
 bool FGitSourceControlState::IsCurrent() const
 {
-	return State.RemoteState != ERemoteState::NotAtHead && State.RemoteState != ERemoteState::DeletedAtHead;
+	return State.RemoteState != ERemoteState::NotAtHead && State.RemoteState != ERemoteState::NotLatest;
 }
 
 bool FGitSourceControlState::IsSourceControlled() const
@@ -337,10 +351,6 @@ EGitState::Type FGitSourceControlState::GetGitState() const
 	{
 	case ERemoteState::NotAtHead:
 		return EGitState::NotAtHead;
-	case ERemoteState::AddedAtHead:
-		return EGitState::AddedAtHead;
-	case ERemoteState::DeletedAtHead:
-		return EGitState::DeletedAtHead;
 	default:
 		break;
 	}

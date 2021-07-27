@@ -15,9 +15,12 @@ namespace EGitState
 {
 	enum Type
 	{
+		Unset,
 		NotAtHead,
+#if 0
 		AddedAtHead,
 		DeletedAtHead,
+#endif
 		LockedOther,
 		NotLatest,
 		/** Unmerged state (modified, but conflicts) */
@@ -41,6 +44,7 @@ namespace EFileState
 {
 	enum Type
 	{
+		Unset,
 		Unknown,
 		Added,
 		Copied,
@@ -57,6 +61,7 @@ namespace ETreeState
 {
 	enum Type
 	{
+		Unset,
 		/** This file is synced to commit */
 		Unmodified,
 		/** This file is modified, but not in staging tree */
@@ -72,29 +77,12 @@ namespace ETreeState
 	};
 }
 
-/** What is this file doing at HEAD? */
-namespace ERemoteState
-{
-	enum Type
-	{
-		/** Local version is behind remote */
-		NotAtHead,
-		/** Remote file does not exist on local */
-		AddedAtHead,
-		/** Local was deleted on remote */
-		DeletedAtHead,
-		/** Not at the latest revision amongst the tracked branches */
-		NotLatest,
-		/** We want to branch off and ignore tracked branches */
-		Branched,
-	};
-}
-
 /** LFS locks status of this file */
 namespace ELockState
 {
 	enum Type
 	{
+		Unset,
 		Unknown,
 		Unlockable,
 		NotLocked,
@@ -103,19 +91,41 @@ namespace ELockState
 	};
 }
 
+/** What is this file doing at HEAD? */
+namespace ERemoteState
+{
+	enum Type
+	{
+		Unset,
+		/** Local version is behind remote */
+		NotAtHead,
+#if 0
+		// TODO: handle these
+		/** Remote file does not exist on local */
+		AddedAtHead,
+		/** Local was deleted on remote */
+		DeletedAtHead,
+#endif
+		/** Not at the latest revision amongst the tracked branches */
+		NotLatest,
+		/** We want to branch off and ignore tracked branches */
+		Branched,
+	};
+}
+
 /** Combined state, for updating cache in a map. */
 struct FGitState
 {
 	EFileState::Type FileState;
 	ETreeState::Type TreeState;
-	ERemoteState::Type RemoteState;
 	ELockState::Type LockState;
+	ERemoteState::Type RemoteState;
 
 	FGitState()
 		: FileState(EFileState::Unknown)
 		, TreeState(ETreeState::NotInRepo)
-		, RemoteState(ERemoteState::Branched)
 		, LockState(ELockState::Unknown)
+		, RemoteState(ERemoteState::Branched)
 	{
 	}
 };
@@ -126,6 +136,7 @@ public:
 	FGitSourceControlState( const FString& InLocalFilename)
 		: LocalFilename(InLocalFilename)
 		, TimeStamp(0)
+		, HeadAction(TEXT("changed"))
 	{
 	}
 
@@ -189,12 +200,12 @@ public:
 	/** The branch with the latest commit for this file */
 	FString HeadBranch;
 
-	/** The action within the head branch */
+	/** The action within the head branch TODO */
 	FString HeadAction;
 
-	/** The last file modification time in the head branch */
+	/** The last file modification time in the head branch TODO */
 	int64 HeadModTime;
 
-	/** The change list the last modification */
+	/** The change list the last modification TODO */
 	FString HeadCommit;
 };

@@ -20,6 +20,7 @@
 #include "ISourceControlModule.h"
 #include "GitSourceControlModule.h"
 #include "GitSourceControlProvider.h"
+#include "Logging/MessageLog.h"
 #include "Misc/DateTime.h"
 #include "Misc/ScopeLock.h"
 #include "Misc/Timespan.h"
@@ -523,6 +524,13 @@ void GetUserConfig(const FString& InPathToGitBinary, const FString& InRepository
 
 bool GetBranchName(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutBranchName)
 {
+	const FGitSourceControlProvider& Provider = FGitSourceControlModule::Get().GetProvider();
+	if (!Provider.GetBranchName().IsEmpty())
+	{
+		OutBranchName = Provider.GetBranchName();
+		return true;
+	}
+	
 	bool bResults;
 	TArray<FString> InfoMessages;
 	TArray<FString> ErrorMessages;
@@ -800,48 +808,58 @@ public:
 		{
 			// "Unmerged" conflict cases are generally marked with a "U",
 			// but there are also the special cases of both "A"dded, or both "D"eleted
-			State = EWorkingCopyState::Conflicted;
+			FileState = EFileState::Unmerged;
+			return;
 		}
-		else if (IndexState == 'A')
+		if (IndexState == ' ')
 		{
-			State = EWorkingCopyState::Added;
+			TreeState = ETreeState::Working;
+		}
+		else if (WCopyState == ' ')
+		{
+			TreeState = ETreeState::Staged;
+		}
+		if (IndexState == 'A')
+		{
+			FileState = EFileState::Added;
 		}
 		else if (IndexState == 'D')
 		{
-			State = EWorkingCopyState::Deleted;
+			FileState = EFileState::Deleted;
 		}
 		else if (WCopyState == 'D')
 		{
-			State = EWorkingCopyState::Missing;
+			FileState = EFileState::Missing;
 		}
 		else if (IndexState == 'M' || WCopyState == 'M')
 		{
-			State = EWorkingCopyState::Modified;
+			FileState = EFileState::Modified;
 		}
 		else if (IndexState == 'R')
 		{
-			State = EWorkingCopyState::Renamed;
+			FileState = EFileState::Renamed;
 		}
 		else if (IndexState == 'C')
 		{
-			State = EWorkingCopyState::Copied;
+			FileState = EFileState::Copied;
 		}
 		else if (IndexState == '?' || WCopyState == '?')
 		{
-			State = EWorkingCopyState::NotControlled;
+			TreeState = ETreeState::Untracked;
 		}
 		else if (IndexState == '!' || WCopyState == '!')
 		{
-			State = EWorkingCopyState::Ignored;
+			TreeState = ETreeState::Ignored;
 		}
 		else
 		{
 			// Unmodified never yield a status
-			State = EWorkingCopyState::Unknown;
+			FileState = EFileState::Unknown;
 		}
 	}
 
-	EWorkingCopyState::Type State;
+	EFileState::Type FileState;
+	ETreeState::Type TreeState;
 };
 
 /**
@@ -930,7 +948,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 	// Iterate on all files explicitly listed in the command
 	for (const auto& File : InFiles)
 	{
-		FGitSourceControlState FileState(File, InUsingLfsLocking);
+		FGitSourceControlState FileState(File);
 		// Search the file in the list of status
 		int32 IdxResult = InResults.IndexOfByPredicate(FGitStatusFileMatcher(File));
 		if (IdxResult != INDEX_NONE)
@@ -941,7 +959,8 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 			UE_LOG(LogSourceControl, Log, TEXT("Status(%s) = '%s' => %d"), *File, *InResults[IdxResult], static_cast<int>(StatusParser.State));
 #endif
 
-			FileState.WorkingCopyState = StatusParser.State;
+			FileState.State.FileState = StatusParser.FileState;
+			FileState.State.TreeState = StatusParser.TreeState;
 			if (FileState.IsConflicted())
 			{
 				// In case of a conflict (unmerged file) get the base revision to merge
@@ -954,7 +973,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 			if (FPaths::FileExists(File))
 			{
 				// usually means the file is unchanged,
-				FileState.WorkingCopyState = EWorkingCopyState::Unchanged;
+				FileState.State.TreeState = ETreeState::Unmodified;
 #if UE_BUILD_DEBUG
 				UE_LOG(LogSourceControl, Log, TEXT("Status(%s) not found but exists => unchanged"), *File);
 #endif
@@ -962,22 +981,27 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 			else
 			{
 				// but also the case for newly created content: there is no file on disk until the content is saved for the first time
-				FileState.WorkingCopyState = EWorkingCopyState::NotControlled;
+				FileState.State.TreeState = ETreeState::NotInRepo;
 #if UE_BUILD_DEBUG
 				UE_LOG(LogSourceControl, Log, TEXT("Status(%s) not found and does not exists => new/not controled"), *File);
 #endif
 			}
+		}
+		if (!InUsingLfsLocking)
+		{
+			FileState.State.LockState = ELockState::Unlockable;
+			break;
 		}
 		if (InLockedFiles.Contains(File))
 		{
 			FileState.LockUser = InLockedFiles[File];
 			if (LfsUserName == FileState.LockUser)
 			{
-				FileState.LockState = ELockState::Locked;
+				FileState.State.LockState = ELockState::Locked;
 			}
 			else
 			{
-				FileState.LockState = ELockState::LockedOther;
+				FileState.State.LockState = ELockState::LockedOther;
 			}
 #if UE_BUILD_DEBUG
 			UE_LOG(LogSourceControl, Log, TEXT("Status(%s) Locked by '%s'"), *File, *FileState.LockUser);
@@ -985,7 +1009,14 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 		}
 		else
 		{
-			FileState.LockState = ELockState::NotLocked;
+			TArray<FString> ErrorMessages;
+			const bool bIsLockable = IsFileLFSLockable(InPathToGitBinary, InRepositoryRoot, File, ErrorMessages);
+			FMessageLog SourceControlLog("SourceControl");
+			for (int32 ErrorIndex = 0; ErrorIndex < ErrorMessages.Num(); ++ErrorIndex)
+			{
+				SourceControlLog.Error(FText::FromString(ErrorMessages[ErrorIndex]));
+			}
+			FileState.State.LockState = bIsLockable ? ELockState::NotLocked : ELockState::Unlockable;
 #if UE_BUILD_DEBUG
 			if (InUsingLfsLocking)
 			{
@@ -1015,12 +1046,17 @@ static void ParseDirectoryStatusResult(const FString& InPathToGitBinary, const F
 		const FString RelativeFilename = FilenameFromGitStatus(Result);
 		const FString File = FPaths::ConvertRelativePathToFull(InRepositoryRoot, RelativeFilename);
 
-		FGitSourceControlState FileState(File, InUsingLfsLocking);
-		FGitStatusParser StatusParser(Result);
-		if ((EWorkingCopyState::Deleted == StatusParser.State) || (EWorkingCopyState::Missing == StatusParser.State) ||
-			(EWorkingCopyState::NotControlled == StatusParser.State))
+		FGitSourceControlState FileState(File);
+		if (!InUsingLfsLocking)
 		{
-			FileState.WorkingCopyState = StatusParser.State;
+			FileState.State.LockState = ELockState::Unlockable;
+		}
+		FGitStatusParser StatusParser(Result);
+		if ((EFileState::Deleted == StatusParser.FileState) || (EFileState::Missing == StatusParser.FileState) ||
+			(ETreeState::Untracked == StatusParser.TreeState))
+		{
+			FileState.State.FileState = StatusParser.FileState;
+			FileState.State.TreeState = StatusParser.TreeState;
 			FileState.TimeStamp = Now;
 			OutStates.Add(MoveTemp(FileState));
 		}
@@ -1086,8 +1122,10 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 	TArray<FString> ParametersLsRemote;
 	ParametersLsRemote.Add(TEXT("origin"));
 
-	// TODO: make branch names configurable
-	Branches.Add(TEXT("trunk"));
+	for (const auto& Branch : FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames())
+	{
+		Branches.Add(Branch);
+	}
 	Branches.Add(CurrentBranchName);
 
 	for (auto& Branch : Branches)
@@ -1121,13 +1159,16 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 	for (auto& Branch : BranchesToDiff)
 	{
 		ParametersDiff.Add(TEXT("--name-only"));
+		bool bCurrentBranch;
 		if (Branch.Equals(CurrentBranchName))
 		{
-			ParametersDiff.Add(bDiffAgainstRemoteCurrent ? FString::Printf(TEXT("HEAD...origin/%s "), *Branch) : FString::Printf(TEXT("HEAD...%s"), *Branch));
+			ParametersDiff.Add(bDiffAgainstRemoteCurrent ? FString::Printf(TEXT("HEAD...origin/%s"), *Branch) : FString::Printf(TEXT("HEAD...%s"), *Branch));
+			bCurrentBranch = true;
 		}
 		else
 		{
 			ParametersDiff.Add(FString::Printf(TEXT("HEAD...origin/%s"), *Branch));
+			bCurrentBranch = false;
 		}
 		const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, ParametersDiff, OnePath, Results, ErrorMessages);
 		if (bResultDiff)
@@ -1140,7 +1181,7 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 				if (FGitSourceControlState* FileStatePtr =
 						OutStates.FindByPredicate([NewerFilePath](FGitSourceControlState& FileState) { return FileState.LocalFilename == NewerFilePath; }))
 				{
-					FileStatePtr->bNewerVersionOnServer = true;
+					FileStatePtr->State.RemoteState = bCurrentBranch ? ERemoteState::NotAtHead : ERemoteState::NotLatest;
 				}
 			}
 		}
@@ -1250,7 +1291,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 
 	// Get the current branch name, since we need origin of current branch
 	FString BranchName;
-	GitSourceControlUtils::GetBranchName(InPathToGitBinary, InRepositoryRoot, BranchName);
+	GetBranchName(InPathToGitBinary, InRepositoryRoot, BranchName);
 
 	TArray<FString> Parameters;
 	Parameters.Add(TEXT("--porcelain"));
@@ -1712,41 +1753,83 @@ TArray<FString> AbsoluteFilenames(const TArray<FString>& InFileNames, const FStr
 	return AbsFiles;
 }
 
-bool UpdateCachedStates(const TArray<FGitSourceControlState>& InStates)
+bool UpdateCachedStates(const TMap<const FString, FGitState>& InResults)
 {
-	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	if (InResults.Num() == 0)
+	{
+		return false;
+	}
+
+	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
 	const bool bUsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
 
 	// TODO without LFS : Workaround a bug with the Source Control Module not updating file state after a simple "Save" with no "Checkout" (when not using File Lock)
-	const FDateTime Now = bUsingGitLfsLocking ? FDateTime::Now() : FDateTime();
+	const FDateTime Now = bUsingGitLfsLocking ? FDateTime::Now() : FDateTime::MinValue();
 
-	for (const auto& InState : InStates)
+	for (TMap<const FString, FGitState>::TConstIterator It(InResults); It; ++It)
 	{
-		TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(InState.LocalFilename);
-		*State = InState;
+		TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(It.Key());
+		const FGitState& NewState = It.Value();
+		if (NewState.FileState != EFileState::Unset)
+		{
+			State->State.FileState = NewState.FileState;
+		}
+		if (NewState.TreeState != ETreeState::Unset)
+		{
+			State->State.TreeState = NewState.TreeState;
+		}
+		if (NewState.LockState != ELockState::Unset)
+		{
+			State->State.LockState = NewState.LockState;
+		}
+		if (NewState.RemoteState != ERemoteState::Unset)
+		{
+			State->State.RemoteState = NewState.RemoteState;
+		}
 		State->TimeStamp = Now;
 
 		// We've just updated the state, no need for UpdateStatus to be ran for this file again.
-		Provider.AddFileToIgnoreForceCache(InState.LocalFilename);
+		Provider.AddFileToIgnoreForceCache(State->LocalFilename);
 	}
 
-	return (InStates.Num() > 0);
+	return true;
 }
 
-bool UpdateCachedStates(const TMap<FString, EWorkingCopyState::Type>& InResults)
+bool CollectNewStates(const TArray<FGitSourceControlState>& InStates, TMap<const FString, FGitState>& OutResults)
 {
-	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
-	
-	for (TMap<FString, EWorkingCopyState::Type>::TConstIterator It(InResults); It; ++It)
+	if (InStates.Num() == 0)
 	{
-		TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(It.Key());
-		State->WorkingCopyState = It.Value();
-		State->TimeStamp = FDateTime::Now();
+		return false;
+	}
+	
+	for (const auto& InState : InStates)
+	{
+		OutResults.Add(InState.GetFilename(), InState.State);
 	}
 
-	return InResults.Num() > 0;
+	return true;
+}
+
+bool CollectNewStates(const TArray<FString>& InFiles, TMap<const FString, FGitState>& OutResults, EFileState::Type FileState, ETreeState::Type TreeState, ELockState::Type LockState, ERemoteState::Type RemoteState)
+{
+	if (InFiles.Num() == 0)
+	{
+		return false;
+	}
+
+	FGitState State;
+	State.FileState = FileState;
+	State.TreeState = TreeState;
+	State.LockState = LockState;
+	State.RemoteState = RemoteState;
+
+	for (const auto& File : InFiles)
+	{
+		OutResults.Add(File, State);
+	}
+
+	return true;
 }
 
 /**
@@ -1774,19 +1857,19 @@ struct FRemoveRedundantErrors
 void RemoveRedundantErrors(FGitSourceControlCommand& InCommand, const FString& InFilter)
 {
 	bool bFoundRedundantError = false;
-	for (auto Iter(InCommand.ErrorMessages.CreateConstIterator()); Iter; Iter++)
+	for (auto Iter(InCommand.ResultInfo.ErrorMessages.CreateConstIterator()); Iter; Iter++)
 	{
 		if (Iter->Contains(InFilter))
 		{
-			InCommand.InfoMessages.Add(*Iter);
+			InCommand.ResultInfo.InfoMessages.Add(*Iter);
 			bFoundRedundantError = true;
 		}
 	}
 
-	InCommand.ErrorMessages.RemoveAll(FRemoveRedundantErrors(InFilter));
+	InCommand.ResultInfo.ErrorMessages.RemoveAll(FRemoveRedundantErrors(InFilter));
 
 	// if we have no error messages now, assume success!
-	if (bFoundRedundantError && InCommand.ErrorMessages.Num() == 0 && !InCommand.bCommandSuccessful)
+	if (bFoundRedundantError && InCommand.ResultInfo.ErrorMessages.Num() == 0 && !InCommand.bCommandSuccessful)
 	{
 		InCommand.bCommandSuccessful = true;
 	}
