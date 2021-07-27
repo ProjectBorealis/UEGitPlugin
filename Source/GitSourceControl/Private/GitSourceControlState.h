@@ -177,6 +177,7 @@ public:
 	/** File Id with which our local revision diverged from the remote revision */
 	FString PendingMergeBaseFileHash;
 
+	/** Status of the file */
 	FGitState State;
 
 	/** Name of user who has locked the file */

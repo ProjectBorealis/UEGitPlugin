@@ -37,7 +37,6 @@ class FGitLockedFilesCache
 {
 public:
 	static FDateTime LastUpdated;
-	static TMap<FString, FString> LockedFiles;
 };
 
 namespace GitSourceControlUtils
