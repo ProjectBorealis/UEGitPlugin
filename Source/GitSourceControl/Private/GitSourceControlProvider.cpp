@@ -391,10 +391,12 @@ void FGitSourceControlProvider::OutputCommandMessages(const FGitSourceControlCom
 		SourceControlLog.Error(InCommand.ResultInfo.ErrorMessages[ErrorIndex]);
 	}
 
+#if UE_BUILD_DEBUG
 	for (int32 InfoIndex = 0; InfoIndex < InCommand.ResultInfo.InfoMessages.Num(); ++InfoIndex)
 	{
 		SourceControlLog.Info(InCommand.ResultInfo.InfoMessages[InfoIndex]);
 	}
+#endif
 }
 
 void FGitSourceControlProvider::UpdateRepositoryStatus(const class FGitSourceControlCommand& InCommand)

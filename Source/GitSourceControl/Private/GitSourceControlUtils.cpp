@@ -1128,11 +1128,13 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 	OutErrorMessages.Append(ErrorMessages);
 }
 
+const FTimespan CacheLimit = FTimespan::FromSeconds(30);
+
 bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool bAbsolutePaths, TArray<FString>& OutErrorMessages, TMap<FString, FString>& OutLocks, bool bInvalidateCache)
 {
 	const FDateTime CurrentTime = FDateTime::UtcNow();
 	FTimespan CacheTimeElapsed = CurrentTime - FGitLockedFilesCache::LastUpdated;
-	FTimespan CacheLimit = FTimespan::FromMinutes(3);
+	
 	bool bCacheExpired = (FGitLockedFilesCache::LockedFiles.Num() < 1) || CacheTimeElapsed > CacheLimit;
 	bool bResult;
 	if (bInvalidateCache || bCacheExpired)
@@ -1154,8 +1156,6 @@ bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRo
 	}
 	else
 	{
-		OutLocks = FGitLockedFilesCache::LockedFiles;
-
 		TArray<FString> Params;
 		Params.Add(TEXT("--cached"));
 
@@ -1168,7 +1168,7 @@ bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRo
 #if UE_BUILD_DEBUG
 			UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
 #endif
-			OutLocks.FindOrAdd(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+			OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 		}
 
 		FGitLockedFilesCache::LockedFiles = OutLocks;
