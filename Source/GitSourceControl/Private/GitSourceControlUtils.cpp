@@ -1234,6 +1234,15 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	{
 		// "git status" can only detect renamed and deleted files when it operate on a folder, so use one folder path for all files in a directory
 		const FString Path = FPaths::GetPath(*Files.Value[0]);
+
+		// Skip querying anything outside our git root
+		// We get queries for all the Engine content dirs too and they take ages and don't work anyway
+		if (!FPaths::IsUnderDirectory(Path, InRepositoryRoot))
+		{
+			UE_LOG(LogSourceControl, Log, TEXT("Skipping %s because it's not a subdir of git repo %s"), *Path, *InRepositoryRoot);
+			continue;
+		}
+
 		TArray<FString> OnePath;
 		// Only one file: optim very useful for the .uproject file at the root to avoid parsing the whole repository
 		// (works only if the file exists)
