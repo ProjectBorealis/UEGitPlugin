@@ -20,6 +20,7 @@
 #include "SourceControlHelpers.h"
 #include "SourceControlOperations.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/MessageDialog.h"
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
 
@@ -106,6 +107,26 @@ void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGit
 	GitSourceControlUtils::GetUserConfig(InPathToGitBinary, PathToRepositoryRoot, UserName, UserEmail);
 }
 
+void FGitSourceControlProvider::SetLastErrors(const TArray<FText>& InErrors)
+{
+
+	FScopeLock Lock(&LastErrorsCriticalSection);
+	LastErrors = InErrors;
+}
+
+TArray<FText> FGitSourceControlProvider::GetLastErrors() const
+{
+	FScopeLock Lock(&LastErrorsCriticalSection);
+	TArray<FText> Result = LastErrors;
+	return Result;
+}
+
+int32 FGitSourceControlProvider::GetNumLastErrors() const
+{
+	FScopeLock Lock(&LastErrorsCriticalSection);
+	return LastErrors.Num();
+}
+
 void FGitSourceControlProvider::Close()
 {
 	// clear the cache
@@ -139,6 +160,7 @@ TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> FGitSourceControlProvide
 FText FGitSourceControlProvider::GetStatusText() const
 {
 	FFormatNamedArguments Args;
+	Args.Add(TEXT("IsAvailable"), (IsEnabled() && IsAvailable()) ? LOCTEXT("Yes", "Yes") : LOCTEXT("No", "No"));
 	Args.Add( TEXT("RepositoryName"), FText::FromString(PathToRepositoryRoot) );
 	Args.Add( TEXT("RemoteUrl"), FText::FromString(RemoteUrl) );
 	Args.Add( TEXT("UserName"), FText::FromString(UserName) );
@@ -147,7 +169,19 @@ FText FGitSourceControlProvider::GetStatusText() const
 	Args.Add( TEXT("CommitId"), FText::FromString(CommitId.Left(8)) );
 	Args.Add( TEXT("CommitSummary"), FText::FromString(CommitSummary) );
 
-	return FText::Format( NSLOCTEXT("Status", "Provider: Git\nEnabledLabel", "Local repository: {RepositoryName}\nRemote origin: {RemoteUrl}\nUser: {UserName}\nE-mail: {UserEmail}\n[{BranchName} {CommitId}] {CommitSummary}"), Args );
+	FText FormattedError;
+	TArray<FText> RecentErrors = GetLastErrors();
+	if (RecentErrors.Num() > 0)
+	{
+		FFormatNamedArguments ErrorArgs;
+		ErrorArgs.Add(TEXT("ErrorText"), RecentErrors[0]);
+
+		FormattedError = FText::Format(LOCTEXT("GitErrorStatusText", "Error: {ErrorText}\n\n"), ErrorArgs);
+	}
+
+	Args.Add(TEXT("ErrorText"), FormattedError);
+
+	return FText::Format( NSLOCTEXT("GitStatusText", "{ErrorText}Enabled: {IsAvailable}", "Local repository: {RepositoryName}\nRemote origin: {RemoteUrl}\nUser: {UserName}\nE-mail: {UserEmail}\n[{BranchName} {CommitId}] {CommitSummary}"), Args );
 }
 
 /** Quick check if source control is enabled */
@@ -192,10 +226,10 @@ ECommandResult::Type FGitSourceControlProvider::GetState( const TArray<FString>&
 TArray<FSourceControlStateRef> FGitSourceControlProvider::GetCachedStateByPredicate(TFunctionRef<bool(const FSourceControlStateRef&)> Predicate) const
 {
 	TArray<FSourceControlStateRef> Result;
-	for(const auto& CacheItem : StateCache)
+	for (const auto& CacheItem : StateCache)
 	{
-		FSourceControlStateRef State = CacheItem.Value;
-		if(Predicate(State))
+		const FSourceControlStateRef& State = CacheItem.Value;
+		if (Predicate(State))
 		{
 			Result.Add(State);
 		}
@@ -258,6 +292,7 @@ ECommandResult::Type FGitSourceControlProvider::Execute( const TSharedRef<ISourc
 		Arguments.Add( TEXT("OperationName"), FText::FromName(InOperation->GetName()) );
 		Arguments.Add( TEXT("ProviderName"), FText::FromName(GetName()) );
 		FText Message(FText::Format(LOCTEXT("UnsupportedOperation", "Operation '{OperationName}' not supported by source control provider '{ProviderName}'"), Arguments));
+
 		FMessageLog("SourceControl").Error(Message);
 		InOperation->AddErrorMessge(Message);
 
@@ -288,11 +323,32 @@ ECommandResult::Type FGitSourceControlProvider::Execute( const TSharedRef<ISourc
 
 bool FGitSourceControlProvider::CanCancelOperation( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation ) const
 {
+	for (int32 CommandIndex = 0; CommandIndex < CommandQueue.Num(); ++CommandIndex)
+	{
+		const FGitSourceControlCommand& Command = *CommandQueue[CommandIndex];
+		if (Command.Operation == InOperation)
+		{
+			check(Command.bAutoDelete);
+			return true;
+		}
+	}
+
+	// operation was not in progress!
 	return false;
 }
 
 void FGitSourceControlProvider::CancelOperation( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation )
 {
+	for (int32 CommandIndex = 0; CommandIndex < CommandQueue.Num(); ++CommandIndex)
+	{
+		FGitSourceControlCommand& Command = *CommandQueue[CommandIndex];
+		if (Command.Operation == InOperation)
+		{
+			check(Command.bAutoDelete);
+			Command.Cancel();
+			return;
+		}
+	}
 }
 
 bool FGitSourceControlProvider::UsesLocalReadOnlyState() const
@@ -330,17 +386,15 @@ void FGitSourceControlProvider::OutputCommandMessages(const FGitSourceControlCom
 {
 	FMessageLog SourceControlLog("SourceControl");
 
-	for(int32 ErrorIndex = 0; ErrorIndex < InCommand.ErrorMessages.Num(); ++ErrorIndex)
+	for (int32 ErrorIndex = 0; ErrorIndex < InCommand.ResultInfo.ErrorMessages.Num(); ++ErrorIndex)
 	{
-		SourceControlLog.Error(FText::FromString(InCommand.ErrorMessages[ErrorIndex]));
+		SourceControlLog.Error(InCommand.ResultInfo.ErrorMessages[ErrorIndex]);
 	}
 
-#if UE_BUILD_DEBUG
-	for(int32 InfoIndex = 0; InfoIndex < InCommand.InfoMessages.Num(); ++InfoIndex)
+	for (int32 InfoIndex = 0; InfoIndex < InCommand.ResultInfo.InfoMessages.Num(); ++InfoIndex)
 	{
-		SourceControlLog.Info(FText::FromString(InCommand.InfoMessages[InfoIndex]));
+		SourceControlLog.Info(InCommand.ResultInfo.InfoMessages[InfoIndex]);
 	}
-#endif
 }
 
 void FGitSourceControlProvider::UpdateRepositoryStatus(const class FGitSourceControlCommand& InCommand)
@@ -357,11 +411,11 @@ void FGitSourceControlProvider::Tick()
 {	
 	bool bStatesUpdated = false;
 
-	for(int32 CommandIndex = 0; CommandIndex < CommandQueue.Num(); ++CommandIndex)
+	for (int32 CommandIndex = 0; CommandIndex < CommandQueue.Num(); ++CommandIndex)
 	{
 		FGitSourceControlCommand& Command = *CommandQueue[CommandIndex];
 
-		if(Command.bExecuteProcessed)
+		if (Command.bExecuteProcessed)
 		{
 			// Remove command from the queue
 			CommandQueue.RemoveAt(CommandIndex);
@@ -376,7 +430,10 @@ void FGitSourceControlProvider::Tick()
 			OutputCommandMessages(Command);
 
 			// run the completion delegate callback if we have one bound
-			Command.ReturnResults();
+			if (!Command.IsCanceled())
+			{
+				Command.ReturnResults();
+			}
 
 			// commands that are left in the array during a tick need to be deleted
 			if(Command.bAutoDelete)
@@ -389,9 +446,18 @@ void FGitSourceControlProvider::Tick()
 			// of the command queue (which can happen in the completion delegate)
 			break;
 		}
+		else if (Command.bCancelled)
+		{
+			// If this was a synchronous command, set it free so that it will be deleted automatically
+			// when its (still running) thread finally finishes
+			Command.bAutoDelete = true;
+
+			Command.ReturnResults();
+			break;
+		}
 	}
 
-	if(bStatesUpdated)
+	if (bStatesUpdated)
 	{
 		OnSourceControlStateChanged.Broadcast();
 	}
@@ -414,20 +480,36 @@ TSharedRef<class SWidget> FGitSourceControlProvider::MakeSettingsWidget() const
 }
 #endif
 
-ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSourceControlCommand& InCommand, const FText& Task)
+ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSourceControlCommand& InCommand, const FText& Task, bool bSuppressResponseMsg)
 {
 	ECommandResult::Type Result = ECommandResult::Failed;
+
+	struct Local
+	{
+		static void CancelCommand(FGitSourceControlCommand* InControlCommand)
+		{
+			InControlCommand->Cancel();
+		}
+	};
+
+	FText TaskText = Task;
+	// Display the progress dialog
+	if (bSuppressResponseMsg)
+	{
+		TaskText = FText::GetEmpty();
+	}
+	
 	int i = 0;
 
 	// Display the progress dialog if a string was provided
 	{
-		FScopedSourceControlProgress Progress(Task);
-
+		FScopedSourceControlProgress Progress(TaskText, FSimpleDelegate::CreateStatic(&Local::CancelCommand, &InCommand));
+		
 		// Issue the command asynchronously...
 		IssueCommand( InCommand );
 
 		// ... then wait for its completion (thus making it synchronous)
-		while (CommandQueue.Contains(&InCommand))
+		while (!InCommand.IsCanceled() && CommandQueue.Contains(&InCommand))
 		{
 			// Tick the command queue and update progress.
 			Tick();
@@ -442,13 +524,17 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 			FPlatformProcess::Sleep(0.01f);
 		}
 
+		if (InCommand.bCancelled)
+		{
+			Result = ECommandResult::Cancelled;
+		}
 		if (InCommand.bCommandSuccessful)
 		{
 			Result = ECommandResult::Succeeded;
 		}
-		else
+		else if (!bSuppressResponseMsg)
 		{
-			FMessageDialog::Open( EAppMsgType::Ok, LOCTEXT("Git_ServerUnresponsive", "Git LFS server command failed. Please check the output log for more information.") );
+			FMessageDialog::Open( EAppMsgType::Ok, LOCTEXT("Git_ServerUnresponsive", "Git command failed. Please check your connection and try again, or check the output log for more information.") );
 			UE_LOG(LogSourceControl, Error, TEXT("Command '%s' Failed!"), *InCommand.Operation->GetName().ToString());
 		}
 	}
@@ -466,7 +552,8 @@ ECommandResult::Type FGitSourceControlProvider::IssueCommand(FGitSourceControlCo
 {
 	if (!bSynchronous && GThreadPool != nullptr)
 	{
-		// Queue this to our worker thread(s) for resolving
+		// Queue this to our worker thread(s) for resolving.
+		// When asynchronous, any callback gets called from Tick().
 		GThreadPool->AddQueuedWork(&InCommand);
 		CommandQueue.Add(&InCommand);
 		return ECommandResult::Succeeded;
@@ -474,13 +561,80 @@ ECommandResult::Type FGitSourceControlProvider::IssueCommand(FGitSourceControlCo
 	else
 	{
 		UE_LOG(LogSourceControl, Log, TEXT("There are no threads available to process the source control command '%s'. Running synchronously."), *InCommand.Operation->GetName().ToString());
+
 		InCommand.bCommandSuccessful = InCommand.DoWork();
+
 		InCommand.Worker->UpdateStates();
+
 		OutputCommandMessages(InCommand);
 
 		// Callback now if present. When asynchronous, this callback gets called from Tick().
 		return InCommand.ReturnResults();
 	}
+}
+
+bool FGitSourceControlProvider::QueryStateBranchConfig(const FString& ConfigSrc, const FString& ConfigDest)
+{
+
+	if (ConfigSrc.Len() == 0 || ConfigDest.Len() == 0)
+	{
+		return false;
+	}
+
+	// Request branch configuration from depot
+	FPerforceSourceControlModule& PerforceSourceControl = FModuleManager::LoadModuleChecked<FPerforceSourceControlModule>("PerforceSourceControl");
+	FScopedPerforceConnection ScopedConnection(EConcurrency::Synchronous, PerforceSourceControl.AccessSettings().GetConnectionInfo());
+	if (ScopedConnection.IsValid())
+	{
+		FPerforceConnection& Connection = ScopedConnection.GetConnection();
+		FP4RecordSet Records;
+		TArray<FString> Parameters;
+		TArray<FText> ErrorMessages;
+		Parameters.Add(TEXT("-o"));
+		Parameters.Add(*ConfigDest);
+		Parameters.Add(*ConfigSrc);
+
+		FText GeneralErrorMessage = LOCTEXT("StatusBranchConfigGeneralFailure", "Unable to retrieve status branch configuration from repo");
+
+		bool bConnectionDropped = false;
+		if (Connection.RunCommand(TEXT("print"), Parameters, Records, ErrorMessages, FOnIsCancelled(), bConnectionDropped))
+		{
+			if (Records.Num() < 1 || Records[0][TEXT("depotFile")] != ConfigSrc)
+			{
+				FMessageLog("SourceControl").Error(GeneralErrorMessage);
+				return false;
+			}
+		}
+		else
+		{
+			FMessageLog("SourceControl").Error(GeneralErrorMessage);
+
+			// output specific errors if any
+			for (int32 ErrorIndex = 0; ErrorIndex < ErrorMessages.Num(); ++ErrorIndex)
+			{
+				FMessageLog("SourceControl").Error(ErrorMessages[ErrorIndex]);
+			}
+
+			return false;
+		}
+	}
+	else
+	{
+		FMessageLog("SourceControl").Error(LOCTEXT("StatusBranchConfigNoConnection", "Unable to retrieve status branch configuration from depot, no connection"));
+		return false;
+	}
+
+	return true;
+}
+
+void FGitSourceControlProvider::RegisterStateBranches(const TArray<FString>& BranchNames, const FString& ContentRootIn)
+{
+	StatusBranchNames = BranchNames;
+}
+
+int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& BranchName) const
+{
+	return StatusBranchNames.IndexOfByKey(BranchName);
 }
 
 #undef LOCTEXT_NAMESPACE

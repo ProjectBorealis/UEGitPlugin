@@ -71,9 +71,9 @@ public:
 	virtual bool IsEnabled() const override;
 	virtual bool IsAvailable() const override;
 	virtual const FName& GetName(void) const override;
-	virtual bool QueryStateBranchConfig(const FString& ConfigSrc, const FString& ConfigDest) /* override UE4.20 */ { return false; }
-	virtual void RegisterStateBranches(const TArray<FString>& BranchNames, const FString& ContentRoot) /* override UE4.20 */ {}
-	virtual int32 GetStateBranchIndex(const FString& InBranchName) const /* override UE4.20 */ { return INDEX_NONE; }
+	virtual bool QueryStateBranchConfig(const FString& ConfigSrc, const FString& ConfigDest) override;
+	virtual void RegisterStateBranches(const TArray<FString>& BranchNames, const FString& ContentRootIn) override;
+	virtual int32 GetStateBranchIndex(const FString& BranchName) const override;
 	virtual ECommandResult::Type GetState( const TArray<FString>& InFiles, TArray< TSharedRef<ISourceControlState, ESPMode::ThreadSafe> >& OutState, EStateCacheUsage::Type InStateCacheUsage ) override;
 	virtual TArray<FSourceControlStateRef> GetCachedStateByPredicate(TFunctionRef<bool(const FSourceControlStateRef&)> Predicate) const override;
 	virtual FDelegateHandle RegisterSourceControlStateChanged_Handle(const FSourceControlStateChanged::FDelegate& SourceControlStateChanged) override;
@@ -145,6 +145,15 @@ public:
 	 */
 	void RegisterWorker( const FName& InName, const FGetGitSourceControlWorker& InDelegate );
 
+	/** Set list of error messages that occurred after last perforce command */
+	void SetLastErrors(const TArray<FText>& InErrors);
+
+	/** Get list of error messages that occurred after last perforce command */
+	TArray<FText> GetLastErrors() const;
+
+	/** Get number of error messages seen after running last perforce command */
+	int32 GetNumLastErrors() const;
+
 	/** Remove a named file from the state cache */
 	bool RemoveFileFromCache(const FString& Filename);
 
@@ -169,11 +178,17 @@ private:
 	*/
 	int UsingGitLfsLocking = -1;
 
+	/** Critical section for thread safety of error messages that occurred after last perforce command */
+	mutable FCriticalSection LastErrorsCriticalSection;
+
+	/** List of error messages that occurred after last perforce command */
+	TArray<FText> LastErrors;
+
 	/** Helper function for Execute() */
 	TSharedPtr<class IGitSourceControlWorker, ESPMode::ThreadSafe> CreateWorker(const FName& InOperationName) const;
 
 	/** Helper function for running command synchronously. */
-	ECommandResult::Type ExecuteSynchronousCommand(class FGitSourceControlCommand& InCommand, const FText& Task);
+	ECommandResult::Type ExecuteSynchronousCommand(class FGitSourceControlCommand& InCommand, const FText& Task, bool bSuppressResponseMsg);
 	/** Issue a command asynchronously if possible. */
 	ECommandResult::Type IssueCommand(class FGitSourceControlCommand& InCommand, const bool bSynchronous = false );
 
@@ -195,7 +210,7 @@ private:
 	/** Name of the current branch */
 	FString BranchName;
 
-	/** URL of the "origin" defaut remote server */
+	/** URL of the "origin" default remote server */
 	FString RemoteUrl;
 
 	/** Current Commit full SHA1 */
@@ -227,4 +242,7 @@ private:
 		UE4's SourceControl has a habit of performing a double status update, immediately after an operation.
 	*/
 	TArray<FString> IgnoreForceCache;
+
+	/** Array of branch names for status queries */
+	TArray<FString> StatusBranchNames;
 };
