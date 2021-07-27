@@ -420,7 +420,7 @@ void FGitSourceControlProvider::Tick()
 			// Remove command from the queue
 			CommandQueue.RemoveAt(CommandIndex);
 
-			// Update respository status on UpdateStatus operations
+			// Update repository status on UpdateStatus operations
 			UpdateRepositoryStatus(Command);
 
 			// let command update the states of any files

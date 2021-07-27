@@ -4,7 +4,7 @@ Unreal Engine 4 Git Source Control Plugin
 [![release](https://img.shields.io/github/release/SRombauts/UE4GitPlugin.svg)](https://github.com/SRombauts/UE4GitPlugin/releases)
 [![Git Plugin issues](https://img.shields.io/github/issues/SRombauts/UE4GitPlugin.svg)](https://github.com/SRombauts/UE4GitPlugin/issues)
 [![Join the chat at https://gitter.im/SRombauts/UE4GitPlugin](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/SRombauts/UE4GitPlugin)
-UE4GitPlugin is a simple Git Source Control Plugin for **Unreal Engine 4.25**.
+UE4GitPlugin is a simple Git Source Control Plugin for **Unreal Engine 4.26**.
 
 Developed and contributed by Sébastien Rombauts 2014-2020 (sebastien.rombauts@gmail.com)
 <a href="https://www.paypal.me/SRombauts" title="Pay Me a Beer! Donate with PayPal :)"><img src="https://www.paypalobjects.com/webstatic/paypalme/images/pp_logo_small.png" width="118"></a>
@@ -39,7 +39,7 @@ Visual Diffing of two revisions of a Blueprint:
 <img src="https://cdn2.unrealengine.com/blog/DiffTool-1009x542-719850393.png" width="720">
 
 Merge conflict of a Blueprint:
-<img src="https://docs.unrealengine.com/latest/images/Support/Builds/ReleaseNotes/2015/4_7/BPmergeTool.jpg" width="720">
+<img src="https://docs.unrealengine.com/Images/WhatsNew/Builds/ReleaseNotes/2015/4_7/BPmergeTool.webp" width="720">
 
 Status Icons:
 
@@ -187,7 +187,7 @@ use the tools provided by GitHub:
 - You can also email me directly, I will answer any questions and requests.
 
 ### Coding Style Guidelines
-The source code follow the UnreaEngine official [Coding Standard](https://docs.unrealengine.com/latest/INT/Programming/Development/CodingStandard/index.html):
+The source code follow the Unreal Engine official [Coding Standard](https://docs.unrealengine.com/latest/INT/Programming/Development/CodingStandard/index.html):
 - CamelCase naming convention, with a prefix letter to differentiate classes ('F'), interfaces ('I'), templates ('T')
 - files (.cpp/.h) are named like the class they contains
 - Doxygen comments, documentation is located with declaration, on headers
