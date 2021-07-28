@@ -57,7 +57,14 @@ bool FGitSourceControlCommand::IsCanceled() const
 ECommandResult::Type FGitSourceControlCommand::ReturnResults()
 {
 	// Save any messages that have accumulated
-	Operation->AppendResultInfo(ResultInfo);
+	for (const auto& String : ResultInfo.InfoMessages)
+	{
+		Operation->AddInfoMessge(FText::FromString(String));
+	}
+	for (const auto& String : ResultInfo.ErrorMessages)
+	{
+		Operation->AddErrorMessge(FText::FromString(String));
+	}
 
 	// run the completion delegate if we have one bound
 	ECommandResult::Type Result = bCancelled ? ECommandResult::Cancelled : (bCommandSuccessful ? ECommandResult::Succeeded : ECommandResult::Failed);

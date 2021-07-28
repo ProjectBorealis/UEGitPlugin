@@ -407,17 +407,15 @@ void FGitSourceControlProvider::OutputCommandMessages(const FGitSourceControlCom
 		SourceControlLog.Error(FText::FromString(InCommand.ResultInfo.ErrorMessages[ErrorIndex]));
 	}
 
-#if UE_BUILD_DEBUG
 	for (int32 InfoIndex = 0; InfoIndex < InCommand.ResultInfo.InfoMessages.Num(); ++InfoIndex)
 	{
 		SourceControlLog.Info(FText::FromString(InCommand.ResultInfo.InfoMessages[InfoIndex]));
 	}
-#endif
 }
 
 void FGitSourceControlProvider::UpdateRepositoryStatus(const class FGitSourceControlCommand& InCommand)
 {
-	// For all operations running UpdateStatus, get Commit informations:
+	// For all operations running UpdateStatus, get Commit information:
 	if (!InCommand.CommitId.IsEmpty())
 	{
 		CommitId = InCommand.CommitId;

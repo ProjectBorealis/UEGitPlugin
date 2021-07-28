@@ -513,7 +513,12 @@ bool FGitRevertWorker::Execute(FGitSourceControlCommand& InCommand)
 	}
 
 	// now update the status of our files
-	GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, FilesToUpdate, InCommand.ResultInfo.ErrorMessages, States);
+	TArray<FGitSourceControlState> UpdatedStates;
+	bool bSuccess = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, FilesToUpdate, InCommand.ResultInfo.ErrorMessages, UpdatedStates);
+	if (bSuccess)
+	{
+		GitSourceControlUtils::CollectNewStates(UpdatedStates, States);
+	}
 	GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
 
 	return InCommand.bCommandSuccessful;
@@ -541,7 +546,12 @@ bool FGitSyncWorker::Execute(FGitSourceControlCommand& InCommand)
 	InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("pull"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters, TArray<FString>(), InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 
 	// now update the status of our files
-	GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.ErrorMessages, States);
+	TArray<FGitSourceControlState> UpdatedStates;
+	bool bSuccess = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.ErrorMessages, UpdatedStates);
+	if (bSuccess)
+	{
+		GitSourceControlUtils::CollectNewStates(UpdatedStates, States);
+	}
 	GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
 	GitSourceControlUtils::GetCommitInfo(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.CommitId, InCommand.CommitSummary);
 
