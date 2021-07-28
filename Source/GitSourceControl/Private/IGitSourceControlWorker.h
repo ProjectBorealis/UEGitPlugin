@@ -12,6 +12,8 @@
 class IGitSourceControlWorker
 {
 public:
+	virtual ~IGitSourceControlWorker() = default;
+
 	/**
 	 * Name describing the work that this worker does. Used for factory method hookup.
 	 */

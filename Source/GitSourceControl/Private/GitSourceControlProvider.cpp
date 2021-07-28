@@ -614,19 +614,19 @@ void FGitSourceControlProvider::RegisterStateBranches(const TArray<FString>& Bra
 	StatusBranchNames = BranchNames;
 }
 
-int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& BranchName) const
+int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& StateBranchName) const
 {
-	const int32 CurrentBranchStatusIndex = StatusBranchNames.IndexOfByKey(this->BranchName);
+	const int32 CurrentBranchStatusIndex = StatusBranchNames.IndexOfByKey(BranchName);
 	const bool bCurrentBranchInStatusBranches = CurrentBranchStatusIndex != INDEX_NONE;
 
 	// Check if we are checking the index of the current branch
 	// UE uses FEngineVersion for the current branch name because of UEGames setup, but we want to handle otherwise for Git repos.
-	if (BranchName == FEngineVersion::Current().GetBranch())
+	if (StateBranchName == FEngineVersion::Current().GetBranch())
 	{
 		// If the user's current branch is tracked as a status branch, give the proper index
 		if (bCurrentBranchInStatusBranches)
 		{
-			return StatusBranchNames.IndexOfByKey(this->BranchName);
+			return StatusBranchNames.IndexOfByKey(BranchName);
 		}
 		// If the current branch is not a status branch, make it the highest branch
 		// This is semantically correct, since if a branch is not marked as a status branch
@@ -636,7 +636,7 @@ int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& BranchName) 
 	
 	// If we're not checking the current branch, then we don't need to do special handling.
 	// If it is not a status branch, there is no message
-	return StatusBranchNames.IndexOfByKey(BranchName);
+	return StatusBranchNames.IndexOfByKey(StateBranchName);
 }
 
 #undef LOCTEXT_NAMESPACE

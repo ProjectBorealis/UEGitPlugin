@@ -271,6 +271,7 @@ bool FGitSourceControlState::GetOtherBranchHeadModification(FString& HeadBranchO
 	HeadBranchOut = HeadBranch;
 	ActionOut = HeadAction; // TODO: from ERemoteState
 	HeadChangeListOut = 0; // TODO: get head commit
+	return true;
 }
 
 bool FGitSourceControlState::IsCurrent() const
