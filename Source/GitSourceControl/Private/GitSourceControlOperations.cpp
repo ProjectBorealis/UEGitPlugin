@@ -725,8 +725,10 @@ bool FGitUpdateStatusWorker::UpdateStates() const
 
 	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>( "GitSourceControl" );
 	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+	const bool bUsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
 
-	const FDateTime Now = FDateTime::Now();
+	// TODO without LFS : Workaround a bug with the Source Control Module not updating file state after a simple "Save" with no "Checkout" (when not using File Lock)
+	const FDateTime Now = bUsingGitLfsLocking ? FDateTime::Now() : FDateTime::MinValue();
 
 	// add history, if any
 	for(const auto& History : Histories)

@@ -160,7 +160,7 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
  * @param	OnePath				The file to be checked
  * @param	OutErrorMessages	Any errors (from StdErr) as an array per-line
  */
-void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& OnePath,
+void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& Files,
 				 TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates);
 
 /**
@@ -254,5 +254,7 @@ bool CollectNewStates(const TArray<FString>& InFiles, TMap<const FString, FGitSt
 bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool bAbsolutePaths, TArray<FString>& OutErrorMessages, TMap<FString, FString>& OutLocks, bool bInvalidateCache = false);
 
 bool IsFileLFSLockable(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const FString& InFile, TArray<FString>& OutErrorMessages);
+
+bool CheckLFSLockable(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages);
 
 }

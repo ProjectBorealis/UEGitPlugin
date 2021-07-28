@@ -41,12 +41,6 @@ void FGitSourceControlProvider::Init(bool bForceConnection)
 		}
 
 		CheckGitAvailability();
-
-		if (UsingGitLfsLocking == -1)
-		{
-			const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-			UsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
-		}
 	}
 
 	// bForceConnection: not used anymore
@@ -95,6 +89,30 @@ void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGit
 		if(bGitRepositoryFound)
 		{
 			GitSourceControlUtils::GetRemoteUrl(InPathToGitBinary, PathToRepositoryRoot, RemoteUrl);
+			if (UsingGitLfsLocking == -1)
+			{
+				const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+				UsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
+			}
+			TArray<FString> Files;
+			Files.Add("*.uasset");
+			Files.Add("*.umap");
+			TArray<FString> ErrorMessages;
+			if (!GitSourceControlUtils::CheckLFSLockable(InPathToGitBinary, PathToRepositoryRoot, Files, ErrorMessages))
+			{
+				for (const auto& ErrorMessage : ErrorMessages)
+				{
+					UE_LOG(LogSourceControl, Error, TEXT("'%s'"), *ErrorMessage);
+				}
+			}
+#if 0
+			TArray<FString> ProjectDirs;
+			ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()));
+			ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
+			ErrorMessages.Empty();
+			TArray<FGitSourceControlState> States;
+			GitSourceControlUtils::RunUpdateStatus(InPathToGitBinary, PathToRepositoryRoot, UsingGitLfsLocking == 1, ProjectDirs, ErrorMessages, States);
+#endif
 		}
 		else
 		{
@@ -566,7 +584,7 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 
 ECommandResult::Type FGitSourceControlProvider::IssueCommand(FGitSourceControlCommand& InCommand, const bool bSynchronous)
 {
-	if (!bSynchronous && GThreadPool != nullptr)
+	if (false && !bSynchronous && GThreadPool != nullptr)
 	{
 		// Queue this to our worker thread(s) for resolving.
 		// When asynchronous, any callback gets called from Tick().

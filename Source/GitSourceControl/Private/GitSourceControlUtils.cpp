@@ -943,12 +943,18 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 {
 	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
 	const FString LfsUserName = GitSourceControl.AccessSettings().GetLfsUserName();
-	const FDateTime Now = FDateTime::Now();
+
+	// TODO without LFS : Workaround a bug with the Source Control Module not updating file state after a simple "Save" with no "Checkout" (when not using File Lock)
+	const FDateTime Now = InUsingLfsLocking ? FDateTime::Now() : FDateTime::MinValue();
 
 	// Iterate on all files explicitly listed in the command
 	for (const auto& File : InFiles)
 	{
 		FGitSourceControlState FileState(File);
+		FileState.State.FileState = EFileState::Unset;
+		FileState.State.TreeState = ETreeState::Unset;
+		FileState.State.LockState = ELockState::Unset;
+		FileState.State.RemoteState = ERemoteState::Unset;
 		// Search the file in the list of status
 		int32 IdxResult = InResults.IndexOfByPredicate(FGitStatusFileMatcher(File));
 		if (IdxResult != INDEX_NONE)
@@ -990,9 +996,8 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 		if (!InUsingLfsLocking)
 		{
 			FileState.State.LockState = ELockState::Unlockable;
-			break;
 		}
-		if (InLockedFiles.Contains(File))
+		else if (InLockedFiles.Contains(File))
 		{
 			FileState.LockUser = InLockedFiles[File];
 			if (LfsUserName == FileState.LockUser)
@@ -1039,7 +1044,11 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 static void ParseDirectoryStatusResult(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking,
 									   const TArray<FString>& InResults, TArray<FGitSourceControlState>& OutStates)
 {
-	const FDateTime Now = FDateTime::Now();
+	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	const FString LfsUserName = GitSourceControl.AccessSettings().GetLfsUserName();
+
+	// TODO without LFS : Workaround a bug with the Source Control Module not updating file state after a simple "Save" with no "Checkout" (when not using File Lock)
+	const FDateTime Now = InUsingLfsLocking ? FDateTime::Now() : FDateTime::MinValue();
 	// Iterate on each line of result of the status command
 	for (const FString& Result : InResults)
 	{
@@ -1107,7 +1116,7 @@ static void ParseStatusResults(const FString& InPathToGitBinary, const FString& 
 	}
 }
 
-void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& OnePath,
+void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& Files,
 				 TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates)
 {
 	// Using git diff, we can obtain a list of files that were modified between our current origin and HEAD. Assumes that fetch has been run to get accurate info.
@@ -1118,43 +1127,39 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 	// Gather valid remote branches
 	TArray<FString> Results;
 	TArray<FString> ErrorMessages;
-	TSet<FString> Branches;
-	TArray<FString> ParametersLsRemote;
-	ParametersLsRemote.Add(TEXT("origin"));
-
-	for (const auto& Branch : FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames())
-	{
-		Branches.Add(Branch);
-	}
-	Branches.Add(CurrentBranchName);
-
-	for (auto& Branch : Branches)
-	{
-		ParametersLsRemote.Add(Branch);
-	}
 
 	TSet<FString> BranchesToDiff;
-	const bool bResultLsRemote = RunCommand(TEXT("ls-remote"), InPathToGitBinary, InRepositoryRoot, ParametersLsRemote, EmptyFilesList, Results, ErrorMessages);
-
-	for (auto& Branch : Branches)
+	bool bDiffAgainstRemoteCurrent = false;
+	for (const auto& Branch : FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames())
 	{
-		for (auto& Result : Results)
+		BranchesToDiff.Add(Branch);
+		if (!bDiffAgainstRemoteCurrent && Branch.Equals(CurrentBranchName))
 		{
-			if (Result.Contains(Branch))
-			{
-				BranchesToDiff.Add(Branch);
-			}
+			bDiffAgainstRemoteCurrent = true;
 		}
+	}
+
+	// If not already added, we still need to diff current branch
+	if (!bDiffAgainstRemoteCurrent)
+	{
+		TArray<FString> ParametersBranch;
+		ParametersBranch.Add(TEXT("-r"));
+		ParametersBranch.Add(TEXT("--list"));
+		ParametersBranch.Add(FString::Printf(TEXT("origin/%s"), *CurrentBranchName));
+		const bool bResultBranchesRemote = RunCommand(TEXT("branch"), InPathToGitBinary, InRepositoryRoot, ParametersBranch, EmptyFilesList, Results, ErrorMessages);
+		if (bResultBranchesRemote && Results.Num())
+		{
+			BranchesToDiff.Add(CurrentBranchName);
+		}
+	}
+
+	if (!BranchesToDiff.Num())
+	{
+		return;
 	}
 
 	Results.Reset();
 
-	const bool bDiffAgainstRemoteCurrent = BranchesToDiff.Contains(CurrentBranchName);
-	if (!bDiffAgainstRemoteCurrent)
-	{
-		// still add to check as a local
-		BranchesToDiff.Add(CurrentBranchName);
-	}
 	TArray<FString> ParametersDiff;
 	for (auto& Branch : BranchesToDiff)
 	{
@@ -1162,15 +1167,14 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 		bool bCurrentBranch;
 		if (Branch.Equals(CurrentBranchName))
 		{
-			ParametersDiff.Add(bDiffAgainstRemoteCurrent ? FString::Printf(TEXT("HEAD...origin/%s"), *Branch) : FString::Printf(TEXT("HEAD...%s"), *Branch));
 			bCurrentBranch = true;
 		}
 		else
 		{
-			ParametersDiff.Add(FString::Printf(TEXT("HEAD...origin/%s"), *Branch));
 			bCurrentBranch = false;
 		}
-		const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, ParametersDiff, OnePath, Results, ErrorMessages);
+		ParametersDiff.Add(FString::Printf(TEXT("HEAD...origin/%s"), *Branch));
+		const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, ParametersDiff, Files, Results, ErrorMessages);
 		if (bResultDiff)
 		{
 			for (const FString& NewerFileName : Results)
@@ -1196,9 +1200,12 @@ const FTimespan CacheLimit = FTimespan::FromSeconds(30);
 bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool bAbsolutePaths, TArray<FString>& OutErrorMessages, TMap<FString, FString>& OutLocks, bool bInvalidateCache)
 {
 	const FDateTime CurrentTime = FDateTime::Now();
-	FTimespan CacheTimeElapsed = CurrentTime - FGitLockedFilesCache::LastUpdated;
-	
-	bool bCacheExpired = CacheTimeElapsed > CacheLimit;
+	bool bCacheExpired = bInvalidateCache;
+	if (!bCacheExpired)
+	{
+		const FTimespan CacheTimeElapsed = CurrentTime - FGitLockedFilesCache::LastUpdated;
+		bCacheExpired = CacheTimeElapsed > CacheLimit;
+	}
 	bool bResult;
 	if (bInvalidateCache || bCacheExpired)
 	{
@@ -1213,7 +1220,7 @@ bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRo
 #endif
 			OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 		}
-		FGitLockedFilesCache::LastUpdated = FDateTime::Now();
+		FGitLockedFilesCache::LastUpdated = CurrentTime;
 	}
 	else
 	{
@@ -1267,7 +1274,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	if (InUsingLfsLocking)
 	{
 		TArray<FString> ErrorMessages;
-		GetAllLocks(InPathToGitBinary, InRepositoryRoot, true, ErrorMessages, LockedFiles);
+		GetAllLocks(InPathToGitBinary, InRepositoryRoot, true, ErrorMessages, LockedFiles, bInvalidateCache);
 	}
 
 	// Git status does not show any "untracked files" when called with files from different subdirectories! (issue #3)
@@ -1875,27 +1882,43 @@ void RemoveRedundantErrors(FGitSourceControlCommand& InCommand, const FString& I
 	}
 }
 
+static TArray<FString> LockableTypes;
+
 bool IsFileLFSLockable(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const FString& InFile, TArray<FString>& OutErrorMessages)
+{
+	for (const auto& Type : LockableTypes)
+	{
+		if (InFile.EndsWith(Type))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool CheckLFSLockable(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages)
 {
 	TArray<FString> Results;
 	TArray<FString> Parameters;
 	Parameters.Add(TEXT("lockable")); // follow file renames
 
-	TArray<FString> Files;
-	Files.Add(*InFile);
-	const bool bResults = RunCommand(TEXT("check-attr"), InPathToGitBinary, InRepositoryRoot, Parameters, Files, Results, OutErrorMessages);
+	const bool bResults = RunCommand(TEXT("check-attr"), InPathToGitBinary, InRepositoryRoot, Parameters, InFiles, Results, OutErrorMessages);
 	if (!bResults)
 	{
 		return false;
 	}
 
-	if (Results.Num() != 1)
+	for (int i = 0; i < InFiles.Num(); i++)
 	{
-		OutErrorMessages.Add(TEXT("invalid results returned attempting to check if file was lockable"));
-		return false;
+		const FString& Result = Results[i];
+		if (Result.EndsWith("set"))
+		{
+			const FString FileExt = InFiles[i].RightChop(1); // Remove wildcard (*)
+			LockableTypes.Add(FileExt);
+		}
 	}
 
-	return Results[0].EndsWith(TEXT("lockable: set"));
+	return true;
 }
 
 } // namespace GitSourceControlUtils

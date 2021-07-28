@@ -12,7 +12,6 @@
 class IGitSourceControlWorker
 {
 public:
-	virtual ~IGitSourceControlWorker() = default;
 
 	/**
 	 * Name describing the work that this worker does. Used for factory method hookup.
@@ -29,10 +28,6 @@ public:
 	 * @returns true if states were updated
 	 */
 	virtual bool UpdateStates() const = 0;
-
-protected:
-	/** Temporary states for results */
-	TMap<const FString, FGitState> States;
 };
 
 typedef TSharedRef<IGitSourceControlWorker, ESPMode::ThreadSafe> FGitSourceControlWorkerRef;

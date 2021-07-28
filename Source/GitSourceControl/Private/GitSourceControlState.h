@@ -108,8 +108,8 @@ namespace ERemoteState
 #endif
 		/** Not at the latest revision amongst the tracked branches */
 		NotLatest,
-		/** We want to branch off and ignore tracked branches */
-		Branched,
+		/** Up to date */
+		UpToDate,
 	};
 }
 
@@ -125,7 +125,7 @@ struct FGitState
 		: FileState(EFileState::Unknown)
 		, TreeState(ETreeState::NotInRepo)
 		, LockState(ELockState::Unknown)
-		, RemoteState(ERemoteState::Branched)
+		, RemoteState(ERemoteState::UpToDate)
 	{
 	}
 };

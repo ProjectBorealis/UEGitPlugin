@@ -13,6 +13,7 @@ FGitSourceControlCommand::FGitSourceControlCommand(const TSharedRef<class ISourc
 	, Worker(InWorker)
 	, OperationCompleteDelegate(InOperationCompleteDelegate)
 	, bExecuteProcessed(0)
+	, bCancelled(0)
 	, bCommandSuccessful(false)
 	, bAutoDelete(true)
 	, Concurrency(EConcurrency::Synchronous)
