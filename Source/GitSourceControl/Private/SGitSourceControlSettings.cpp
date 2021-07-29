@@ -531,7 +531,7 @@ FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
 		if(bAutoCreateGitAttributes)
 		{
 			// 2.c. Synchronous (very quick) "lfs install" operation: needs only to be run once by user
-			GitSourceControlUtils::RunCommand(TEXT("lfs install"), PathToGitBinary, PathToProjectDir, TArray<FString>(), TArray<FString>(), InfoMessages, ErrorMessages);
+			GitSourceControlUtils::RunCommand(TEXT("install"), PathToGitBinary, PathToProjectDir, TArray<FString>(), TArray<FString>(), InfoMessages, ErrorMessages);
 
 			// 2.d. Create a ".gitattributes" file to enable Git LFS (Large File System) for the whole "Content/" subdir
 			const FString GitAttributesFilename = FPaths::Combine(FPaths::ProjectDir(), TEXT(".gitattributes"));

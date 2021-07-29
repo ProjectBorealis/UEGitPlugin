@@ -105,14 +105,12 @@ void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGit
 					UE_LOG(LogSourceControl, Error, TEXT("'%s'"), *ErrorMessage);
 				}
 			}
-#if 0
 			TArray<FString> ProjectDirs;
 			ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()));
 			ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
 			ErrorMessages.Empty();
 			TArray<FGitSourceControlState> States;
 			GitSourceControlUtils::RunUpdateStatus(InPathToGitBinary, PathToRepositoryRoot, UsingGitLfsLocking == 1, ProjectDirs, ErrorMessages, States);
-#endif
 		}
 		else
 		{
@@ -343,14 +341,18 @@ ECommandResult::Type FGitSourceControlProvider::Execute( const TSharedRef<ISourc
 	{
 		Command->bAutoDelete = false;
 
+#if UE_BUILD_DEBUG
 		UE_LOG(LogSourceControl, Log, TEXT("ExecuteSynchronousCommand(%s)"), *InOperation->GetName().ToString());
+#endif
 		return ExecuteSynchronousCommand(*Command, InOperation->GetInProgressString(), false);
 	}
 	else
 	{
 		Command->bAutoDelete = true;
 
+#if UE_BUILD_DEBUG
 		UE_LOG(LogSourceControl, Log, TEXT("IssueAsynchronousCommand(%s)"), *InOperation->GetName().ToString());
+#endif
 		return IssueCommand(*Command);
 	}
 }
@@ -584,7 +586,7 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 
 ECommandResult::Type FGitSourceControlProvider::IssueCommand(FGitSourceControlCommand& InCommand, const bool bSynchronous)
 {
-	if (false && !bSynchronous && GThreadPool != nullptr)
+	if (!bSynchronous && GThreadPool != nullptr)
 	{
 		// Queue this to our worker thread(s) for resolving.
 		// When asynchronous, any callback gets called from Tick().

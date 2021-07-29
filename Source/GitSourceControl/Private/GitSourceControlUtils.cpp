@@ -153,7 +153,7 @@ static bool RunCommandInternalRaw(const FString& InCommand, const FString& InPat
 	// TODO: add a setting to easily enable Verbose logging
 	UE_LOG(LogSourceControl, Verbose, TEXT("RunCommand(%s):\n%s"), *InCommand, *OutResults);
 #endif
-	if(ReturnCode != ExpectedReturnCode || OutErrors.Len() > 0)
+	if(ReturnCode != ExpectedReturnCode)
 	{
 		UE_LOG(LogSourceControl, Warning, TEXT("RunCommand(%s) ReturnCode=%d:\n%s"), *InCommand, ReturnCode, *OutErrors);
 	}
@@ -431,7 +431,7 @@ void FindGitCapabilities(const FString& InPathToGitBinary, FGitVersion* OutVersi
 {
 	FString InfoMessages;
 	FString ErrorMessages;
-	RunCommandInternalRaw(TEXT("cat-file"), InPathToGitBinary, FString(), TArray<FString>(), TArray<FString>(), InfoMessages, ErrorMessages, 129);
+	RunCommandInternalRaw(TEXT("cat-file -h"), InPathToGitBinary, FString(), TArray<FString>(), TArray<FString>(), InfoMessages, ErrorMessages, 129);
 	if (InfoMessages.Contains("--filters"))
 	{
 		OutVersion->bHasCatFileWithFilters = true;
@@ -440,18 +440,17 @@ void FindGitCapabilities(const FString& InPathToGitBinary, FGitVersion* OutVersi
 
 void FindGitLfsCapabilities(const FString& InPathToGitBinary, FGitVersion* OutVersion)
 {
-	FString InfoMessages;
-	FString ErrorMessages;
-	const bool bGitLfsAvailable = RunCommandInternalRaw(TEXT("lfs version"), InPathToGitBinary, FString(), TArray<FString>(), TArray<FString>(), InfoMessages, ErrorMessages);
+	TArray<FString> InfoMessages;
+	TArray<FString> ErrorMessages;
+	const bool bGitLfsAvailable = RunLFSCommand(TEXT("version"),FString(), TArray<FString>(), TArray<FString>(), InfoMessages, ErrorMessages);
 	if (bGitLfsAvailable)
 	{
 		OutVersion->bHasGitLfs = true;
-
-		if (InfoMessages.Compare(TEXT("git-lfs/2.0.0")) >= 0)
+		OutVersion->bHasGitLfsLocking = true;
+		for (const auto& Info : InfoMessages)
 		{
-			OutVersion->bHasGitLfsLocking = true; // Git LFS File Locking workflow introduced in "git-lfs/2.0.0"
+			UE_LOG(LogSourceControl, Log, TEXT("%s"), *Info);
 		}
-		UE_LOG(LogSourceControl, Log, TEXT("%s"), *InfoMessages);
 	}
 }
 
@@ -928,6 +927,43 @@ static bool ListFilesInDirectoryRecurse(const FString& InPathToGitBinary, const 
 	return bResult;
 }
 
+/** Parse the array of strings results of a 'git status' command for a directory
+ *
+ *  Called in case of a "directory status" (no file listed in the command) ONLY to detect Deleted/Missing/Untracked files
+ * since those files are not listed by the 'git ls-files' command.
+ *
+ * @see #ParseFileStatusResult() above for an example of a 'git status' results
+ */
+static void ParseDirectoryStatusResult(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking,
+									   const TArray<FString>& InResults, TArray<FGitSourceControlState>& OutStates)
+{
+	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	const FString LfsUserName = GitSourceControl.AccessSettings().GetLfsUserName();
+
+	// TODO without LFS : Workaround a bug with the Source Control Module not updating file state after a simple "Save" with no "Checkout" (when not using File Lock)
+	const FDateTime Now = InUsingLfsLocking ? FDateTime::Now() : FDateTime::MinValue();
+	// Iterate on each line of result of the status command
+	for (const FString& Result : InResults)
+	{
+		const FString RelativeFilename = FilenameFromGitStatus(Result);
+		const FString File = FPaths::ConvertRelativePathToFull(InRepositoryRoot, RelativeFilename);
+
+		FGitSourceControlState FileState(File);
+		if (!InUsingLfsLocking)
+		{
+			FileState.State.LockState = ELockState::Unlockable;
+		}
+		FGitStatusParser StatusParser(Result);
+		if ((EFileState::Deleted == StatusParser.FileState) || (EFileState::Missing == StatusParser.FileState) || (ETreeState::Untracked == StatusParser.TreeState))
+		{
+			FileState.State.FileState = StatusParser.FileState;
+			FileState.State.TreeState = StatusParser.TreeState;
+			FileState.TimeStamp = Now;
+			OutStates.Add(MoveTemp(FileState));
+		}
+	}
+}
+
 /** Parse the array of strings results of a 'git status' command for a provided list of files all in a common directory
  *
  * Called in case of a normal refresh of status on a list of assets in a the Content Browser (or user selected "Refresh" context menu).
@@ -944,6 +980,10 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
 	const FString LfsUserName = GitSourceControl.AccessSettings().GetLfsUserName();
 
+	TMap<FString, FString> LockedFiles;
+	TArray<FString> Results = InResults;
+	bool bCheckedLockedFiles = false;
+
 	// TODO without LFS : Workaround a bug with the Source Control Module not updating file state after a simple "Save" with no "Checkout" (when not using File Lock)
 	const FDateTime Now = InUsingLfsLocking ? FDateTime::Now() : FDateTime::MinValue();
 
@@ -956,11 +996,12 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 		FileState.State.LockState = ELockState::Unset;
 		FileState.State.RemoteState = ERemoteState::Unset;
 		// Search the file in the list of status
-		int32 IdxResult = InResults.IndexOfByPredicate(FGitStatusFileMatcher(File));
+		int32 IdxResult = Results.IndexOfByPredicate(FGitStatusFileMatcher(File));
 		if (IdxResult != INDEX_NONE)
 		{
 			// File found in status results; only the case for "changed" files
-			FGitStatusParser StatusParser(InResults[IdxResult]);
+			FGitStatusParser StatusParser(Results[IdxResult]);
+			Results.RemoveAtSwap(IdxResult, 1, false);
 #if UE_BUILD_DEBUG
 			UE_LOG(LogSourceControl, Log, TEXT("Status(%s) = '%s' => %d"), *File, *InResults[IdxResult], static_cast<int>(StatusParser.State));
 #endif
@@ -997,79 +1038,61 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 		{
 			FileState.State.LockState = ELockState::Unlockable;
 		}
-		else if (InLockedFiles.Contains(File))
-		{
-			FileState.LockUser = InLockedFiles[File];
-			if (LfsUserName == FileState.LockUser)
-			{
-				FileState.State.LockState = ELockState::Locked;
-			}
-			else
-			{
-				FileState.State.LockState = ELockState::LockedOther;
-			}
-#if UE_BUILD_DEBUG
-			UE_LOG(LogSourceControl, Log, TEXT("Status(%s) Locked by '%s'"), *File, *FileState.LockUser);
-#endif
-		}
 		else
 		{
 			TArray<FString> ErrorMessages;
-			const bool bIsLockable = IsFileLFSLockable(InPathToGitBinary, InRepositoryRoot, File, ErrorMessages);
-			FMessageLog SourceControlLog("SourceControl");
-			for (int32 ErrorIndex = 0; ErrorIndex < ErrorMessages.Num(); ++ErrorIndex)
+			if (IsFileLFSLockable(InPathToGitBinary, InRepositoryRoot, File, ErrorMessages))
 			{
-				SourceControlLog.Error(FText::FromString(ErrorMessages[ErrorIndex]));
-			}
-			FileState.State.LockState = bIsLockable ? ELockState::NotLocked : ELockState::Unlockable;
+				FMessageLog SourceControlLog("SourceControl");
+				for (int32 ErrorIndex = 0; ErrorIndex < ErrorMessages.Num(); ++ErrorIndex)
+				{
+					SourceControlLog.Error(FText::FromString(ErrorMessages[ErrorIndex]));
+				}
+				if (!bCheckedLockedFiles)
+				{
+					bCheckedLockedFiles = true;
+					GetAllLocks(InPathToGitBinary, InRepositoryRoot, true, ErrorMessages, LockedFiles);
+				}
+				if (LockedFiles.Contains(File))
+				{
+					FileState.LockUser = LockedFiles[File];
+					if (LfsUserName == FileState.LockUser)
+					{
+						FileState.State.LockState = ELockState::Locked;
+					}
+					else
+					{
+						FileState.State.LockState = ELockState::LockedOther;
+					}
+				}
+				else
+				{
+					FileState.State.LockState = ELockState::NotLocked;
 #if UE_BUILD_DEBUG
-			if (InUsingLfsLocking)
-			{
-				UE_LOG(LogSourceControl, Log, TEXT("Status(%s) Not Locked"), *File);
+					if (InUsingLfsLocking)
+					{
+						UE_LOG(LogSourceControl, Log, TEXT("Status(%s) Not Locked"), *File);
+					}
+#endif
+				}
 			}
+			else
+			{
+				FileState.State.LockState = ELockState::Unlockable;
+			}
+			
+			
+#if UE_BUILD_DEBUG
+			UE_LOG(LogSourceControl, Log, TEXT("Status(%s) Locked by '%s'"), *File, *FileState.LockUser);
 #endif
 		}
 		FileState.TimeStamp = Now;
 		OutStates.Add(FileState);
 	}
-}
 
-/** Parse the array of strings results of a 'git status' command for a directory
- *
- *  Called in case of a "directory status" (no file listed in the command) ONLY to detect Deleted/Missing/Untracked files
- * since those files are not listed by the 'git ls-files' command.
- *
- * @see #ParseFileStatusResult() above for an example of a 'git status' results
- */
-static void ParseDirectoryStatusResult(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking,
-									   const TArray<FString>& InResults, TArray<FGitSourceControlState>& OutStates)
-{
-	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-	const FString LfsUserName = GitSourceControl.AccessSettings().GetLfsUserName();
-
-	// TODO without LFS : Workaround a bug with the Source Control Module not updating file state after a simple "Save" with no "Checkout" (when not using File Lock)
-	const FDateTime Now = InUsingLfsLocking ? FDateTime::Now() : FDateTime::MinValue();
-	// Iterate on each line of result of the status command
-	for (const FString& Result : InResults)
-	{
-		const FString RelativeFilename = FilenameFromGitStatus(Result);
-		const FString File = FPaths::ConvertRelativePathToFull(InRepositoryRoot, RelativeFilename);
-
-		FGitSourceControlState FileState(File);
-		if (!InUsingLfsLocking)
-		{
-			FileState.State.LockState = ELockState::Unlockable;
-		}
-		FGitStatusParser StatusParser(Result);
-		if ((EFileState::Deleted == StatusParser.FileState) || (EFileState::Missing == StatusParser.FileState) ||
-			(ETreeState::Untracked == StatusParser.TreeState))
-		{
-			FileState.State.FileState = StatusParser.FileState;
-			FileState.State.TreeState = StatusParser.TreeState;
-			FileState.TimeStamp = Now;
-			OutStates.Add(MoveTemp(FileState));
-		}
-	}
+	// The above cannot detect deleted assets since there is no file left to enumerate (either by the Content Browser or by git ls-files)
+	// => so we also parse the status results to explicitly look for Deleted/Missing assets
+	ParseDirectoryStatusResult(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, Results, OutStates);
 }
 
 /**
@@ -1088,32 +1111,27 @@ static void ParseDirectoryStatusResult(const FString& InPathToGitBinary, const F
 static void ParseStatusResults(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles,
 							   const TMap<FString, FString>& InLockedFiles, const TArray<FString>& InResults, TArray<FGitSourceControlState>& OutStates)
 {
-	if ((InFiles.Num() == 1) && FPaths::DirectoryExists(InFiles[0]))
+	TSet<FString> Files;
+	for (const auto& File : InFiles)
 	{
-		// 1) Special case for "status" of a directory: requires to get the list of files by ourselves.
-		//   (this is triggered by the "Submit to Source Control" menu)
-#if UE_BUILD_DEBUG
-		UE_LOG(LogSourceControl, Log, TEXT("ParseStatusResults: 1) Special case for status of a directory (%s)"), *InFiles[0]);
-#endif
-		TArray<FString> Files;
-		const FString& Directory = InFiles[0];
-		const bool bResult = ListFilesInDirectoryRecurse(InPathToGitBinary, InRepositoryRoot, Directory, Files);
-		if (bResult)
+		if (FPaths::DirectoryExists(File))
 		{
-			ParseFileStatusResult(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, Files, InLockedFiles, InResults, OutStates);
+			TArray<FString> DirectoryFiles;
+			const bool bResult = ListFilesInDirectoryRecurse(InPathToGitBinary, InRepositoryRoot, File, DirectoryFiles);
+			if (bResult)
+			{
+				for (const auto& InnerFile : DirectoryFiles)
+				{
+					Files.Add(InnerFile);
+				}
+			}
 		}
-		// The above cannot detect deleted assets since there is no file left to enumerate (either by the Content Browser or by git ls-files)
-		// => so we also parse the status results to explicitly look for Deleted/Missing assets
-		ParseDirectoryStatusResult(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, InResults, OutStates);
+		else
+		{
+			Files.Add(File);
+		}
 	}
-	else
-	{
-		// 2) General case for one or more files in the same directory.
-#if UE_BUILD_DEBUG
-		UE_LOG(LogSourceControl, Log, TEXT("ParseStatusResults: 2) General case for one or more files (%s, ...)"), *InFiles[0]);
-#endif
-		ParseFileStatusResult(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, InFiles, InLockedFiles, InResults, OutStates);
-	}
+	ParseFileStatusResult(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, Files.Array(), InLockedFiles, InResults, OutStates);
 }
 
 void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& Files,
@@ -1211,18 +1229,21 @@ bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRo
 	{
 		TArray<FString> Results;
 		TArray<FString> ErrorMessages;
-		bResult = RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, TArray<FString>(), TArray<FString>(), Results, ErrorMessages);
-		for (const FString& Result : Results)
+		bResult = RunLFSCommand(TEXT("locks"), InRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), FGitSourceControlModule::GetEmptyStringArray(), Results, ErrorMessages);
+		if (bResult)
 		{
-			FGitLfsLocksParser LockFile(InRepositoryRoot, Result, bAbsolutePaths);
+			for (const FString& Result : Results)
+			{
+				FGitLfsLocksParser LockFile(InRepositoryRoot, Result, bAbsolutePaths);
 #if UE_BUILD_DEBUG
-			UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
+				UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
 #endif
-			OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+				OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+			}
+			FGitLockedFilesCache::LastUpdated = CurrentTime;
+			return bResult;
 		}
-		FGitLockedFilesCache::LastUpdated = CurrentTime;
 	}
-	else
 	{
 		{
 			TArray<FString> Params;
@@ -1230,7 +1251,7 @@ bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRo
 
 			TArray<FString> Results;
 			TArray<FString> ErrorMessages;
-			bResult = RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, Params, TArray<FString>(), Results, ErrorMessages);
+			bResult = RunLFSCommand(TEXT("locks"), InRepositoryRoot, Params, TArray<FString>(), Results, ErrorMessages);
 			for (const FString& Result : Results)
 			{
 				FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
@@ -1247,7 +1268,7 @@ bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRo
 
 			TArray<FString> Results;
 			TArray<FString> ErrorMessages;
-			bResult = RunCommand(TEXT("lfs locks"), InPathToGitBinary, InRepositoryRoot, Params, TArray<FString>(), Results, ErrorMessages);
+			bResult &= RunLFSCommand(TEXT("locks"), InRepositoryRoot, Params, TArray<FString>(), Results, ErrorMessages);
 			for (const FString& Result : Results)
 			{
 				FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
@@ -1268,33 +1289,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	TMap<FString, FString> LockedFiles;
 
 	// Remove files that aren't in the repository
-	TArray<FString> RepoFiles = InFiles.FilterByPredicate([InRepositoryRoot](const FString& elt) {return elt.StartsWith(InRepositoryRoot); });
-
-	// 0) Issue a "git lfs locks" command at the root of the repository
-	if (InUsingLfsLocking)
-	{
-		TArray<FString> ErrorMessages;
-		GetAllLocks(InPathToGitBinary, InRepositoryRoot, true, ErrorMessages, LockedFiles, bInvalidateCache);
-	}
-
-	// Git status does not show any "untracked files" when called with files from different subdirectories! (issue #3)
-	// 1) So here we group files by path (ie. by subdirectory)
-	TMap<FString, TArray<FString>> GroupOfFiles;
-	for(const auto& File : RepoFiles)
-	{
-		const FString Path = FPaths::GetPath(*File);
-		TArray<FString>* Group = GroupOfFiles.Find(Path);
-		if (Group != nullptr)
-		{
-			Group->Add(File);
-		}
-		else
-		{
-			TArray<FString> NewGroup;
-			NewGroup.Add(File);
-			GroupOfFiles.Add(Path, NewGroup);
-		}
-	}
+	TArray<FString> RepoFiles = InFiles.FilterByPredicate([InRepositoryRoot](const FString& File) { return File.StartsWith(InRepositoryRoot); });
 
 	// Get the current branch name, since we need origin of current branch
 	FString BranchName;
@@ -1302,43 +1297,13 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 
 	TArray<FString> Parameters;
 	Parameters.Add(TEXT("--porcelain"));
-	Parameters.Add(TEXT("--ignored"));
-
-	// 2) then we can batch git status operation by subdirectory
-	for (const auto& Files : GroupOfFiles)
+	TArray<FString> Results;
+	TArray<FString> ErrorMessages;
+	const bool bResult = RunCommand(TEXT("status"), InPathToGitBinary, InRepositoryRoot, Parameters, RepoFiles, Results, ErrorMessages);
+	OutErrorMessages.Append(ErrorMessages);
+	if (bResult)
 	{
-		// "git status" can only detect renamed and deleted files when it operate on a folder, so use one folder path for all files in a directory
-		const FString Path = FPaths::GetPath(*Files.Value[0]);
-
-		// Skip querying anything outside our git root
-		// We get queries for all the Engine content dirs too and they take ages and don't work anyway
-		if (!FPaths::IsUnderDirectory(Path, InRepositoryRoot))
-		{
-			UE_LOG(LogSourceControl, Log, TEXT("Skipping %s because it's not a subdir of git repo %s"), *Path, *InRepositoryRoot);
-			continue;
-		}
-
-		TArray<FString> OnePath;
-		// Only one file: optim very useful for the .uproject file at the root to avoid parsing the whole repository
-		// (works only if the file exists)
-		if ((Files.Value.Num() == 1) && (FPaths::FileExists(Files.Value[0])))
-		{
-			OnePath.Add(Files.Value[0]);
-		}
-		else
-		{
-			OnePath.Add(Path);
-		}
-		{
-			TArray<FString> Results;
-			TArray<FString> ErrorMessages;
-			const bool bResult = RunCommand(TEXT("status"), InPathToGitBinary, InRepositoryRoot, Parameters, OnePath, Results, ErrorMessages);
-			OutErrorMessages.Append(ErrorMessages);
-			if(bResult)
-			{
-				ParseStatusResults(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, Files.Value, LockedFiles, Results, OutStates);
-			}
-		}
+		ParseStatusResults(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, RepoFiles, LockedFiles, Results, OutStates);
 	}
 
 	if (!BranchName.IsEmpty())
@@ -1435,7 +1400,7 @@ bool RunDumpToFile(const FString& InPathToGitBinary, const FString& InRepository
 				{
 					if (BinaryData[BinaryData.Num() - 1] == 10) // Check for newline
 					{
-						BinaryData.Empty();
+						BinaryData.Reset();
 						bRemovedLFSMessage = true;
 					}
 				}

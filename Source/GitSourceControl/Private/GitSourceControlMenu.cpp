@@ -292,7 +292,7 @@ void FGitSourceControlMenu::PushClicked()
 		// Launch a "Push" Operation
 		FGitSourceControlModule& GitSourceControl = FModuleManager::LoadModuleChecked<FGitSourceControlModule>("GitSourceControl");
 		FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
-		TSharedRef<FGitPush, ESPMode::ThreadSafe> PushOperation = ISourceControlOperation::Create<FGitPush>();
+		TSharedRef<FCheckIn, ESPMode::ThreadSafe> PushOperation = ISourceControlOperation::Create<FCheckIn>();
 		const ECommandResult::Type Result = Provider.Execute(PushOperation, TArray<FString>(), EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateRaw(this, &FGitSourceControlMenu::OnSourceControlOperationComplete));
 		if (Result == ECommandResult::Succeeded)
 		{
@@ -542,17 +542,15 @@ void FGitSourceControlMenu::OnSourceControlOperationComplete(const FSourceContro
 
 void FGitSourceControlMenu::AddMenuExtension(FMenuBuilder& Builder)
 {
-#if 0
 	Builder.AddMenuEntry(
-		LOCTEXT("GitPush",				"Push"),
-		LOCTEXT("GitPushTooltip",		"Push all local commits to the remote server."),
+		LOCTEXT("GitPush",				"Push pending local commits"),
+		LOCTEXT("GitPushTooltip",		"Push all pending local commits to the remote server."),
 		FSlateIcon(FEditorStyle::GetStyleSetName(), "SourceControl.Actions.Submit"),
 		FUIAction(
 			FExecuteAction::CreateRaw(this, &FGitSourceControlMenu::PushClicked),
 			FCanExecuteAction::CreateRaw(this, &FGitSourceControlMenu::HaveRemoteUrl)
 		)
 	);
-#endif
 
 #if 0
 	Builder.AddMenuEntry(

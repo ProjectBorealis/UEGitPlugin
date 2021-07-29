@@ -107,6 +107,11 @@ public:
 		return GitSourceControlProvider;
 	}
 
+	static const TArray<FString>& GetEmptyStringArray()
+	{
+		return EmptyStringArray;
+	}
+
 	/**
 	 * Singleton-like access to this module's interface.  This is just for convenience!
 	 * Beware of calling this during the shutdown phase, though.  Your module might have been unloaded already.
@@ -127,4 +132,6 @@ private:
 
 	/** The settings for Git source control */
 	FGitSourceControlSettings GitSourceControlSettings;
+
+	static TArray<FString> EmptyStringArray;
 };
