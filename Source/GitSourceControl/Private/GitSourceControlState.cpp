@@ -319,7 +319,7 @@ bool FGitSourceControlState::CanDelete() const
 
 bool FGitSourceControlState::IsUnknown() const
 {
-	return State.FileState == EFileState::Unknown;
+	return State.FileState == EFileState::Unknown && State.TreeState != ETreeState::Unmodified && State.TreeState != ETreeState::Untracked;
 }
 
 bool FGitSourceControlState::IsModified() const

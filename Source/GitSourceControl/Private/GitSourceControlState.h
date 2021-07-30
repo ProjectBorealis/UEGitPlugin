@@ -97,6 +97,8 @@ namespace ERemoteState
 	enum Type
 	{
 		Unset,
+		/** Up to date */
+		UpToDate,
 		/** Local version is behind remote */
 		NotAtHead,
 #if 0
@@ -108,8 +110,6 @@ namespace ERemoteState
 #endif
 		/** Not at the latest revision amongst the tracked branches */
 		NotLatest,
-		/** Up to date */
-		UpToDate,
 	};
 }
 

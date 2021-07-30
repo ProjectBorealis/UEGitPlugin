@@ -272,7 +272,10 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 		ParamCommitMsgFilename += TEXT("\"");
 		Parameters.Add(ParamCommitMsgFilename);
 
-		InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommit(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters, InCommand.Files, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
+		const TArray<FString>& FilesToCommit = GitSourceControlUtils::RelativeFilenames(InCommand.Files, InCommand.PathToRepositoryRoot);
+
+		InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommit(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters, FilesToCommit,
+																		InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 
 		// If we commit, we can push up the deleted state to gone
 		if (InCommand.bCommandSuccessful)
@@ -367,7 +370,7 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 				const TArray<FString> LockedFiles = GetLockedFiles(InCommand.Files);
 				if (LockedFiles.Num() > 0)
 				{
-					const TArray<FString> RelativeFiles = GitSourceControlUtils::RelativeFilenames(LockedFiles, InCommand.PathToRepositoryRoot);
+					const TArray<FString>& RelativeFiles = GitSourceControlUtils::RelativeFilenames(LockedFiles, InCommand.PathToRepositoryRoot);
 					TArray<FString> FilesToUnlock;
 					// if we couldn't collect, just do the old behavior
 					if (CommittedFiles.Num() == 0)
@@ -763,22 +766,27 @@ bool FGitUpdateStatusWorker::Execute(FGitSourceControlCommand& InCommand)
 		TArray<FGitSourceControlState> UpdatedStates;
 		InCommand.bCommandSuccessful = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.ErrorMessages, UpdatedStates);
 		GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
-
-		if(Operation->ShouldUpdateHistory())
+		if (InCommand.bCommandSuccessful)
 		{
-			for(int32 Index = 0; Index < UpdatedStates.Num(); Index++)
+			GitSourceControlUtils::CollectNewStates(UpdatedStates, States);
+			if (Operation->ShouldUpdateHistory())
 			{
-				FString& File = InCommand.Files[Index];
-				TGitSourceControlHistory History;
-
-				if(UpdatedStates[Index].IsConflicted())
+				for (int32 Index = 0; Index < UpdatedStates.Num(); Index++)
 				{
-					// In case of a merge conflict, we first need to get the tip of the "remote branch" (MERGE_HEAD)
-					GitSourceControlUtils::RunGetHistory(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, File, true, InCommand.ResultInfo.ErrorMessages, History);
+					FString& File = InCommand.Files[Index];
+					TGitSourceControlHistory History;
+
+					if (UpdatedStates[Index].IsConflicted())
+					{
+						// In case of a merge conflict, we first need to get the tip of the "remote branch" (MERGE_HEAD)
+						GitSourceControlUtils::RunGetHistory(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, File, true,
+															 InCommand.ResultInfo.ErrorMessages, History);
+					}
+					// Get the history of the file in the current branch
+					InCommand.bCommandSuccessful &= GitSourceControlUtils::RunGetHistory(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, File, false,
+																						 InCommand.ResultInfo.ErrorMessages, History);
+					Histories.Add(*File, History);
 				}
-				// Get the history of the file in the current branch
-				InCommand.bCommandSuccessful &= GitSourceControlUtils::RunGetHistory(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, File, false, InCommand.ResultInfo.ErrorMessages, History);
-				Histories.Add(*File, History);
 			}
 		}
 	}

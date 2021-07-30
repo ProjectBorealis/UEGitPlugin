@@ -102,7 +102,7 @@ void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGit
 			{
 				for (const auto& ErrorMessage : ErrorMessages)
 				{
-					UE_LOG(LogSourceControl, Error, TEXT("'%s'"), *ErrorMessage);
+					UE_LOG(LogSourceControl, Error, TEXT("%s"), *ErrorMessage);
 				}
 			}
 			TArray<FString> ProjectDirs;
@@ -110,7 +110,18 @@ void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGit
 			ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
 			ErrorMessages.Empty();
 			TArray<FGitSourceControlState> States;
-			GitSourceControlUtils::RunUpdateStatus(InPathToGitBinary, PathToRepositoryRoot, UsingGitLfsLocking == 1, ProjectDirs, ErrorMessages, States);
+			if (GitSourceControlUtils::RunUpdateStatus(InPathToGitBinary, PathToRepositoryRoot, UsingGitLfsLocking == 1, ProjectDirs, ErrorMessages, States))
+			{
+				TMap<const FString, FGitState> Results;
+				if (GitSourceControlUtils::CollectNewStates(States, Results))
+				{
+					GitSourceControlUtils::UpdateCachedStates(Results);
+				}
+			}
+			else
+			{
+				UE_LOG(LogSourceControl, Error, TEXT("Failed to update repo on initialization."));
+			}
 		}
 		else
 		{
