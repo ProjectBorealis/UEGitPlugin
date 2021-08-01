@@ -188,6 +188,9 @@ public:
 		return StatusBranchNames;
 	}
 
+	/** Indicates editor binaries are to be updated upon next sync */
+	bool bPendingRestart;
+
 private:
 	/** Is git binary found and working. */
 	bool bGitAvailable;

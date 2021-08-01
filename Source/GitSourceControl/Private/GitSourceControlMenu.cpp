@@ -87,88 +87,6 @@ bool FGitSourceControlMenu::SaveDirtyPackages()
 	return bSaved;
 }
 
-/// Find all packages in Content directory
-TArray<FString> FGitSourceControlMenu::ListAllPackages()
-{
-	TArray<FString> PackageRelativePaths;
-	FPackageName::FindPackagesInDirectory(PackageRelativePaths, *FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()));
-
-	TArray<FString> PackageNames;
-	PackageNames.Reserve(PackageRelativePaths.Num());
-	for (const FString& Path : PackageRelativePaths)
-	{
-		FString PackageName;
-		FString FailureReason;
-		if (FPackageName::TryConvertFilenameToLongPackageName(Path, PackageName, &FailureReason))
-		{
-			PackageNames.Add(PackageName);
-		}
-		else
-		{
-			FMessageLog("SourceControl").Error(FText::FromString(FailureReason));
-		}
-	}
-
-	return PackageNames;
-}
-
-/// Unkink all loaded packages to allow to update them
-TArray<UPackage*> FGitSourceControlMenu::UnlinkPackages(const TArray<FString>& InPackageNames)
-{
-	TArray<UPackage*> LoadedPackages;
-
-	// Inspired from ContentBrowserUtils::SyncPathsFromSourceControl()
-	if (InPackageNames.Num() > 0)
-	{
-		// Form a list of loaded packages to reload...
-		LoadedPackages.Reserve(InPackageNames.Num());
-		for (const FString& PackageName : InPackageNames)
-		{
-			UPackage* Package = FindPackage(nullptr, *PackageName);
-			if (Package)
-			{
-				LoadedPackages.Emplace(Package);
-
-				// Detach the linkers of any loaded packages so that SCC can overwrite the files...
-				if (!Package->IsFullyLoaded())
-				{
-					FlushAsyncLoading();
-					Package->FullyLoad();
-				}
-				ResetLoaders(Package);
-			}
-		}
-		UE_LOG(LogSourceControl, Log, TEXT("Reseted Loader for %d Packages"), LoadedPackages.Num());
-	}
-
-	return LoadedPackages;
-}
-
-void FGitSourceControlMenu::ReloadPackages(TArray<UPackage*>& InPackagesToReload)
-{
-	UE_LOG(LogSourceControl, Log, TEXT("Reloading %d Packages..."), InPackagesToReload.Num());
-
-	// Syncing may have deleted some packages, so we need to unload those rather than re-load them...
-	TArray<UPackage*> PackagesToUnload;
-	InPackagesToReload.RemoveAll([&](UPackage* InPackage) -> bool
-	{
-		const FString PackageExtension = InPackage->ContainsMap() ? FPackageName::GetMapPackageExtension() : FPackageName::GetAssetPackageExtension();
-		const FString PackageFilename = FPackageName::LongPackageNameToFilename(InPackage->GetName(), PackageExtension);
-		if (!FPaths::FileExists(PackageFilename))
-		{
-			PackagesToUnload.Emplace(InPackage);
-			return true; // remove package
-		}
-		return false; // keep package
-	});
-
-	// Hot-reload the new packages...
-	UPackageTools::ReloadPackages(InPackagesToReload);
-
-	// Unload any deleted packages...
-	UPackageTools::UnloadPackages(PackagesToUnload);
-}
-
 // Ask the user if they want to stash any modification and try to unstash them afterward, which could lead to conflicts
 bool FGitSourceControlMenu::StashAwayAnyModifications()
 {
@@ -238,35 +156,22 @@ void FGitSourceControlMenu::SyncClicked()
 		const bool bSaved = SaveDirtyPackages();
 		if (bSaved)
 		{
-			// Find and Unlink all packages in Content directory to allow to update them
-			PackagesToReload = UnlinkPackages(ListAllPackages());
+			FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
+			FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
 
-			// Ask the user if they want to stash any modification and try to unstash them afterward, which could lead to conflicts
-			const bool bStashed = StashAwayAnyModifications();
-			if (bStashed)
+			// Launch a "Sync" operation
+			TSharedRef<FSync, ESPMode::ThreadSafe> SyncOperation = ISourceControlOperation::Create<FSync>();
+			const ECommandResult::Type Result = Provider.Execute(SyncOperation, FGitSourceControlModule::GetEmptyStringArray(), EConcurrency::Asynchronous,
+																 FSourceControlOperationComplete::CreateRaw(this, &FGitSourceControlMenu::OnSourceControlOperationComplete));
+			if (Result == ECommandResult::Succeeded)
 			{
-				// Launch a "Sync" operation
-				FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-				FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
-				TSharedRef<FSync, ESPMode::ThreadSafe> SyncOperation = ISourceControlOperation::Create<FSync>();
-				const ECommandResult::Type Result = Provider.Execute(SyncOperation, FGitSourceControlModule::GetEmptyStringArray(), EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateRaw(this, &FGitSourceControlMenu::OnSourceControlOperationComplete));
-				if (Result == ECommandResult::Succeeded)
-				{
-					// Display an ongoing notification during the whole operation (packages will be reloaded at the completion of the operation)
-					DisplayInProgressNotification(SyncOperation->GetInProgressString());
-				}
-				else
-				{
-					// Report failure with a notification and Reload all packages
-					DisplayFailureNotification(SyncOperation->GetName());
-					ReloadPackages(PackagesToReload);
-				}
+				// Display an ongoing notification during the whole operation (packages will be reloaded at the completion of the operation)
+				DisplayInProgressNotification(SyncOperation->GetInProgressString());
 			}
 			else
 			{
-				FMessageLog SourceControlLog("SourceControl");
-				SourceControlLog.Warning(LOCTEXT("SourceControlMenu_Sync_Unsaved", "Stash away all modifications before attempting to Sync!"));
-				SourceControlLog.Notify();
+				// Report failure with a notification and Reload all packages
+				DisplayFailureNotification(SyncOperation->GetName());
 			}
 		}
 		else
@@ -414,7 +319,7 @@ void FGitSourceControlMenu::RevertAllCallback(const FSourceControlOperationRef& 
 		DisplaySucessNotification(TEXT("Revert"));
 	}
 
-	ReloadPackages(LoadedPackages);
+	GitSourceControlUtils::ReloadPackages(LoadedPackages);
 	Provider.Execute(ISourceControlOperation::Create<FUpdateStatus>(), FGitSourceControlModule::GetEmptyStringArray(), EConcurrency::Asynchronous);
 }
 
@@ -526,7 +431,7 @@ void FGitSourceControlMenu::OnSourceControlOperationComplete(const FSourceContro
 		// Unstash any modifications if a stash was made at the beginning of the Sync operation
 		ReApplyStashedModifications();
 		// Reload packages that where unlinked at the beginning of the Sync/Revert operation
-		ReloadPackages(PackagesToReload);
+		GitSourceControlUtils::ReloadPackages(PackagesToReload);
 	}
 
 	// Report result with a notification

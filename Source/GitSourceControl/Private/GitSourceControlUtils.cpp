@@ -25,9 +25,17 @@
 #include "Misc/ScopeLock.h"
 #include "Misc/Timespan.h"
 
+#include "PackageTools.h"
+#include "FileHelpers.h"
+#include "Misc/MessageDialog.h"
+
+#include "Async/Async.h"
+
 #if PLATFORM_LINUX
 #include <sys/ioctl.h>
 #endif
+
+#define LOCTEXT_NAMESPACE "GitSourceControl"
 
 namespace GitSourceControlConstants
 {
@@ -924,6 +932,66 @@ static void RunGetConflictStatus(const FString& InPathToGitBinary, const FString
 	}
 }
 
+TArray<UPackage*> UnlinkPackages(const TArray<FString>& InPackageNames)
+{
+	TArray<UPackage*> LoadedPackages;
+	// UE4-COPY: ContentBrowserUtils::SyncPathsFromSourceControl()
+	if (InPackageNames.Num() > 0)
+	{
+		TArray<FString> PackagesToUnlink;
+		for (const auto& Filename : InPackageNames)
+		{
+			FString PackageName;
+			if (FPackageName::TryConvertFilenameToLongPackageName(Filename, PackageName))
+			{
+				PackagesToUnlink.Add(PackageName);
+			}
+		}
+		// Form a list of loaded packages to reload...
+		LoadedPackages.Reserve(PackagesToUnlink.Num());
+		for (const FString& PackageName : PackagesToUnlink)
+		{
+			UPackage* Package = FindPackage(nullptr, *PackageName);
+			if (Package)
+			{
+				LoadedPackages.Emplace(Package);
+
+				// Detach the linkers of any loaded packages so that SCC can overwrite the files...
+				if (!Package->IsFullyLoaded())
+				{
+					FlushAsyncLoading();
+					Package->FullyLoad();
+				}
+				ResetLoaders(Package);
+			}
+		}
+	}
+	return LoadedPackages;
+}
+
+void ReloadPackages(TArray<UPackage*>& InPackagesToReload)
+{
+	// UE4-COPY: ContentBrowserUtils::SyncPathsFromSourceControl()
+	// Syncing may have deleted some packages, so we need to unload those rather than re-load them...
+	TArray<UPackage*> PackagesToUnload;
+	InPackagesToReload.RemoveAll([&](UPackage* InPackage) -> bool {
+		const FString PackageExtension = InPackage->ContainsMap() ? FPackageName::GetMapPackageExtension() : FPackageName::GetAssetPackageExtension();
+		const FString PackageFilename = FPackageName::LongPackageNameToFilename(InPackage->GetName(), PackageExtension);
+		if (!FPaths::FileExists(PackageFilename))
+		{
+			PackagesToUnload.Emplace(InPackage);
+			return true; // remove package
+		}
+		return false; // keep package
+	});
+
+	// Hot-reload the new packages...
+	UPackageTools::ReloadPackages(InPackagesToReload);
+
+	// Unload any deleted packages...
+	UPackageTools::UnloadPackages(PackagesToUnload);
+}
+
 /// Convert filename relative to the repository root to absolute path (inplace)
 void AbsoluteFilenames(const FString& InRepositoryRoot, TArray<FString>& InFileNames)
 {
@@ -937,7 +1005,7 @@ void AbsoluteFilenames(const FString& InRepositoryRoot, TArray<FString>& InFileN
  *
  * Called in case of a "directory status" (no file listed in the command) when using the "Submit to Source Control" menu.
  */
-static bool ListFilesInDirectoryRecurse(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const FString& InDirectory, TArray<FString>& OutFiles)
+bool ListFilesInDirectoryRecurse(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const FString& InDirectory, TArray<FString>& OutFiles)
 {
 	TArray<FString> ErrorMessages;
 	TArray<FString> Directory;
@@ -954,8 +1022,7 @@ static bool ListFilesInDirectoryRecurse(const FString& InPathToGitBinary, const 
  *
  * @see #ParseFileStatusResult() above for an example of a 'git status' results
  */
-static void ParseDirectoryStatusResult(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking,
-									   const TMap<FString, FString>& InResults, TArray<FGitSourceControlState>& OutStates)
+static void ParseDirectoryStatusResult(const bool InUsingLfsLocking, const TMap<FString, FString>& InResults, TArray<FGitSourceControlState>& OutStates)
 {
 	// Iterate on each line of result of the status command
 	for (const auto& Result : InResults)
@@ -985,8 +1052,8 @@ R  Content/Textures/T_Perlin_Noise_M.uasset -> Content/Textures/T_Perlin_Noise_M
 ?? Content/Materials/M_Basic_Wall.uasset
 !! BasicCode.sln
 */
-static void ParseFileStatusResult(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles,
-								  const TMap<FString, FString>& InLockedFiles, const TMap<FString, FString>& InResults, TArray<FGitSourceControlState>& OutStates)
+static void ParseFileStatusResult(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TSet<FString>& InFiles,
+								  const TMap<FString, FString>& InResults, TArray<FGitSourceControlState>& OutStates)
 {
 	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	const FString LfsUserName = GitSourceControl.GetProvider().GetLockUser();
@@ -1024,6 +1091,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 		}
 		else
 		{
+			FileState.State.FileState = EFileState::Unknown;
 			// File not found in status
 			if (FPaths::FileExists(File))
 			{
@@ -1096,7 +1164,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 
 	// The above cannot detect deleted assets since there is no file left to enumerate (either by the Content Browser or by git ls-files)
 	// => so we also parse the status results to explicitly look for Deleted/Missing assets
-	ParseDirectoryStatusResult(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, Results, OutStates);
+	ParseDirectoryStatusResult(InUsingLfsLocking, Results, OutStates);
 }
 
 /**
@@ -1113,7 +1181,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
  * @param[out]	OutStates			States of files for witch the status has been gathered (distinct than InFiles in case of a "directory status")
  */
 static void ParseStatusResults(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles,
-							   const TMap<FString, FString>& InLockedFiles, const TMap<FString, FString>& InResults, TArray<FGitSourceControlState>& OutStates)
+							   const TMap<FString, FString>& InResults, TArray<FGitSourceControlState>& OutStates)
 {
 	TSet<FString> Files;
 	for (const auto& File : InFiles)
@@ -1135,7 +1203,7 @@ static void ParseStatusResults(const FString& InPathToGitBinary, const FString& 
 			Files.Add(File);
 		}
 	}
-	ParseFileStatusResult(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, Files.Array(), InLockedFiles, InResults, OutStates);
+	ParseFileStatusResult(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, Files, InResults, OutStates);
 }
 
 void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& Files,
@@ -1144,19 +1212,10 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 	// Using git diff, we can obtain a list of files that were modified between our current origin and HEAD. Assumes that fetch has been run to get accurate info.
 
 	// Gather valid remote branches
-	TArray<FString> Results;
 	TArray<FString> ErrorMessages;
 
-	TSet<FString> BranchesToDiff;
-	bool bDiffAgainstRemoteCurrent = false;
-	for (const auto& Branch : FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames())
-	{
-		BranchesToDiff.Add(Branch);
-		if (!bDiffAgainstRemoteCurrent && Branch.Equals(CurrentBranchName))
-		{
-			bDiffAgainstRemoteCurrent = true;
-		}
-	}
+	TSet<FString> BranchesToDiff {FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames()};
+	bool bDiffAgainstRemoteCurrent = BranchesToDiff.Contains(CurrentBranchName);
 
 	// If not already added, we still need to diff current branch
 	if (!bDiffAgainstRemoteCurrent)
@@ -1175,9 +1234,12 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 		return;
 	}
 
-	Results.Reset();
-
+	TArray<FString> Results;
 	TMap<FString, bool> NewerFiles;
+
+	TArray<FString> FilesToDiff = Files;
+	// TODO: Make PBSync optional?
+	FilesToDiff.Add(TEXT(".md5"));
 
 	TArray<FString> ParametersDiff;
 	for (auto& Branch : BranchesToDiff)
@@ -1193,7 +1255,8 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 			bCurrentBranch = false;
 		}
 		ParametersDiff.Add(FString::Printf(TEXT("HEAD...origin/%s"), *Branch));
-		const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, ParametersDiff, Files, Results, ErrorMessages);
+		
+		const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, ParametersDiff, FilesToDiff, Results, ErrorMessages);
 		if (bResultDiff)
 		{
 			for (const FString& NewerFileName : Results)
@@ -1206,7 +1269,16 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 				const FString& NewerFilePath = FPaths::ConvertRelativePathToFull(InRepositoryRoot, NewerFileName);
 				if (bCurrentBranch)
 				{
-					NewerFiles.Add(NewerFilePath, bCurrentBranch);
+					// TODO: Make PBSync optional?
+					// Check if there's newer binaries pending on this branch
+					if (NewerFileName == TEXT(".md5"))
+					{
+						FGitSourceControlModule::Get().GetProvider().bPendingRestart = true;
+					}
+					else
+					{
+						NewerFiles.Add(NewerFilePath, bCurrentBranch);
+					}
 				}
 				else
 				{
@@ -1215,6 +1287,7 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 			}
 		}
 		ParametersDiff.Reset();
+		Results.Reset();
 	}
 
 	TMap<FString, FGitSourceControlState> StateMap;
@@ -1324,11 +1397,13 @@ bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRo
 // Run a batch of Git "status" command to update status of given files and/or directories.
 bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, bool bInvalidateCache)
 {
-	bool bResults = true;
-	TMap<FString, FString> LockedFiles;
-
 	// Remove files that aren't in the repository
-	TArray<FString> RepoFiles = InFiles.FilterByPredicate([InRepositoryRoot](const FString& File) { return File.StartsWith(InRepositoryRoot); });
+	const TArray<FString>& RepoFiles = InFiles.FilterByPredicate([InRepositoryRoot](const FString& File) { return File.StartsWith(InRepositoryRoot); });
+
+	if (!RepoFiles.Num())
+	{
+		return false;
+	}
 
 	// Get the current branch name, since we need origin of current branch
 	FString BranchName;
@@ -1339,9 +1414,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	Parameters.Add(TEXT("-unormal")); // make sure we use -unormal (user can customize it)
 	// We skip checking ignored since no one ignores files that Unreal would read in as source controlled (Content/{*.uasset,*.umap},Config/*.ini).
 	TArray<FString> Results;
-	TArray<FString> ErrorMessages;
-	const bool bResult = RunCommand(TEXT("status"), InPathToGitBinary, InRepositoryRoot, Parameters, RepoFiles, Results, ErrorMessages);
-	OutErrorMessages.Append(ErrorMessages);
+	const bool bResult = RunCommand(TEXT("status"), InPathToGitBinary, InRepositoryRoot, Parameters, RepoFiles, Results, OutErrorMessages);
 	TMap<FString, FString> ResultsMap;
 	for (const auto& Result : Results)
 	{
@@ -1351,7 +1424,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	}
 	if (bResult)
 	{
-		ParseStatusResults(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, RepoFiles, LockedFiles, ResultsMap, OutStates);
+		ParseStatusResults(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, RepoFiles, ResultsMap, OutStates);
 	}
 
 	if (!BranchName.IsEmpty())
@@ -1359,7 +1432,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 		CheckRemote(BranchName, InPathToGitBinary, InRepositoryRoot, RepoFiles, OutErrorMessages, OutStates);
 	}
 
-	return bResults;
+	return bResult;
 }
 
 // Run a Git `cat-file --filters` command to dump the binary content of a revision into a file.
@@ -1950,4 +2023,134 @@ bool CheckLFSLockable(const FString& InPathToGitBinary, const FString& InReposit
 	return true;
 }
 
+bool FetchRemote(const FString& InPathToGitBinary, const FString& InPathToRepositoryRoot, bool InUsingGitLfsLocking, TArray<FString>& OutResults, TArray<FString>& OutErrorMessages)
+{
+	// Force refresh lock states
+	if (InUsingGitLfsLocking)
+	{
+		TMap<FString, FString> Locks;
+		// Get locks as relative paths
+		GetAllLocks(InPathToGitBinary, InPathToRepositoryRoot, false, OutErrorMessages, Locks, true);
+	}
+	// fetch latest repo
+	// TODO specify branches?
+	return RunCommand(TEXT("fetch"), InPathToGitBinary, InPathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(),
+					  FGitSourceControlModule::GetEmptyStringArray(), OutResults, OutErrorMessages);
+}
+
+bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToRepositoryRoot, const TArray<FString>& InFiles, TArray<FString>& OutFiles,
+				TArray<FString>& OutResults, TArray<FString>& OutErrorMessages)
+{
+	if (FGitSourceControlModule::Get().GetProvider().bPendingRestart)
+	{
+		FText PullFailMessage(LOCTEXT("Git_NeedBinariesUpdate_Msg", "Refused to Git Pull because your editor binaries are out of date.\n\n"
+																	"Without a binaries update, new assets can become corrupted or cause crashes due to format "
+																	"differences.\n\n"
+																	"Please exit the editor, and update the project."));
+		FText PullFailTitle(LOCTEXT("Git_NeedBinariesUpdate_Title", "Binaries Update Required"));
+		FMessageDialog::Open(EAppMsgType::Ok, PullFailMessage, &PullFailTitle);
+		UE_LOG(LogSourceControl, Log, TEXT("Pull failed because we need a binaries update"));
+		return false;
+	}
+
+	const TSet<FString> AlreadyReloaded {InFiles};
+
+	// Get remote branch
+	FString RemoteBranch;
+	if (!GetRemoteBranchName(InPathToGitBinary, InPathToRepositoryRoot, RemoteBranch))
+	{
+		// No remote to sync from
+		return false;
+	}
+
+	// Get the branch name
+	TArray<FString> Parameters {"origin"};
+	FString BranchName;
+
+	if (GetBranchName(InPathToGitBinary, InPathToRepositoryRoot, BranchName))
+	{
+		Parameters.Add(BranchName);
+	}
+	else
+	{
+		return false;
+	}
+
+	// Get the list of files which will be updated
+	TArray<FString> NewerFiles;
+	Parameters.Reset(2);
+	Parameters.Append({TEXT("--name-only"), RemoteBranch});
+	const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InPathToRepositoryRoot, Parameters, FGitSourceControlModule::GetEmptyStringArray(),
+										NewerFiles, OutErrorMessages);
+	if (!bResultDiff)
+	{
+		return false;
+	}
+
+	// Nothing to pull
+	if (!NewerFiles.Num())
+	{
+		return true;
+	}
+
+	AbsoluteFilenames(NewerFiles, InPathToRepositoryRoot);
+
+	OutFiles.Reserve(NewerFiles.Num() - AlreadyReloaded.Num());
+	for (const auto& File : NewerFiles)
+	{
+		if (!AlreadyReloaded.Contains(File))
+		{
+			OutFiles.Add(File);
+		}
+	}
+
+	const bool bShouldReload = OutFiles.Num() > 0;
+	TArray<UPackage*> PackagesToReload;
+	if (bShouldReload)
+	{
+		const auto PackagesToReloadResult = Async(EAsyncExecution::TaskGraphMainThread, [=] { return UnlinkPackages(OutFiles); });
+		PackagesToReload = PackagesToReloadResult.Get();
+	}
+
+	// Reset HEAD and index to remote
+	TArray<FString> InfoMessages;
+	Parameters.Reset(1);
+	Parameters.Add(RemoteBranch);
+	bool bSuccess = RunCommand(TEXT("reset"), InPathToGitBinary, InPathToRepositoryRoot, Parameters, FGitSourceControlModule::GetEmptyStringArray(),
+										  InfoMessages, OutErrorMessages);
+
+	if (bSuccess)
+	{
+		Parameters.Reset();
+		// Now that we reset HEAD to remote, we restore the working directory to our HEAD, for all updated files
+		bSuccess = RunCommand(TEXT("restore"), InPathToGitBinary, InPathToRepositoryRoot, Parameters, NewerFiles, OutResults, OutErrorMessages);
+
+		if (!bSuccess)
+		{
+			UE_LOG(LogSourceControl, Error, TEXT("Failed to pull files!"));
+			// Try clean up by moving back to the original head
+			Parameters.Add("ORIG_HEAD");
+			const bool bCleanUp = RunCommand(TEXT("reset"), InPathToGitBinary, InPathToRepositoryRoot, Parameters,
+											 FGitSourceControlModule::GetEmptyStringArray(), InfoMessages, OutErrorMessages);
+			if (!bCleanUp)
+			{
+				UE_LOG(LogSourceControl, Error, TEXT("Failed to clean up after pull failure!"));
+			}
+		}
+	}
+
+	if (bShouldReload)
+	{
+		const auto ReloadPackagesResult = Async(EAsyncExecution::TaskGraphMainThread, [=] {
+			TArray<UPackage*> Packages = PackagesToReload;
+			ReloadPackages(Packages);
+		});
+		ReloadPackagesResult.Wait();
+	}
+
+	return bSuccess;
+}
+
 } // namespace GitSourceControlUtils
+
+#undef LOCTEXT_NAMESPACE

@@ -72,8 +72,9 @@ FName FGitSourceControlState::GetIconName() const
 	case EGitState::Unmerged:
 		return FName("Perforce.Branched");
 	case EGitState::Added:
-	case EGitState::Untracked:
 		return FName("Perforce.OpenForAdd");
+	case EGitState::Untracked:
+		return FName("Perforce.NotInDepot");
 	case EGitState::Deleted:
 		return FName("Perforce.MarkedForDelete");
 	case EGitState::Modified:
@@ -99,8 +100,9 @@ FName FGitSourceControlState::GetSmallIconName() const
 	case EGitState::Unmerged:
 		return FName("Perforce.Branched_Small");
 	case EGitState::Added:
-	case EGitState::Untracked:
 		return FName("Perforce.OpenForAdd_Small");
+	case EGitState::Untracked:
+		return FName("Perforce.NotInDepot_Small");
 	case EGitState::Deleted:
 		return FName("Perforce.MarkedForDelete_Small");
 	case EGitState::Modified:
@@ -202,8 +204,8 @@ bool FGitSourceControlState::CanCheckIn() const
 		return false;
 	}
 
-	// We can check back in if we checked out.
-	if (IsCheckedOut())
+	// We can check back in if we're locked.
+	if (State.LockState == ELockState::Locked)
 	{
 		return true;
 	}
@@ -244,11 +246,12 @@ bool FGitSourceControlState::IsCheckedOut() const
 
 bool FGitSourceControlState::IsCheckedOutOther(FString* Who) const
 {
-	if (Who != NULL)
+	if (State.LockState == ELockState::LockedOther && Who != NULL)
 	{
 		*Who = LockUser;
+		return true;
 	}
-	return State.LockState == ELockState::LockedOther;
+	return false;
 }
 
 bool FGitSourceControlState::IsCheckedOutInOtherBranch(const FString& CurrentBranch) const
@@ -281,12 +284,12 @@ bool FGitSourceControlState::IsCurrent() const
 
 bool FGitSourceControlState::IsSourceControlled() const
 {
-	return State.TreeState != ETreeState::Untracked || State.TreeState != ETreeState::Ignored || State.TreeState != ETreeState::NotInRepo;
+	return State.TreeState != ETreeState::Untracked && State.TreeState != ETreeState::Ignored && State.TreeState != ETreeState::NotInRepo;
 }
 
 bool FGitSourceControlState::IsAdded() const
 {
-	// Added is when a file was untracked and was already added.
+	// Added is when a file was untracked and is now added.
 	return State.FileState == EFileState::Added;
 }
 
@@ -319,7 +322,7 @@ bool FGitSourceControlState::CanDelete() const
 
 bool FGitSourceControlState::IsUnknown() const
 {
-	return State.FileState == EFileState::Unknown && State.TreeState != ETreeState::Unmodified && State.TreeState != ETreeState::Untracked;
+	return State.FileState == EFileState::Unknown && State.TreeState == ETreeState::NotInRepo;
 }
 
 bool FGitSourceControlState::IsModified() const
@@ -342,7 +345,7 @@ bool FGitSourceControlState::IsConflicted() const
 
 bool FGitSourceControlState::CanRevert() const
 {
-	return IsConflicted() || CanCheckIn();
+	return CanCheckIn();
 }
 
 EGitState::Type FGitSourceControlState::GetGitState() const

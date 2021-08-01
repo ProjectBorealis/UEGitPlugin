@@ -32,11 +32,6 @@ private:
 	bool HaveRemoteUrl() const;
 
 	bool				SaveDirtyPackages();
-	TArray<FString>		ListAllPackages();
-	TArray<UPackage*>	UnlinkPackages(const TArray<FString>& InPackageNames);
-
-	/** Hot reload packages, remove deleted packages from memory */
-	static void			ReloadPackages(TArray<UPackage*>& InPackagesToReload);
 
 	bool StashAwayAnyModifications();
 	void ReApplyStashedModifications();

@@ -147,6 +147,21 @@ bool GetRemoteUrl(const FString& InPathToGitBinary, const FString& InRepositoryR
 bool RunCommand(const FString& InCommand, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& InParameters, const TArray<FString>& InFiles, TArray<FString>& OutResults, TArray<FString>& OutErrorMessages);
 
 /**
+ * Unloads packages of specified named files
+ */
+TArray<class UPackage*> UnlinkPackages(const TArray<FString>& InPackageNames);
+
+/**
+ * Reloads packages for these packages
+ */
+void ReloadPackages(TArray<UPackage*>& InPackagesToReload);
+
+/**
+ * Gets all Git tracked files, including within directories, recursively
+ */
+bool ListFilesInDirectoryRecurse(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const FString& InDirectory, TArray<FString>& OutFiles);
+
+/**
  * Run a Git "commit" command by batches.
  *
  * @param	InPathToGitBinary	The path to the Git binary
@@ -260,8 +275,19 @@ bool CollectNewStates(const TArray<FString>& InFiles, TMap<const FString, FGitSt
  */
 bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool bAbsolutePaths, TArray<FString>& OutErrorMessages, TMap<FString, FString>& OutLocks, bool bInvalidateCache = false);
 
+/**
+ * Checks cache for if this file type is lockable
+ */
 bool IsFileLFSLockable(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const FString& InFile, TArray<FString>& OutErrorMessages);
 
+/**
+ * Gets Git attribute to see if these extensions are lockable
+ */
 bool CheckLFSLockable(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages);
+
+bool FetchRemote(const FString& InPathToGitBinary, const FString& InPathToRepositoryRoot, bool InUsingGitLfsLocking, TArray<FString>& OutResults, TArray<FString>& OutErrorMessages);
+
+bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToRepositoryRoot, const TArray<FString>& InFiles, TArray<FString>& OutFiles,
+				TArray<FString>& OutResults, TArray<FString>& OutErrorMessages);
 
 }

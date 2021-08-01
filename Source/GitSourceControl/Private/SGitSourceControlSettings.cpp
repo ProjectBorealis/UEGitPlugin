@@ -31,9 +31,7 @@
 #define LOCTEXT_NAMESPACE "SGitSourceControlSettings"
 
 void SGitSourceControlSettings::Construct(const FArguments& InArgs)
-{
-	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	
+{	
 	const FSlateFontInfo Font = FEditorStyle::GetFontStyle(TEXT("SourceControl.LoginWindow.Font"));
 
 	bAutoCreateGitIgnore = true;

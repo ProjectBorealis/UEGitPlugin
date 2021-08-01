@@ -203,7 +203,7 @@ FText FGitSourceControlProvider::GetStatusText() const
 	Args.Add( TEXT("CommitSummary"), FText::FromString(CommitSummary) );
 
 	FText FormattedError;
-	TArray<FText> RecentErrors = GetLastErrors();
+	const TArray<FText>& RecentErrors = GetLastErrors();
 	if (RecentErrors.Num() > 0)
 	{
 		FFormatNamedArguments ErrorArgs;
@@ -327,7 +327,7 @@ ECommandResult::Type FGitSourceControlProvider::Execute( const TSharedRef<ISourc
 		return ECommandResult::Failed;
 	}
 
-	TArray<FString> AbsoluteFiles = SourceControlHelpers::AbsoluteFilenames(InFiles);
+	const TArray<FString>& AbsoluteFiles = SourceControlHelpers::AbsoluteFilenames(InFiles);
 
 	// Query to see if we allow this operation
 	TSharedPtr<IGitSourceControlWorker, ESPMode::ThreadSafe> Worker = CreateWorker(InOperation->GetName());
