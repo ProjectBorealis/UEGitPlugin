@@ -58,9 +58,8 @@ void FGitSourceControlMenu::Unregister()
 
 bool FGitSourceControlMenu::HaveRemoteUrl() const
 {
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::LoadModuleChecked<FGitSourceControlModule>("GitSourceControl");
-	const FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
-	return !Provider.GetRemoteUrl().IsEmpty();
+	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
+	return !GitSourceControl.GetProvider().GetRemoteUrl().IsEmpty();
 }
 
 /// Prompt to save or discard all packages
@@ -170,20 +169,20 @@ void FGitSourceControlMenu::ReloadPackages(TArray<UPackage*>& InPackagesToReload
 	UPackageTools::UnloadPackages(PackagesToUnload);
 }
 
-// Ask the user if he wants to stash any modification and try to unstash them afterward, which could lead to conflicts
+// Ask the user if they want to stash any modification and try to unstash them afterward, which could lead to conflicts
 bool FGitSourceControlMenu::StashAwayAnyModifications()
 {
 	bool bStashOk = true;
 
-	FGitSourceControlModule& GitSourceControl = FModuleManager::LoadModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
 	const FString& PathToRespositoryRoot = Provider.GetPathToRepositoryRoot();
-	const FString& PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
+	const FString& PathToGitBinary = Provider.GetGitBinaryPath();
 	const TArray<FString> ParametersStatus{"--porcelain --untracked-files=no"};
 	TArray<FString> InfoMessages;
 	TArray<FString> ErrorMessages;
 	// Check if there is any modification to the working tree
-	const bool bStatusOk = GitSourceControlUtils::RunCommand(TEXT("status"), PathToGitBinary, PathToRespositoryRoot, ParametersStatus, TArray<FString>(), InfoMessages, ErrorMessages);
+	const bool bStatusOk = GitSourceControlUtils::RunCommand(TEXT("status"), PathToGitBinary, PathToRespositoryRoot, ParametersStatus, FGitSourceControlModule::GetEmptyStringArray(), InfoMessages, ErrorMessages);
 	if ((bStatusOk) && (InfoMessages.Num() > 0))
 	{
 		// Ask the user before stashing
@@ -192,7 +191,7 @@ bool FGitSourceControlMenu::StashAwayAnyModifications()
 		if (Choice == EAppReturnType::Ok)
 		{
 			const TArray<FString> ParametersStash{ "save \"Stashed by Unreal Engine Git Plugin\"" };
-			bStashMadeBeforeSync = GitSourceControlUtils::RunCommand(TEXT("stash"), PathToGitBinary, PathToRespositoryRoot, ParametersStash, TArray<FString>(), InfoMessages, ErrorMessages);
+			bStashMadeBeforeSync = GitSourceControlUtils::RunCommand(TEXT("stash"), PathToGitBinary, PathToRespositoryRoot, ParametersStash, FGitSourceControlModule::GetEmptyStringArray(), InfoMessages, ErrorMessages);
 			if (!bStashMadeBeforeSync)
 			{
 				FMessageLog SourceControlLog("SourceControl");
@@ -214,14 +213,14 @@ void FGitSourceControlMenu::ReApplyStashedModifications()
 {
 	if (bStashMadeBeforeSync)
 	{
-		FGitSourceControlModule& GitSourceControl = FModuleManager::LoadModuleChecked<FGitSourceControlModule>("GitSourceControl");
+		FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 		FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
 		const FString& PathToRespositoryRoot = Provider.GetPathToRepositoryRoot();
-		const FString& PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
+		const FString& PathToGitBinary = Provider.GetGitBinaryPath();
 		const TArray<FString> ParametersStash{ "pop" };
 		TArray<FString> InfoMessages;
 		TArray<FString> ErrorMessages;
-		const bool bUnstashOk = GitSourceControlUtils::RunCommand(TEXT("stash"), PathToGitBinary, PathToRespositoryRoot, ParametersStash, TArray<FString>(), InfoMessages, ErrorMessages);
+		const bool bUnstashOk = GitSourceControlUtils::RunCommand(TEXT("stash"), PathToGitBinary, PathToRespositoryRoot, ParametersStash, FGitSourceControlModule::GetEmptyStringArray(), InfoMessages, ErrorMessages);
 		if (!bUnstashOk)
 		{
 			FMessageLog SourceControlLog("SourceControl");
@@ -242,15 +241,15 @@ void FGitSourceControlMenu::SyncClicked()
 			// Find and Unlink all packages in Content directory to allow to update them
 			PackagesToReload = UnlinkPackages(ListAllPackages());
 
-			// Ask the user if he wants to stash any modification and try to unstash them afterward, which could lead to conflicts
+			// Ask the user if they want to stash any modification and try to unstash them afterward, which could lead to conflicts
 			const bool bStashed = StashAwayAnyModifications();
 			if (bStashed)
 			{
 				// Launch a "Sync" operation
-				FGitSourceControlModule& GitSourceControl = FModuleManager::LoadModuleChecked<FGitSourceControlModule>("GitSourceControl");
+				FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 				FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
 				TSharedRef<FSync, ESPMode::ThreadSafe> SyncOperation = ISourceControlOperation::Create<FSync>();
-				const ECommandResult::Type Result = Provider.Execute(SyncOperation, TArray<FString>(), EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateRaw(this, &FGitSourceControlMenu::OnSourceControlOperationComplete));
+				const ECommandResult::Type Result = Provider.Execute(SyncOperation, FGitSourceControlModule::GetEmptyStringArray(), EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateRaw(this, &FGitSourceControlMenu::OnSourceControlOperationComplete));
 				if (Result == ECommandResult::Succeeded)
 				{
 					// Display an ongoing notification during the whole operation (packages will be reloaded at the completion of the operation)
@@ -290,10 +289,10 @@ void FGitSourceControlMenu::PushClicked()
 	if (!OperationInProgressNotification.IsValid())
 	{
 		// Launch a "Push" Operation
-		FGitSourceControlModule& GitSourceControl = FModuleManager::LoadModuleChecked<FGitSourceControlModule>("GitSourceControl");
+		FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 		FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
 		TSharedRef<FCheckIn, ESPMode::ThreadSafe> PushOperation = ISourceControlOperation::Create<FCheckIn>();
-		const ECommandResult::Type Result = Provider.Execute(PushOperation, TArray<FString>(), EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateRaw(this, &FGitSourceControlMenu::OnSourceControlOperationComplete));
+		const ECommandResult::Type Result = Provider.Execute(PushOperation, FGitSourceControlModule::GetEmptyStringArray(), EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateRaw(this, &FGitSourceControlMenu::OnSourceControlOperationComplete));
 		if (Result == ECommandResult::Succeeded)
 		{
 			// Display an ongoing notification during the whole operation
@@ -400,7 +399,7 @@ void FGitSourceControlMenu::RevertAllCallback(const FSourceControlOperationRef& 
 	const auto FileNames = SourceControlHelpers::PackageFilenames(PackageNames);
 
 	// Launch a "Revert" Operation
-	FGitSourceControlModule& GitSourceControl = FModuleManager::LoadModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
 	const TSharedRef<FRevert, ESPMode::ThreadSafe> RevertOperation = ISourceControlOperation::Create<FRevert>();
 	const auto Result = Provider.Execute(RevertOperation, FileNames);
@@ -416,19 +415,20 @@ void FGitSourceControlMenu::RevertAllCallback(const FSourceControlOperationRef& 
 	}
 
 	ReloadPackages(LoadedPackages);
-	Provider.Execute(ISourceControlOperation::Create<FUpdateStatus>(), TArray<FString>(), EConcurrency::Asynchronous);
+	Provider.Execute(ISourceControlOperation::Create<FUpdateStatus>(), FGitSourceControlModule::GetEmptyStringArray(), EConcurrency::Asynchronous);
 }
 
 void FGitSourceControlMenu::RefreshClicked()
 {
 	if (!OperationInProgressNotification.IsValid())
 	{
-		// Launch an "UpdateStatus" Operation
-		FGitSourceControlModule& GitSourceControl = FModuleManager::LoadModuleChecked<FGitSourceControlModule>("GitSourceControl");
+		FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 		FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
-		TSharedRef<FUpdateStatus, ESPMode::ThreadSafe> RefreshOperation = ISourceControlOperation::Create<FUpdateStatus>();
-		RefreshOperation->SetCheckingAllFiles(true);
-		const ECommandResult::Type Result = Provider.Execute(RefreshOperation, TArray<FString>(), EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateRaw(this, &FGitSourceControlMenu::OnSourceControlOperationComplete));
+		// Launch an "GitFetch" Operation
+		TSharedRef<FGitFetch, ESPMode::ThreadSafe> RefreshOperation = ISourceControlOperation::Create<FGitFetch>();
+		RefreshOperation->bUpdateStatus = true;
+		const ECommandResult::Type Result = Provider.Execute(RefreshOperation, FGitSourceControlModule::GetEmptyStringArray(), EConcurrency::Asynchronous,
+															 FSourceControlOperationComplete::CreateRaw(this, &FGitSourceControlMenu::OnSourceControlOperationComplete));
 		if (Result == ECommandResult::Succeeded)
 		{
 			// Display an ongoing notification during the whole operation
@@ -552,9 +552,8 @@ void FGitSourceControlMenu::AddMenuExtension(FMenuBuilder& Builder)
 		)
 	);
 
-#if 0
 	Builder.AddMenuEntry(
-		LOCTEXT("GitSync",				"Sync/Pull"),
+		LOCTEXT("GitSync",				"Pull"),
 		LOCTEXT("GitSyncTooltip",		"Update all files in the local repository to the latest version of the remote server."),
 		FSlateIcon(FEditorStyle::GetStyleSetName(), "SourceControl.Actions.Sync"),
 		FUIAction(
@@ -562,7 +561,6 @@ void FGitSourceControlMenu::AddMenuExtension(FMenuBuilder& Builder)
 			FCanExecuteAction::CreateRaw(this, &FGitSourceControlMenu::HaveRemoteUrl)
 		)
 	);
-#endif
 
 	Builder.AddMenuEntry(
 		LOCTEXT("GitRevert",			"Revert"),

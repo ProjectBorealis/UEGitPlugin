@@ -32,7 +32,7 @@
 
 void SGitSourceControlSettings::Construct(const FArguments& InArgs)
 {
-	FGitSourceControlModule& GitSourceControl = FModuleManager::LoadModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	
 	const FSlateFontInfo Font = FEditorStyle::GetFontStyle(TEXT("SourceControl.LoginWindow.Font"));
 
@@ -402,13 +402,13 @@ SGitSourceControlSettings::~SGitSourceControlSettings()
 
 FString SGitSourceControlSettings::GetBinaryPathString() const
 {
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	return GitSourceControl.AccessSettings().GetBinaryPath();
 }
 
 void SGitSourceControlSettings::OnBinaryPathPicked( const FString& PickedPath ) const
 {
-	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	FString PickedFullPath = FPaths::ConvertRelativePathToFull(PickedPath);
 	const bool bChanged = GitSourceControl.AccessSettings().SetBinaryPath(PickedFullPath);
 	if(bChanged)
@@ -424,25 +424,25 @@ void SGitSourceControlSettings::OnBinaryPathPicked( const FString& PickedPath ) 
 
 FText SGitSourceControlSettings::GetPathToRepositoryRoot() const
 {
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	return FText::FromString(GitSourceControl.GetProvider().GetPathToRepositoryRoot());
 }
 
 FText SGitSourceControlSettings::GetUserName() const
 {
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	return FText::FromString(GitSourceControl.GetProvider().GetUserName());
 }
 
 FText SGitSourceControlSettings::GetUserEmail() const
 {
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	return FText::FromString(GitSourceControl.GetProvider().GetUserEmail());
 }
 
 EVisibility SGitSourceControlSettings::MustInitializeGitRepository() const
 {
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	const bool bGitAvailable = GitSourceControl.GetProvider().IsGitAvailable();
 	const bool bGitRepositoryFound = GitSourceControl.GetProvider().IsEnabled();
 	return (bGitAvailable && !bGitRepositoryFound) ? EVisibility::Visible : EVisibility::Collapsed;
@@ -450,11 +450,11 @@ EVisibility SGitSourceControlSettings::MustInitializeGitRepository() const
 
 bool SGitSourceControlSettings::CanInitializeGitRepository() const
 {
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	const bool bGitAvailable = GitSourceControl.GetProvider().IsGitAvailable();
 	const bool bGitRepositoryFound = GitSourceControl.GetProvider().IsEnabled();
-	const FString LfsUserName = GitSourceControl.AccessSettings().GetLfsUserName();
-	const bool bIsUsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
+	const FString& LfsUserName = GitSourceControl.AccessSettings().GetLfsUserName();
+	const bool bIsUsingGitLfsLocking = GitSourceControl.GetProvider().UsesCheckout();
 	const bool bGitLfsConfigOk = !bIsUsingGitLfsLocking || !LfsUserName.IsEmpty();
 	const bool bInitialCommitConfigOk = !bAutoInitialCommit || !InitialCommitMessage.IsEmpty();
 	return (bGitAvailable && !bGitRepositoryFound && bGitLfsConfigOk && bInitialCommitConfigOk);
@@ -462,7 +462,7 @@ bool SGitSourceControlSettings::CanInitializeGitRepository() const
 
 bool SGitSourceControlSettings::CanInitializeGitLfs() const
 {
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	const FString& PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
 	const bool bGitLfsAvailable = GitSourceControl.GetProvider().GetGitVersion().bHasGitLfs;
 	return bGitLfsAvailable;
@@ -470,7 +470,7 @@ bool SGitSourceControlSettings::CanInitializeGitLfs() const
 
 bool SGitSourceControlSettings::CanUseGitLfsLocking() const
 {
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	const bool bGitLfsLockingAvailable = GitSourceControl.GetProvider().GetGitVersion().bHasGitLfsLocking;
 	// TODO LFS SRombauts : check if .gitattributes file is present and if Content/ is already tracked!
 	const bool bGitAttributesCreated = true;
@@ -479,21 +479,21 @@ bool SGitSourceControlSettings::CanUseGitLfsLocking() const
 
 FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
 {
-	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	const FString& PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
 	const FString PathToProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
 	TArray<FString> InfoMessages;
 	TArray<FString> ErrorMessages;
 
 	// 1.a. Synchronous (very quick) "git init" operation: initialize a Git local repository with a .git/ subdirectory
-	GitSourceControlUtils::RunCommand(TEXT("init"), PathToGitBinary, PathToProjectDir, TArray<FString>(), TArray<FString>(), InfoMessages, ErrorMessages);
+	GitSourceControlUtils::RunCommand(TEXT("init"), PathToGitBinary, PathToProjectDir, FGitSourceControlModule::GetEmptyStringArray(), FGitSourceControlModule::GetEmptyStringArray(), InfoMessages, ErrorMessages);
 	// 1.b. Synchronous (very quick) "git remote add" operation: configure the URL of the default remote server 'origin' if specified
 	if(!RemoteUrl.IsEmpty())
 	{
 		TArray<FString> Parameters;
 		Parameters.Add(TEXT("add origin"));
 		Parameters.Add(RemoteUrl.ToString());
-		GitSourceControlUtils::RunCommand(TEXT("remote"), PathToGitBinary, PathToProjectDir, Parameters, TArray<FString>(), InfoMessages, ErrorMessages);
+		GitSourceControlUtils::RunCommand(TEXT("remote"), PathToGitBinary, PathToProjectDir, Parameters, FGitSourceControlModule::GetEmptyStringArray(), InfoMessages, ErrorMessages);
 	}
 
 	// Check the new repository status to enable connection (branch, user e-mail)
@@ -531,12 +531,12 @@ FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
 		if(bAutoCreateGitAttributes)
 		{
 			// 2.c. Synchronous (very quick) "lfs install" operation: needs only to be run once by user
-			GitSourceControlUtils::RunCommand(TEXT("install"), PathToGitBinary, PathToProjectDir, TArray<FString>(), TArray<FString>(), InfoMessages, ErrorMessages);
+			GitSourceControlUtils::RunCommand(TEXT("install"), PathToGitBinary, PathToProjectDir, FGitSourceControlModule::GetEmptyStringArray(), FGitSourceControlModule::GetEmptyStringArray(), InfoMessages, ErrorMessages);
 
 			// 2.d. Create a ".gitattributes" file to enable Git LFS (Large File System) for the whole "Content/" subdir
 			const FString GitAttributesFilename = FPaths::Combine(FPaths::ProjectDir(), TEXT(".gitattributes"));
 			FString GitAttributesContent;
-			if(GitSourceControl.AccessSettings().IsUsingGitLfsLocking())
+			if (GitSourceControl.GetProvider().UsesCheckout())
 			{
 				// Git LFS 2.x File Locking mechanism
 				GitAttributesContent = TEXT("Content/** filter=lfs diff=lfs merge=lfs -text lockable\n");
@@ -562,7 +562,7 @@ FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
 // Launch an asynchronous "MarkForAdd" operation and start an ongoing notification
 void SGitSourceControlSettings::LaunchMarkForAddOperation(const TArray<FString>& InFiles)
 {
-	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	TSharedRef<FMarkForAdd, ESPMode::ThreadSafe> MarkForAddOperation = ISourceControlOperation::Create<FMarkForAdd>();
 	ECommandResult::Type Result = GitSourceControl.GetProvider().Execute(MarkForAddOperation, InFiles, EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateSP(this, &SGitSourceControlSettings::OnSourceControlOperationComplete));
 	if (Result == ECommandResult::Succeeded)
@@ -580,8 +580,8 @@ void SGitSourceControlSettings::LaunchCheckInOperation()
 {
 	TSharedRef<FCheckIn, ESPMode::ThreadSafe> CheckInOperation = ISourceControlOperation::Create<FCheckIn>();
 	CheckInOperation->SetDescription(InitialCommitMessage);
-	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-	ECommandResult::Type Result = GitSourceControl.GetProvider().Execute(CheckInOperation, TArray<FString>(), EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateSP(this, &SGitSourceControlSettings::OnSourceControlOperationComplete));
+	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
+	ECommandResult::Type Result = GitSourceControl.GetProvider().Execute(CheckInOperation, FGitSourceControlModule::GetEmptyStringArray(), EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateSP(this, &SGitSourceControlSettings::OnSourceControlOperationComplete));
 	if (Result == ECommandResult::Succeeded)
 	{
 		DisplayInProgressNotification(CheckInOperation);
@@ -690,14 +690,15 @@ void SGitSourceControlSettings::OnCheckedCreateGitAttributes(ECheckBoxState NewC
 
 void SGitSourceControlSettings::OnCheckedUseGitLfsLocking(ECheckBoxState NewCheckedState)
 {
-	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	GitSourceControl.AccessSettings().SetUsingGitLfsLocking(NewCheckedState == ECheckBoxState::Checked);
 	GitSourceControl.AccessSettings().SaveSettings();
+	GitSourceControl.GetProvider().UpdateSettings();
 }
 
 bool SGitSourceControlSettings::GetIsUsingGitLfsLocking() const
 {
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	return GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
 }
 
@@ -708,14 +709,15 @@ ECheckBoxState SGitSourceControlSettings::IsUsingGitLfsLocking() const
 
 void SGitSourceControlSettings::OnLfsUserNameCommited(const FText& InText, ETextCommit::Type InCommitType)
 {
-	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	GitSourceControl.AccessSettings().SetLfsUserName(InText.ToString());
 	GitSourceControl.AccessSettings().SaveSettings();
+	GitSourceControl.GetProvider().UpdateSettings();
 }
 
 FText SGitSourceControlSettings::GetLfsUserName() const
 {
-	const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	return FText::FromString(GitSourceControl.AccessSettings().GetLfsUserName());
 }
 

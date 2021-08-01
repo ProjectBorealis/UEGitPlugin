@@ -263,7 +263,7 @@ bool FGitSourceControlState::IsModifiedInOtherBranch(const FString& CurrentBranc
 
 bool FGitSourceControlState::GetOtherBranchHeadModification(FString& HeadBranchOut, FString& ActionOut, int32& HeadChangeListOut) const
 {
-	if (State.RemoteState == ERemoteState::NotAtHead)
+	if (!IsModifiedInOtherBranch())
 	{
 		return false;
 	}
@@ -281,12 +281,12 @@ bool FGitSourceControlState::IsCurrent() const
 
 bool FGitSourceControlState::IsSourceControlled() const
 {
-	return State.TreeState != ETreeState::Untracked || State.TreeState != ETreeState::Ignored && State.TreeState != ETreeState::NotInRepo;
+	return State.TreeState != ETreeState::Untracked || State.TreeState != ETreeState::Ignored || State.TreeState != ETreeState::NotInRepo;
 }
 
 bool FGitSourceControlState::IsAdded() const
 {
-	// Untracked files are always eventually added. Added is when a file was untracked and was already added.
+	// Added is when a file was untracked and was already added.
 	return State.FileState == EFileState::Added;
 }
 

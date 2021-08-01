@@ -18,12 +18,12 @@ FGitSourceControlCommand::FGitSourceControlCommand(const TSharedRef<class ISourc
 	, bAutoDelete(true)
 	, Concurrency(EConcurrency::Synchronous)
 {
-	// grab the providers settings here, so we don't access them once the worker thread is launched
-	check(IsInGameThread());
+	// cache the providers settings here
 	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
-	bUsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
-	PathToRepositoryRoot = GitSourceControl.GetProvider().GetPathToRepositoryRoot();
+	const FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+	PathToGitBinary = Provider.GetGitBinaryPath();
+	bUsingGitLfsLocking = Provider.UsesCheckout();
+	PathToRepositoryRoot = Provider.GetPathToRepositoryRoot();
 }
 
 bool FGitSourceControlCommand::DoWork()

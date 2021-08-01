@@ -15,9 +15,10 @@
 
 bool FGitSourceControlRevision::Get( FString& InOutFilename ) const
 {
-	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-	const FString PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
-	const FString PathToRepositoryRoot = GitSourceControl.GetProvider().GetPathToRepositoryRoot();
+	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
+	const FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+	const FString PathToGitBinary = Provider.GetGitBinaryPath();
+	const FString PathToRepositoryRoot = Provider.GetPathToRepositoryRoot();
 
 	// if a filename for the temp file wasn't supplied generate a unique-ish one
 	if(InOutFilename.Len() == 0)

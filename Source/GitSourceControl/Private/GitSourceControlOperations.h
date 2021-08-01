@@ -23,6 +23,20 @@ public:
 	virtual FText GetInProgressString() const override;
 };
 
+/**
+ * Internal operation used to fetch from remote origin
+ */
+class FGitFetch : public ISourceControlOperation
+{
+public:
+	// ISourceControlOperation interface
+	virtual FName GetName() const override;
+
+	virtual FText GetInProgressString() const override;
+
+	bool bUpdateStatus = false;
+};
+
 /** Called when first activated on a project, and then at project load time.
  *  Look for the root directory of the git repository (where the ".git/" subdirectory is located). */
 class FGitConnectWorker : public IGitSourceControlWorker
@@ -173,6 +187,20 @@ class FGitResolveWorker : public IGitSourceControlWorker
 {
 public:
 	virtual ~FGitResolveWorker() {}
+	virtual FName GetName() const override;
+	virtual bool Execute(class FGitSourceControlCommand& InCommand) override;
+	virtual bool UpdateStates() const override;
+
+	/** Temporary states for results */
+	TMap<const FString, FGitState> States;
+};
+
+/** Git push to publish branch for its configured remote */
+class FGitFetchWorker : public IGitSourceControlWorker
+{
+public:
+	virtual ~FGitFetchWorker() {}
+	// IGitSourceControlWorker interface
 	virtual FName GetName() const override;
 	virtual bool Execute(class FGitSourceControlCommand& InCommand) override;
 	virtual bool UpdateStates() const override;

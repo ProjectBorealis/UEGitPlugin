@@ -95,6 +95,9 @@ public:
 	 */
 	void CheckGitAvailability();
 
+	/** Refresh Git settings from source control settings */
+	void UpdateSettings();
+
 	/**
 	 * Find the .git/ repository and check it's status.
 	 */
@@ -118,6 +121,12 @@ public:
 		return PathToRepositoryRoot;
 	}
 
+	/** Gets the path to the Git binary */
+	inline const FString& GetGitBinaryPath() const
+	{
+		return PathToGitBinary;
+	}
+
 	/** Git config user.name */
 	inline const FString& GetUserName() const
 	{
@@ -134,6 +143,11 @@ public:
 	inline const FString& GetRemoteUrl() const
 	{
 		return RemoteUrl;
+	}
+
+	inline const FString& GetLockUser() const
+	{
+		return LockUser;
 	}
 
 	/** Helper function used to update state cache */
@@ -181,12 +195,12 @@ private:
 	/** Is git repository found. */
 	bool bGitRepositoryFound;
 
-	/** Is LFS locking enabled?
-	 * -1: uninitialized
-	 * 0: no
-	 * 1: yes
-	*/
-	int UsingGitLfsLocking = -1;
+	/** Is LFS locking enabled? */
+	bool bUsingGitLfsLocking = false;
+
+	FString PathToGitBinary;
+
+	FString LockUser;
 
 	/** Critical section for thread safety of error messages that occurred after last perforce command */
 	mutable FCriticalSection LastErrorsCriticalSection;

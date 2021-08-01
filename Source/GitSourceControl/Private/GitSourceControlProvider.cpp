@@ -48,8 +48,8 @@ void FGitSourceControlProvider::Init(bool bForceConnection)
 
 void FGitSourceControlProvider::CheckGitAvailability()
 {
-	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-	FString PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
+	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
+	PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
 	if(PathToGitBinary.IsEmpty())
 	{
 		// Try to find Git binary, and update settings accordingly
@@ -75,6 +75,13 @@ void FGitSourceControlProvider::CheckGitAvailability()
 	}
 }
 
+void FGitSourceControlProvider::UpdateSettings()
+{
+	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
+	bUsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
+	LockUser = GitSourceControl.AccessSettings().GetLfsUserName();
+}
+
 void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGitBinary)
 {
 	// Find the path to the root Git directory (if any, else uses the ProjectDir)
@@ -89,11 +96,7 @@ void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGit
 		if(bGitRepositoryFound)
 		{
 			GitSourceControlUtils::GetRemoteUrl(InPathToGitBinary, PathToRepositoryRoot, RemoteUrl);
-			if (UsingGitLfsLocking == -1)
-			{
-				const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-				UsingGitLfsLocking = GitSourceControl.AccessSettings().IsUsingGitLfsLocking();
-			}
+			UpdateSettings();
 			TArray<FString> Files;
 			Files.Add("*.uasset");
 			Files.Add("*.umap");
@@ -110,7 +113,7 @@ void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGit
 			ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
 			ErrorMessages.Empty();
 			TArray<FGitSourceControlState> States;
-			if (GitSourceControlUtils::RunUpdateStatus(InPathToGitBinary, PathToRepositoryRoot, UsingGitLfsLocking == 1, ProjectDirs, ErrorMessages, States))
+			if (GitSourceControlUtils::RunUpdateStatus(InPathToGitBinary, PathToRepositoryRoot, bUsingGitLfsLocking, ProjectDirs, ErrorMessages, States))
 			{
 				TMap<const FString, FGitState> Results;
 				if (GitSourceControlUtils::CollectNewStates(States, Results))
@@ -400,7 +403,7 @@ void FGitSourceControlProvider::CancelOperation( const TSharedRef<ISourceControl
 
 bool FGitSourceControlProvider::UsesLocalReadOnlyState() const
 {
-	return UsingGitLfsLocking == 1; // Git LFS Lock uses read-only state
+	return bUsingGitLfsLocking; // Git LFS Lock uses read-only state
 }
 
 bool FGitSourceControlProvider::UsesChangelists() const
@@ -410,7 +413,7 @@ bool FGitSourceControlProvider::UsesChangelists() const
 
 bool FGitSourceControlProvider::UsesCheckout() const
 {
-	return UsingGitLfsLocking == 1; // Git LFS Lock uses read-only state
+	return bUsingGitLfsLocking; // Git LFS Lock uses read-only state
 }
 
 TSharedPtr<IGitSourceControlWorker, ESPMode::ThreadSafe> FGitSourceControlProvider::CreateWorker(const FName& InOperationName) const
@@ -647,6 +650,10 @@ void FGitSourceControlProvider::RegisterStateBranches(const TArray<FString>& Bra
 
 int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& StateBranchName) const
 {
+	// How do state branches indices work?
+	// Order matters. Lower values are lower in the hierarchy, i.e., changes from higher branches get automatically merged down.
+	// The higher branch is, the stabler it is, and has changes manually promoted up.
+
 	const int32 CurrentBranchStatusIndex = StatusBranchNames.IndexOfByKey(BranchName);
 	const bool bCurrentBranchInStatusBranches = CurrentBranchStatusIndex != INDEX_NONE;
 
@@ -657,11 +664,13 @@ int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& StateBranchN
 		// If the user's current branch is tracked as a status branch, give the proper index
 		if (bCurrentBranchInStatusBranches)
 		{
-			return StatusBranchNames.IndexOfByKey(BranchName);
+			return CurrentBranchStatusIndex;
 		}
 		// If the current branch is not a status branch, make it the highest branch
 		// This is semantically correct, since if a branch is not marked as a status branch
-		// by a user, it is a downstream branch that merges changes between the status branches
+		// it merges changes in a similar fashion to the highest status branch, i.e. manually promotes them
+		// based on the user merging those changes in. and these changes always get merged from even the highest point
+		// of the stream. i.e, promoted/stable changes are always up for consumption by this branch.
 		return INT32_MAX;
 	}
 	

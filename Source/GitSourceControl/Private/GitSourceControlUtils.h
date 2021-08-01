@@ -38,6 +38,7 @@ class FGitLockedFilesCache
 {
 public:
 	static FDateTime LastUpdated;
+	static TMap<FString, FString> LockedFiles;
 };
 
 namespace GitSourceControlUtils
@@ -105,6 +106,12 @@ void GetUserConfig(const FString& InPathToGitBinary, const FString& InRepository
  * @returns true if the command succeeded and returned no errors
  */
 bool GetBranchName(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutBranchName);
+
+/**
+ * Get Git remote tracking branch
+ * @returns false if the branch is not tracking a remote
+ */
+bool GetRemoteBranchName(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutBranchName);
 
 /**
  * Get Git current commit details
