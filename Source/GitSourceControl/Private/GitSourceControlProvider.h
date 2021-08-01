@@ -183,6 +183,8 @@ public:
 		return BranchName;
 	}
 
+	const FString& GetRemoteBranchName() const { return RemoteBranchName; }
+
 	const TArray<FString>& GetStatusBranchNames() const
 	{
 		return StatusBranchNames;
@@ -236,6 +238,9 @@ private:
 
 	/** Name of the current branch */
 	FString BranchName;
+
+	/** Name of the current remote branch */
+	FString RemoteBranchName;
 
 	/** URL of the "origin" default remote server */
 	FString RemoteUrl;

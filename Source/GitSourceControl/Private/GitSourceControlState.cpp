@@ -189,7 +189,7 @@ const FDateTime& FGitSourceControlState::GetTimeStamp() const
 	return TimeStamp;
 }
 
-// Deleted and Missing assets cannot appear in the Content Browser, but the do in the Submit files to Source Control window!
+// Deleted and Missing assets cannot appear in the Content Browser, but they do in the Submit files to Source Control window!
 bool FGitSourceControlState::CanCheckIn() const
 {
 	// We can check in if this is new content
@@ -211,7 +211,7 @@ bool FGitSourceControlState::CanCheckIn() const
 	}
 
 	// We can check in any file that's not lockable but has been modified.
-	if (State.LockState == ELockState::Unlockable && IsModified())
+	if (State.LockState == ELockState::Unlockable && IsModified() && IsSourceControlled())
 	{
 		return true;
 	}
@@ -239,6 +239,7 @@ bool FGitSourceControlState::IsCheckedOut() const
 	{
 		return IsSourceControlled();
 	}
+	else
 	{
 		return State.LockState == ELockState::Locked;
 	}
@@ -386,14 +387,14 @@ EGitState::Type FGitSourceControlState::GetGitState() const
 		break;
 	}
 
-	if (State.LockState == ELockState::Locked)
-	{
-		return EGitState::CheckedOut;
-	}
-
 	if (State.TreeState == ETreeState::Untracked)
 	{
 		return EGitState::Untracked;
+	}
+
+	if (State.LockState == ELockState::Locked)
+	{
+		return EGitState::CheckedOut;
 	}
 
 	if (IsSourceControlled())

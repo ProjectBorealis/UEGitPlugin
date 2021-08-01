@@ -95,11 +95,10 @@ void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGit
 		bGitRepositoryFound = GitSourceControlUtils::GetBranchName(InPathToGitBinary, PathToRepositoryRoot, BranchName);
 		if(bGitRepositoryFound)
 		{
+			GitSourceControlUtils::GetRemoteBranchName(InPathToGitBinary, PathToRepositoryRoot, RemoteBranchName);
 			GitSourceControlUtils::GetRemoteUrl(InPathToGitBinary, PathToRepositoryRoot, RemoteUrl);
 			UpdateSettings();
-			TArray<FString> Files;
-			Files.Add("*.uasset");
-			Files.Add("*.umap");
+			TArray<FString> Files {TEXT("*.uasset"), TEXT("*.umap")};
 			TArray<FString> ErrorMessages;
 			if (!GitSourceControlUtils::CheckLFSLockable(InPathToGitBinary, PathToRepositoryRoot, Files, ErrorMessages))
 			{
@@ -112,7 +111,7 @@ void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGit
 			ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()));
 			ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
 			ErrorMessages.Empty();
-			TArray<FGitSourceControlState> States;
+			TMap<FString, FGitSourceControlState> States;
 			if (GitSourceControlUtils::RunUpdateStatus(InPathToGitBinary, PathToRepositoryRoot, bUsingGitLfsLocking, ProjectDirs, ErrorMessages, States))
 			{
 				TMap<const FString, FGitState> Results;

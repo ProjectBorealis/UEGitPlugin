@@ -27,7 +27,7 @@
 #include "Logging/MessageLog.h"
 #include "SourceControlHelpers.h"
 
-static const FName GitSourceControlMenuTabName("GitSourceControlMenu");
+static const FName GitSourceControlMenuTabName(TEXT("GitSourceControlMenu"));
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
 
@@ -36,7 +36,7 @@ TWeakPtr<SNotificationItem> FGitSourceControlMenu::OperationInProgressNotificati
 void FGitSourceControlMenu::Register()
 {
 	// Register the extension with the level editor
-	FLevelEditorModule* LevelEditorModule = FModuleManager::GetModulePtr<FLevelEditorModule>("LevelEditor");
+	FLevelEditorModule* LevelEditorModule = FModuleManager::GetModulePtr<FLevelEditorModule>(TEXT("LevelEditor"));
 	if (LevelEditorModule)
 	{
 		FLevelEditorModule::FLevelEditorMenuExtender ViewMenuExtender = FLevelEditorModule::FLevelEditorMenuExtender::CreateRaw(this, &FGitSourceControlMenu::OnExtendLevelEditorViewMenu);

@@ -183,7 +183,7 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
  * @param	OutErrorMessages	Any errors (from StdErr) as an array per-line
  */
 void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& Files,
-				 TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates);
+				 TArray<FString>& OutErrorMessages, TMap<FString, FGitSourceControlState>& OutStates);
 
 /**
  * Run a Git "status" command and parse it.
@@ -193,10 +193,11 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
  * @param	InUsingLfsLocking	Tells if using the Git LFS file Locking workflow
  * @param	InFiles				The files to be operated on
  * @param	OutErrorMessages	Any errors (from StdErr) as an array per-line
- * @param bUseLfsCache If we should use the cache for LFS locks
+ * @param   OutStates           The resultant states
  * @returns true if the command succeeded and returned no errors
  */
-bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages, TArray<FGitSourceControlState>& OutStates, bool bInvalidateCache = false);
+bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles,
+					 TArray<FString>& OutErrorMessages, TMap<FString, FGitSourceControlState>& OutStates);
 
 /**
  * Run a Git "cat-file" command to dump the binary content of a revision into a file.
@@ -255,7 +256,7 @@ bool UpdateCachedStates(const TMap<const FString, FGitState>& InResults);
 * Helper function for various commands to collect new states.
 * @returns true if any states were updated
 */
-bool CollectNewStates(const TArray<FGitSourceControlState>& InStates, TMap<const FString, FGitState>& OutResults);
+bool CollectNewStates(const TMap<FString, FGitSourceControlState>& InStates, TMap<const FString, FGitState>& OutResults);
 	
 /**
  * Helper function for various commands to collect new states.
@@ -266,19 +267,17 @@ bool CollectNewStates(const TArray<FString>& InFiles, TMap<const FString, FGitSt
 /**
  * Run 'git lfs locks" to extract all lock information for all files in the repository
  *
- * @param	InPathToGitBinary	The path to the Git binary
  * @param	InRepositoryRoot	The Git repository from where to run the command - usually the Game directory
- * @param   bAbsolutePaths      Whether to report absolute filenames, false for repo-relative
  * @param	OutErrorMessages    Any errors (from StdErr) as an array per-line
  * @param	OutLocks		    The lock results (file, username)
  * @returns true if the command succeeded and returned no errors
  */
-bool GetAllLocks(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool bAbsolutePaths, TArray<FString>& OutErrorMessages, TMap<FString, FString>& OutLocks, bool bInvalidateCache = false);
+bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessages, TMap<FString, FString>& OutLocks, bool bInvalidateCache = false);
 
 /**
  * Checks cache for if this file type is lockable
  */
-bool IsFileLFSLockable(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const FString& InFile, TArray<FString>& OutErrorMessages);
+bool IsFileLFSLockable(const FString& InFile);
 
 /**
  * Gets Git attribute to see if these extensions are lockable
