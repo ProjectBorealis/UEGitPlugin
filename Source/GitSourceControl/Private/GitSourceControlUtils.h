@@ -275,6 +275,11 @@ bool CollectNewStates(const TArray<FString>& InFiles, TMap<const FString, FGitSt
 bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessages, TMap<FString, FString>& OutLocks, bool bInvalidateCache = false);
 
 /**
+ * Gets locks from state cache
+ */
+void GetLockedFiles(const TArray<FString>& InFiles, TArray<FString>& OutFiles);
+
+/**
  * Checks cache for if this file type is lockable
  */
 bool IsFileLFSLockable(const FString& InFile);

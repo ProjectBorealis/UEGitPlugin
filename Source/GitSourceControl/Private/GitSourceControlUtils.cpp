@@ -1409,6 +1409,22 @@ bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessa
 	return bResult;
 }
 
+void GetLockedFiles(const TArray<FString>& InFiles, TArray<FString>& OutFiles)
+{
+	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
+	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+
+	TArray<TSharedRef<ISourceControlState, ESPMode::ThreadSafe>> LocalStates;
+	Provider.GetState(InFiles, LocalStates, EStateCacheUsage::Use);
+	for (const auto& State : LocalStates)
+	{
+		if (State->IsCheckedOut())
+		{
+			OutFiles.Add(State->GetFilename());
+		}
+	}
+}
+
 // Run a batch of Git "status" command to update status of given files and/or directories.
 bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles,
 					 TArray<FString>& OutErrorMessages, TMap<FString, FGitSourceControlState>& OutStates)

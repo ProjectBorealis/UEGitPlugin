@@ -12,18 +12,6 @@
 #include "ISourceControlOperation.h"
 
 /**
- * Internal operation used to push local commits to configured remote origin
-*/
-class FGitPush : public ISourceControlOperation
-{
-public:
-	// ISourceControlOperation interface
-	virtual FName GetName() const override;
-
-	virtual FText GetInProgressString() const override;
-};
-
-/**
  * Internal operation used to fetch from remote origin
  */
 class FGitFetch : public ISourceControlOperation
@@ -127,20 +115,6 @@ class FGitSyncWorker : public IGitSourceControlWorker
 {
 public:
 	virtual ~FGitSyncWorker() {}
-	// IGitSourceControlWorker interface
-	virtual FName GetName() const override;
-	virtual bool Execute(class FGitSourceControlCommand& InCommand) override;
-	virtual bool UpdateStates() const override;
-
-	/** Temporary states for results */
-	TMap<const FString, FGitState> States;
-};
-
-/** Git push to publish branch for its configured remote */
-class FGitPushWorker : public IGitSourceControlWorker
-{
-public:
-	virtual ~FGitPushWorker() {}
 	// IGitSourceControlWorker interface
 	virtual FName GetName() const override;
 	virtual bool Execute(class FGitSourceControlCommand& InCommand) override;
