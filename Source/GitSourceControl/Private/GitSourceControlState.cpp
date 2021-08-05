@@ -257,7 +257,8 @@ bool FGitSourceControlState::IsCheckedOutOther(FString* Who) const
 
 bool FGitSourceControlState::IsCheckedOutInOtherBranch(const FString& CurrentBranch) const
 {
-	return IsCheckedOutOther();
+	// You can't check out separately per branch
+	return false;
 }
 
 bool FGitSourceControlState::IsModifiedInOtherBranch(const FString& CurrentBranch) const
