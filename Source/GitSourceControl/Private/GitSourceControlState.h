@@ -158,7 +158,7 @@ public:
 	virtual bool IsCheckedOutOther(FString* Who = NULL) const override;
 	virtual bool IsCheckedOutInOtherBranch(const FString& CurrentBranch = FString()) const override;
 	virtual bool IsModifiedInOtherBranch(const FString& CurrentBranch = FString()) const override;
-	virtual bool IsCheckedOutOrModifiedInOtherBranch(const FString& CurrentBranch = FString()) const override { return IsCheckedOutInOtherBranch(CurrentBranch) || IsModifiedInOtherBranch(CurrentBranch); }
+	virtual bool IsCheckedOutOrModifiedInOtherBranch(const FString& CurrentBranch = FString()) const override { return IsModifiedInOtherBranch(CurrentBranch); }
 	virtual TArray<FString> GetCheckedOutBranches() const override { return TArray<FString>(); }
 	virtual FString GetOtherUserBranchCheckedOuts() const override { return FString(); }
 	virtual bool GetOtherBranchHeadModification(FString& HeadBranchOut, FString& ActionOut, int32& HeadChangeListOut) const override;
