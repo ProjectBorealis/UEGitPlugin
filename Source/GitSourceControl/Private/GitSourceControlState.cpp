@@ -330,7 +330,6 @@ bool FGitSourceControlState::IsUnknown() const
 bool FGitSourceControlState::IsModified() const
 {
 	return State.TreeState == ETreeState::Working ||
-		State.TreeState == ETreeState::Untracked ||
 		State.TreeState == ETreeState::Staged;
 }
 
