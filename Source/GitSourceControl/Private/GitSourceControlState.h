@@ -119,12 +119,15 @@ struct FGitState
 	EFileState::Type FileState;
 	ETreeState::Type TreeState;
 	ELockState::Type LockState;
+	/** Name of user who has locked the file */
+	FString LockUser;
 	ERemoteState::Type RemoteState;
 
 	FGitState()
 		: FileState(EFileState::Unknown)
 		, TreeState(ETreeState::NotInRepo)
 		, LockState(ELockState::Unknown)
+		, LockUser(TEXT(""))
 		, RemoteState(ERemoteState::UpToDate)
 	{
 	}
@@ -190,9 +193,6 @@ public:
 
 	/** Status of the file */
 	FGitState State;
-
-	/** Name of user who has locked the file */
-	FString LockUser;
 
 	/** The timestamp of the last update */
 	FDateTime TimeStamp;

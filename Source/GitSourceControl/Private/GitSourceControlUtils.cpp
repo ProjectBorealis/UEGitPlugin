@@ -1066,7 +1066,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 								  const TMap<FString, FString>& InResults, TMap<FString, FGitSourceControlState>& OutStates)
 {
 	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	const FString LfsUserName = GitSourceControl.GetProvider().GetLockUser();
+	const FString& LfsUserName = GitSourceControl.GetProvider().GetLockUser();
 
 	TMap<FString, FString> LockedFiles;
 	TMap<FString, FString> Results = InResults;
@@ -1141,8 +1141,8 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 				}
 				if (LockedFiles.Contains(File))
 				{
-					FileState.LockUser = LockedFiles[File];
-					if (LfsUserName == FileState.LockUser)
+					FileState.State.LockUser = LockedFiles[File];
+					if (LfsUserName == FileState.State.LockUser)
 					{
 						FileState.State.LockState = ELockState::Locked;
 					}
@@ -1166,7 +1166,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 			
 			
 #if UE_BUILD_DEBUG
-			UE_LOG(LogSourceControl, Log, TEXT("Status(%s) Locked by '%s'"), *File, *FileState.LockUser);
+			UE_LOG(LogSourceControl, Log, TEXT("Status(%s) Locked by '%s'"), *File, *FileState.State.LockUser);
 #endif
 		}
 		OutStates.Add(File, MoveTemp(FileState));
@@ -1912,6 +1912,10 @@ bool UpdateCachedStates(const TMap<const FString, FGitState>& InResults)
 		if (NewState.LockState != ELockState::Unset)
 		{
 			State->State.LockState = NewState.LockState;
+		}
+		if (NewState.LockUser != State->State.LockUser)
+		{
+			State->State.LockUser = NewState.LockUser;
 		}
 		if (NewState.RemoteState != ERemoteState::Unset)
 		{

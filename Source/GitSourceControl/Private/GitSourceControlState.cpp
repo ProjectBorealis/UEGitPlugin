@@ -122,7 +122,7 @@ FText FGitSourceControlState::GetDisplayName() const
 	case EGitState::NotAtHead:
 		return LOCTEXT("NotCurrent", "Not current");
 	case EGitState::LockedOther:
-		return FText::Format(LOCTEXT("CheckedOutOther", "Checked out by: {0}"), FText::FromString(LockUser));
+		return FText::Format(LOCTEXT("CheckedOutOther", "Checked out by: {0}"), FText::FromString(State.LockUser));
 	case EGitState::NotLatest:
 		return FText::Format(LOCTEXT("ModifiedOtherBranch", "Modified in branch: {0}"), FText::FromString(HeadBranch));
 	case EGitState::Unmerged:
@@ -154,7 +154,7 @@ FText FGitSourceControlState::GetDisplayTooltip() const
 	case EGitState::NotAtHead:
 		return LOCTEXT("NotCurrent_Tooltip", "The file(s) are not at the head revision");
 	case EGitState::LockedOther:
-		return FText::Format(LOCTEXT("CheckedOutOther_Tooltip", "Checked out by: {0}"), FText::FromString(LockUser));
+		return FText::Format(LOCTEXT("CheckedOutOther_Tooltip", "Checked out by: {0}"), FText::FromString(State.LockUser));
 	case EGitState::NotLatest:
 		return FText::Format(LOCTEXT("ModifiedOtherBranch_Tooltip", "Modified in branch: {0} CL:{1} ({2})"), FText::FromString(HeadBranch), FText::FromString(HeadCommit), FText::FromString(HeadAction));
 	case EGitState::Unmerged:
@@ -210,8 +210,8 @@ bool FGitSourceControlState::CanCheckIn() const
 		return true;
 	}
 
-	// We can check in any file that's not lockable but has been modified.
-	if (State.LockState == ELockState::Unlockable && IsModified() && IsSourceControlled())
+	// We can check in any file that has been modified.
+	if (IsModified() && IsSourceControlled())
 	{
 		return true;
 	}
@@ -249,7 +249,7 @@ bool FGitSourceControlState::IsCheckedOutOther(FString* Who) const
 {
 	if (State.LockState == ELockState::LockedOther && Who != NULL)
 	{
-		*Who = LockUser;
+		*Who = State.LockUser;
 		return true;
 	}
 	return false;
