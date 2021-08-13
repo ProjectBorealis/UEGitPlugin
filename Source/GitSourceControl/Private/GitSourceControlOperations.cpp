@@ -311,10 +311,13 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 								}
 								InCommand.ResultInfo.InfoMessages.Append(CommitResults);
 							}
-							
-							InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("push"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot,
+
+							if (InCommand.bCommandSuccessful)
+							{
+								InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("push"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot,
 																							 PushParameters, FGitSourceControlModule::GetEmptyStringArray(),
 																							 InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
+							}
 						}
 					}
 				}
