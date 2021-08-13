@@ -1418,9 +1418,10 @@ void GetLockedFiles(const TArray<FString>& InFiles, TArray<FString>& OutFiles)
 	Provider.GetState(InFiles, LocalStates, EStateCacheUsage::Use);
 	for (const auto& State : LocalStates)
 	{
-		if (State->IsCheckedOut())
+		auto& GitState = StaticCastSharedRef<FGitSourceControlState>(State);
+		if (GitState->State.LockState == ELockState::Locked)
 		{
-			OutFiles.Add(State->GetFilename());
+			OutFiles.Add(GitState->GetFilename());
 		}
 	}
 }
