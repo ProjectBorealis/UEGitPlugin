@@ -210,8 +210,8 @@ bool FGitSourceControlState::CanCheckIn() const
 		return true;
 	}
 
-	// We can check in any file that has been modified.
-	if (IsModified() && IsSourceControlled())
+	// We can check in any file that has been modified, unless someone else locked it.
+	if (State.LockState != ELockState::LockedOther && IsModified() && IsSourceControlled())
 	{
 		return true;
 	}
