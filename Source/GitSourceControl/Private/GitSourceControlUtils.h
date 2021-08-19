@@ -44,8 +44,6 @@ public:
 namespace GitSourceControlUtils
 {
 
-FCriticalSection GitCommandMutex;
-
 /**
  * Find the path to the Git binary, looking into a few places (standalone Git install, and other common tools embedding Git)
  * @returns the path to the Git binary if found, or an empty string.
