@@ -150,7 +150,7 @@ static bool RunCommandInternalRaw(const FString& InCommand, const FString& InPat
 	}
 #endif
 
-	FPlatformProcess::ExecProcess(*PathToGitOrEnvBinary, *FullCommand, &ReturnCode, &OutResults, &OutErrors);	
+	FPlatformProcess::ExecProcess(*PathToGitOrEnvBinary, *FullCommand, &ReturnCode, &OutResults, &OutErrors);
 
 #if UE_BUILD_DEBUG
 	// TODO: add a setting to easily enable Verbose logging
