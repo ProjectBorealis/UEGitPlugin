@@ -90,6 +90,12 @@ FName FGitCheckOutWorker::GetName() const
 
 bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 {
+	// If we have nothing to process, exit immediately
+	if (Incommand.Files.Num() == 0)
+	{
+		return true;
+	}
+
 	check(InCommand.Operation->GetName() == GetName());
 
 	if (!InCommand.bUsingGitLfsLocking)
@@ -413,6 +419,12 @@ FName FGitMarkForAddWorker::GetName() const
 
 bool FGitMarkForAddWorker::Execute(FGitSourceControlCommand& InCommand)
 {
+	// If we have nothing to process, exit immediately
+	if (InCommand.Files.Num() == 0)
+	{
+		return true;
+	}
+
 	check(InCommand.Operation->GetName() == GetName());
 
 	InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("add"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), InCommand.Files, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
@@ -447,6 +459,12 @@ FName FGitDeleteWorker::GetName() const
 
 bool FGitDeleteWorker::Execute(FGitSourceControlCommand& InCommand)
 {
+	// If we have nothing to process, exit immediately
+	if (Incommand.Files.Num() == 0)
+	{
+		return true;
+	}
+
 	check(InCommand.Operation->GetName() == GetName());
 
 	InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("rm"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), InCommand.Files, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
