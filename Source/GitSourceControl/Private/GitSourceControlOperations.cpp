@@ -91,7 +91,7 @@ FName FGitCheckOutWorker::GetName() const
 bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 {
 	// If we have nothing to process, exit immediately
-	if (Incommand.Files.Num() == 0)
+	if (InCommand.Files.Num() == 0)
 	{
 		return true;
 	}
@@ -460,7 +460,7 @@ FName FGitDeleteWorker::GetName() const
 bool FGitDeleteWorker::Execute(FGitSourceControlCommand& InCommand)
 {
 	// If we have nothing to process, exit immediately
-	if (Incommand.Files.Num() == 0)
+	if (InCommand.Files.Num() == 0)
 	{
 		return true;
 	}
