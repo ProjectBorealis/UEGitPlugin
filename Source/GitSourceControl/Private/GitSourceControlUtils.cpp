@@ -1390,8 +1390,11 @@ bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessa
 #if UE_BUILD_DEBUG
 			UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
 #endif
-			// If we last found that a file was remotely locked, do not consider it locally locked.
-			OutLocks.FindOrAdd(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+			// Only update local locks
+			if (LockFile.LockUser == LockUser)
+			{
+				OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+			}
 		}
 	}
 	else
@@ -1904,12 +1907,10 @@ bool UpdateCachedStates(const TMap<const FString, FGitState>& InResults)
 		{
 			State->State.TreeState = NewState.TreeState;
 		}
+		// If we're updating lock state, also update user
 		if (NewState.LockState != ELockState::Unset)
 		{
 			State->State.LockState = NewState.LockState;
-		}
-		if (NewState.LockUser != State->State.LockUser)
-		{
 			State->State.LockUser = NewState.LockUser;
 		}
 		if (NewState.RemoteState != ERemoteState::Unset)
