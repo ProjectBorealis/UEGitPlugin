@@ -124,17 +124,22 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 
 	const bool bSuccess = GitSourceControlUtils::RunLFSCommand(TEXT("lock"), InCommand.PathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), LockableRelativeFiles, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 	InCommand.bCommandSuccessful = bSuccess;
+	const FString& LockUser = FGitSourceControlModule::Get().GetProvider().GetLockUser();
 	if (bSuccess)
 	{
 		TArray<FString> AbsoluteFiles;
 		for (const auto& RelativeFile : RelativeFiles)
 		{
-			FGitLockedFilesCache::LockedFiles.Add(RelativeFile, FGitSourceControlModule::Get().GetProvider().GetLockUser());
 			FString AbsoluteFile = FPaths::Combine(InCommand.PathToRepositoryRoot, RelativeFile);
+			FGitLockedFilesCache::LockedFiles.Add(AbsoluteFile, LockUser);
 			FPaths::NormalizeFilename(AbsoluteFile);
 			AbsoluteFiles.Add(AbsoluteFile);
 		}
 		GitSourceControlUtils::CollectNewStates(AbsoluteFiles, States, EFileState::Unset, ETreeState::Unset, ELockState::Locked);
+		for (auto& State : States)
+		{
+			State.Value.LockUser = LockUser;
+		}
 	}
 
 	return InCommand.bCommandSuccessful;
@@ -370,7 +375,7 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 																						 InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 						if (bUnlockSuccess)
 						{
-							for (const auto& File : FilesToUnlock)
+							for (const auto& File : LockedFiles)
 							{
 								FGitLockedFilesCache::LockedFiles.Remove(File);
 							}
