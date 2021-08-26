@@ -110,14 +110,7 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 	TArray<FString> LockableRelativeFiles;
 	for (const auto& RelativeFile : RelativeFiles)
 	{
-		const bool bIsLockable = GitSourceControlUtils::IsFileLFSLockable(RelativeFile);
-		if (InCommand.ResultInfo.ErrorMessages.Num() > 0)
-		{
-			InCommand.bCommandSuccessful = false;
-			return InCommand.bCommandSuccessful;
-		}
-
-		if (bIsLockable)
+		if (GitSourceControlUtils::IsFileLFSLockable(RelativeFile))
 		{
 			LockableRelativeFiles.Add(RelativeFile);
 		}
@@ -136,7 +129,7 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 		TArray<FString> AbsoluteFiles;
 		for (const auto& RelativeFile : RelativeFiles)
 		{
-			FGitLockedFilesCache::LockedFiles.Add(RelativeFile);
+			FGitLockedFilesCache::LockedFiles.Add(RelativeFile, FGitSourceControlModule::Get().GetProvider().GetLockUser());
 			FString AbsoluteFile = FPaths::Combine(InCommand.PathToRepositoryRoot, RelativeFile);
 			FPaths::NormalizeFilename(AbsoluteFile);
 			AbsoluteFiles.Add(AbsoluteFile);
@@ -286,9 +279,10 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 				// Rollback the commit, and recommit on latest after
 				Parameters.Reset(1);
 				Parameters.Add(TEXT("HEAD~"));
-				InCommand.bCommandSuccessful &= GitSourceControlUtils::RunCommand(TEXT("reset"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot,
+				const bool bResetSuccessful = GitSourceControlUtils::RunCommand(TEXT("reset"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot,
 																				  Parameters, FGitSourceControlModule::GetEmptyStringArray(),
 																				  InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
+				if (bResetSuccessful)
 				{
 					// Get latest
 					const bool bFetched = GitSourceControlUtils::FetchRemote(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, false,
@@ -330,15 +324,26 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 
 				if (!InCommand.bCommandSuccessful)
 				{
-					// If it fails, just let the user do it
-					FText PushFailMessage(LOCTEXT("GitPush_OutOfDate_Msg", "Git Push failed because there are changes you need to pull.\n\n"
-																		   "An attempt was made to pull, but failed, because while the Unreal Editor is open, "
-																		   "files "
-																		   "cannot always be updated.\n\n"
-																		   "Please exit the editor, and update the project again."));
-					FText PushFailTitle(LOCTEXT("GitPush_OutOfDate_Title", "Git Pull Required"));
-					FMessageDialog::Open(EAppMsgType::Ok, PushFailMessage, &PushFailTitle);
-					UE_LOG(LogSourceControl, Log, TEXT("Push failed because we're out of date, prompting user to resolve manually"));
+					if (bResetSuccessful)
+					{
+						// Restore to original commit before pull reset
+						Parameters.Reset(1);
+						Parameters.Add(TEXT("ORIG_HEAD"));
+						GitSourceControlUtils::RunCommand(TEXT("reset"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters,
+														  FGitSourceControlModule::GetEmptyStringArray(), InCommand.ResultInfo.InfoMessages,
+														  InCommand.ResultInfo.ErrorMessages);
+					}
+					if (!Provider.bPendingRestart)
+					{
+						// If it fails, just let the user do it
+						FText PushFailMessage(LOCTEXT("GitPush_OutOfDate_Msg", "Git Push failed because there are changes you need to pull.\n\n"
+																			   "An attempt was made to pull, but failed, because while the Unreal Editor is "
+																			   "open, files cannot always be updated.\n\n"
+																			   "Please exit the editor, and update the project again."));
+						FText PushFailTitle(LOCTEXT("GitPush_OutOfDate_Title", "Git Pull Required"));
+						FMessageDialog::Open(EAppMsgType::Ok, PushFailMessage, &PushFailTitle);
+						UE_LOG(LogSourceControl, Log, TEXT("Push failed because we're out of date, prompting user to resolve manually"));
+					}
 				}
 			}
 		}
