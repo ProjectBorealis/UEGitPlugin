@@ -34,9 +34,7 @@ void SGitSourceControlSettings::Construct(const FArguments& InArgs)
 {
 	const FSlateFontInfo Font = FEditorStyle::GetFontStyle(TEXT("SourceControl.LoginWindow.Font"));
 
-	bAutoCreateGitIgnore = true;
 	bAutoCreateReadme = true;
-	bAutoCreateGitAttributes = false;
 	bAutoInitialCommit = true;
 
 	InitialCommitMessage = LOCTEXT("InitialCommitMessage", "Initial commit");
@@ -189,12 +187,12 @@ void SGitSourceControlSettings::Construct(const FArguments& InArgs)
 			[
 				SNew(SHorizontalBox)
 				.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
-				.ToolTipText(LOCTEXT("ConfigureOrigin_Tooltip", "Configure the URL of the default remote 'origin'"))
+				.ToolTipText(LOCTEXT("ConfigureOrigin_Tooltip", "Remote origin URL"))
 				+SHorizontalBox::Slot()
 				.FillWidth(1.0f)
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("ConfigureOrigin", "URL of the remote server 'origin'"))
+					.Text(LOCTEXT("ConfigureOrigin", "Remote origin URL"))
 					.Font(Font)
 				]
 				+SHorizontalBox::Slot()
@@ -204,31 +202,6 @@ void SGitSourceControlSettings::Construct(const FArguments& InArgs)
 					SNew(SEditableTextBox)
 					.Text(this, &SGitSourceControlSettings::GetRemoteUrl)
 					.OnTextCommitted(this, &SGitSourceControlSettings::OnRemoteUrlCommited)
-					.Font(Font)
-				]
-			]
-			// Option to add a proper .gitignore file (true by default)
-			+SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(2.0f)
-			.VAlign(VAlign_Center)
-			[
-				SNew(SHorizontalBox)
-				.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
-				.ToolTipText(LOCTEXT("CreateGitIgnore_Tooltip", "Create and add a standard '.gitignore' file"))
-				+SHorizontalBox::Slot()
-				.FillWidth(0.1f)
-				[
-					SNew(SCheckBox)
-					.IsChecked(ECheckBoxState::Checked)
-					.OnCheckStateChanged(this, &SGitSourceControlSettings::OnCheckedCreateGitIgnore)
-				]
-				+SHorizontalBox::Slot()
-				.FillWidth(2.9f)
-				.VAlign(VAlign_Center)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("CreateGitIgnore", "Add a .gitignore file"))
 					.Font(Font)
 				]
 			]
@@ -265,71 +238,6 @@ void SGitSourceControlSettings::Construct(const FArguments& InArgs)
 					.OnTextCommitted(this, &SGitSourceControlSettings::OnReadmeContentCommited)
 					.IsEnabled(this, &SGitSourceControlSettings::GetAutoCreateReadme)
 					.SelectAllTextWhenFocused(true)
-					.Font(Font)
-				]
-			]
-			// Option to add a proper .gitattributes file for Git LFS (false by default)
-			+SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(2.0f)
-			.VAlign(VAlign_Center)
-			[
-				SNew(SHorizontalBox)
-				.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
-				.ToolTipText(LOCTEXT("CreateGitAttributes_Tooltip", "Create and add a '.gitattributes' file to enable Git LFS for the whole 'Content/' directory (needs Git LFS extensions to be installed)."))
-				+SHorizontalBox::Slot()
-				.FillWidth(0.1f)
-				[
-					SNew(SCheckBox)
-					.IsChecked(ECheckBoxState::Unchecked)
-					.OnCheckStateChanged(this, &SGitSourceControlSettings::OnCheckedCreateGitAttributes)
-					.IsEnabled(this, &SGitSourceControlSettings::CanInitializeGitLfs)
-				]
-				+SHorizontalBox::Slot()
-				.FillWidth(2.9f)
-				.VAlign(VAlign_Center)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("CreateGitAttributes", "Add a .gitattributes file to enable Git LFS"))
-					.Font(Font)
-				]
-			]
-			// Option to use the Git LFS File Locking workflow (false by default)
-			// Enabled even after init to switch it off in case of no network
-			// TODO LFS turning it off afterwards does not work because all files are readonly !
-			+SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(2.0f)
-			.VAlign(VAlign_Center)
-			[
-				SNew(SHorizontalBox)
-				.ToolTipText(LOCTEXT("UseGitLfsLocking_Tooltip", "Uses Git LFS 2 File Locking workflow (CheckOut and Commit/Push)."))
-				+SHorizontalBox::Slot()
-				.FillWidth(0.1f)
-				[
-					SNew(SCheckBox)
-					.IsChecked(SGitSourceControlSettings::IsUsingGitLfsLocking())
-					.OnCheckStateChanged(this, &SGitSourceControlSettings::OnCheckedUseGitLfsLocking)
-					.IsEnabled(this, &SGitSourceControlSettings::CanUseGitLfsLocking)
-				]
-				+SHorizontalBox::Slot()
-				.FillWidth(0.9f)
-				.VAlign(VAlign_Center)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("UseGitLfsLocking", "Uses Git LFS 2 File Locking workflow"))
-					.Font(Font)
-				]
-				// Username credential used to access the Git LFS 2 File Locks server
-				+SHorizontalBox::Slot()
-				.FillWidth(2.0f)
-				.VAlign(VAlign_Center)
-				[
-					SNew(SEditableTextBox)
-					.Text(this, &SGitSourceControlSettings::GetLfsUserName)
-					.OnTextCommitted(this, &SGitSourceControlSettings::OnLfsUserNameCommited)
-					.IsEnabled(this, &SGitSourceControlSettings::GetIsUsingGitLfsLocking)
-					.HintText(LOCTEXT("LfsUserName_Hint", "Username to lock files on the LFS server"))
 					.Font(Font)
 				]
 			]
@@ -470,9 +378,7 @@ bool SGitSourceControlSettings::CanUseGitLfsLocking() const
 {
 	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	const bool bGitLfsLockingAvailable = GitSourceControl.GetProvider().GetGitVersion().bHasGitLfsLocking;
-	// TODO LFS SRombauts : check if .gitattributes file is present and if Content/ is already tracked!
-	const bool bGitAttributesCreated = true;
-	return (bGitLfsLockingAvailable && (bAutoCreateGitAttributes || bGitAttributesCreated));
+	return bGitLfsLockingAvailable;
 }
 
 FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
@@ -507,10 +413,10 @@ FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
 		{
 			ProjectFiles.Add(FPaths::GameSourceDir());
 		}
-		if(bAutoCreateGitIgnore)
 		{
 			// 2.a. Create a standard ".gitignore" file with common patterns for a typical Blueprint & C++ project
 			const FString GitIgnoreFilename = FPaths::Combine(FPaths::ProjectDir(), TEXT(".gitignore"));
+			// TODO: read defaultignore.txt
 			const FString GitIgnoreContent = TEXT("Binaries\nDerivedDataCache\nIntermediate\nSaved\n.vscode\n.vs\n*.VC.db\n*.opensdf\n*.opendb\n*.sdf\n*.sln\n*.suo\n*.xcodeproj\n*.xcworkspace\n*.log");
 			if(FFileHelper::SaveStringToFile(GitIgnoreContent, *GitIgnoreFilename, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
 			{
@@ -526,23 +432,11 @@ FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
 				ProjectFiles.Add(ReadmeFilename);
 			}
 		}
-		if(bAutoCreateGitAttributes)
 		{
-			// 2.c. Synchronous (very quick) "lfs install" operation: needs only to be run once by user
-			GitSourceControlUtils::RunCommand(TEXT("install"), PathToGitBinary, PathToProjectDir, FGitSourceControlModule::GetEmptyStringArray(), FGitSourceControlModule::GetEmptyStringArray(), InfoMessages, ErrorMessages);
-
 			// 2.d. Create a ".gitattributes" file to enable Git LFS (Large File System) for the whole "Content/" subdir
 			const FString GitAttributesFilename = FPaths::Combine(FPaths::ProjectDir(), TEXT(".gitattributes"));
+			// TODO: read defaultattributes.txt
 			FString GitAttributesContent;
-			if (GitSourceControl.GetProvider().UsesCheckout())
-			{
-				// Git LFS 2.x File Locking mechanism
-				GitAttributesContent = TEXT("Content/** filter=lfs diff=lfs merge=lfs -text lockable\n");
-			}
-			else
-			{
-				GitAttributesContent = TEXT("Content/** filter=lfs diff=lfs merge=lfs -text\n");
-			}
 			if(FFileHelper::SaveStringToFile(GitAttributesContent, *GitAttributesFilename, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
 			{
 				ProjectFiles.Add(GitAttributesFilename);
@@ -656,11 +550,6 @@ void SGitSourceControlSettings::DisplayFailureNotification(const FSourceControlO
 	FSlateNotificationManager::Get().AddNotification(Info);
 }
 
-void SGitSourceControlSettings::OnCheckedCreateGitIgnore(ECheckBoxState NewCheckedState)
-{
-	bAutoCreateGitIgnore = (NewCheckedState == ECheckBoxState::Checked);
-}
-
 void SGitSourceControlSettings::OnCheckedCreateReadme(ECheckBoxState NewCheckedState)
 {
 	bAutoCreateReadme = (NewCheckedState == ECheckBoxState::Checked);
@@ -681,11 +570,6 @@ FText SGitSourceControlSettings::GetReadmeContent() const
 	return ReadmeContent;
 }
 
-void SGitSourceControlSettings::OnCheckedCreateGitAttributes(ECheckBoxState NewCheckedState)
-{
-	bAutoCreateGitAttributes = (NewCheckedState == ECheckBoxState::Checked);
-}
-
 void SGitSourceControlSettings::OnCheckedUseGitLfsLocking(ECheckBoxState NewCheckedState)
 {
 	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
@@ -703,14 +587,6 @@ bool SGitSourceControlSettings::GetIsUsingGitLfsLocking() const
 ECheckBoxState SGitSourceControlSettings::IsUsingGitLfsLocking() const
 {
 	return (GetIsUsingGitLfsLocking() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked);
-}
-
-void SGitSourceControlSettings::OnLfsUserNameCommited(const FText& InText, ETextCommit::Type InCommitType)
-{
-	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	GitSourceControl.AccessSettings().SetLfsUserName(InText.ToString());
-	GitSourceControl.AccessSettings().SaveSettings();
-	GitSourceControl.GetProvider().UpdateSettings();
 }
 
 FText SGitSourceControlSettings::GetLfsUserName() const

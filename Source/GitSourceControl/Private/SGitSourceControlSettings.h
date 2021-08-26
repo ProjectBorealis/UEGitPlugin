@@ -49,9 +49,6 @@ private:
 	/** Delegate to initialize a new Git repository */
 	FReply OnClickedInitializeGitRepository();
 
-	void OnCheckedCreateGitIgnore(ECheckBoxState NewCheckedState);
-	bool bAutoCreateGitIgnore;
-
 	/** Delegates to create a README.md file */
 	void OnCheckedCreateReadme(ECheckBoxState NewCheckedState);
 	bool GetAutoCreateReadme() const;
@@ -60,14 +57,10 @@ private:
 	FText GetReadmeContent() const;
 	FText ReadmeContent;
 
-	void OnCheckedCreateGitAttributes(ECheckBoxState NewCheckedState);
-	bool bAutoCreateGitAttributes;
-
 	void OnCheckedUseGitLfsLocking(ECheckBoxState NewCheckedState);
 	ECheckBoxState IsUsingGitLfsLocking() const;
 	bool GetIsUsingGitLfsLocking() const;
 
-	void OnLfsUserNameCommited(const FText& InText, ETextCommit::Type InCommitType);
 	FText GetLfsUserName() const;
 
 	void OnCheckedInitialCommit(ECheckBoxState NewCheckedState);
