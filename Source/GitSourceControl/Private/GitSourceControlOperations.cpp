@@ -272,7 +272,9 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 			bool bWasOutOfDate = false;
 			for (const auto& PushError : InCommand.ResultInfo.ErrorMessages)
 			{
-				if (PushError.Contains(TEXT("[rejected]")) && PushError.Contains(TEXT("non-fast-forward")))
+				if ((PushError.Contains(TEXT("[rejected]")) &&
+					(PushError.Contains(TEXT("non-fast-forward")) || PushError.Contains(TEXT("fetch first")))) ||
+					PushError.Contains(TEXT("cannot lock ref")))
 				{
 					// Don't do it during iteration, want to append pull results to InCommand.ResultInfo.ErrorMessages
 					bWasOutOfDate = true;
