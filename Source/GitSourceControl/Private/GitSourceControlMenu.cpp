@@ -236,11 +236,12 @@ void FGitSourceControlMenu::RevertClicked()
 	}
 
 	// make sure we update the SCC status of all packages (this could take a long time, so we will run it as a background task)
-	TArray<FString> Filenames;
-	Filenames.Add(FPaths::ConvertRelativePathToFull(FPaths::EngineContentDir()));
-	Filenames.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()));
-	Filenames.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
-	Filenames.Add(FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()));
+	TArray<FString> Filenames{
+		FPaths::ConvertRelativePathToFull(FPaths::EngineContentDir()),
+		FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),
+		FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()),
+		FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath())
+	};
 
 	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
 	FSourceControlOperationRef Operation = ISourceControlOperation::Create<FUpdateStatus>();

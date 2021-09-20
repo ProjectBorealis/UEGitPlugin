@@ -110,6 +110,7 @@ void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGit
 			TArray<FString> ProjectDirs;
 			ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()));
 			ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
+			ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()));
 			ErrorMessages.Empty();
 			TMap<FString, FGitSourceControlState> States;
 			if (GitSourceControlUtils::RunUpdateStatus(InPathToGitBinary, PathToRepositoryRoot, bUsingGitLfsLocking, ProjectDirs, ErrorMessages, States))
