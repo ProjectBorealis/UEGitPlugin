@@ -93,7 +93,7 @@ bool FGitSourceControlMenu::StashAwayAnyModifications()
 	bool bStashOk = true;
 
 	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+	const FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
 	const FString& PathToRespositoryRoot = Provider.GetPathToRepositoryRoot();
 	const FString& PathToGitBinary = Provider.GetGitBinaryPath();
 	const TArray<FString> ParametersStatus{"--porcelain --untracked-files=no"};
