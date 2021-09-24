@@ -470,8 +470,11 @@ void FGitSourceControlProvider::Tick()
 			// Remove command from the queue
 			CommandQueue.RemoveAt(CommandIndex);
 
-			// Update repository status on UpdateStatus operations
-			UpdateRepositoryStatus(Command);
+			if (!Command.IsCanceled())
+			{
+				// Update repository status on UpdateStatus operations
+				UpdateRepositoryStatus(Command);
+			}
 
 			// let command update the states of any files
 			bStatesUpdated |= Command.Worker->UpdateStates();
