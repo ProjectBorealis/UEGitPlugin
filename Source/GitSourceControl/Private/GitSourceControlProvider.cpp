@@ -107,10 +107,9 @@ void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGit
 					UE_LOG(LogSourceControl, Error, TEXT("%s"), *ErrorMessage);
 				}
 			}
-			TArray<FString> ProjectDirs;
-			ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()));
-			ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
-			ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()));
+			const TArray<FString> ProjectDirs {FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),
+											   FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()),
+											   FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath())};
 			ErrorMessages.Empty();
 			TMap<FString, FGitSourceControlState> States;
 			if (GitSourceControlUtils::RunUpdateStatus(InPathToGitBinary, PathToRepositoryRoot, bUsingGitLfsLocking, ProjectDirs, ErrorMessages, States))

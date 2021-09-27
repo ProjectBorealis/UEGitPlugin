@@ -500,9 +500,9 @@ FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
 	{
 		// List of files to add to Source Control (.uproject, Config/, Content/, Source/ files and .gitignore/.gitattributes if any)
 		TArray<FString> ProjectFiles;
-		ProjectFiles.Add(FPaths::GetProjectFilePath());
-		ProjectFiles.Add(FPaths::ProjectConfigDir());
 		ProjectFiles.Add(FPaths::ProjectContentDir());
+		ProjectFiles.Add(FPaths::ProjectConfigDir());
+		ProjectFiles.Add(FPaths::GetProjectFilePath());
 		if (FPaths::DirectoryExists(FPaths::GameSourceDir()))
 		{
 			ProjectFiles.Add(FPaths::GameSourceDir());

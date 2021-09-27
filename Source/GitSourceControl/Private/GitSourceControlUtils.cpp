@@ -2098,30 +2098,37 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 	}
 
 	// Get the list of files which will be updated (either ones we changed locally, which will get potentially rebased or merged, or the remote ones that will update)
-	TArray<FString> NewerFiles;
+	TArray<FString> DifferentFiles;
 	TArray<FString> Parameters {TEXT("--name-only"), RemoteBranch};
 	const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InPathToRepositoryRoot, Parameters, FGitSourceControlModule::GetEmptyStringArray(),
-										NewerFiles, OutErrorMessages);
+										DifferentFiles, OutErrorMessages);
 	if (!bResultDiff)
 	{
 		return false;
 	}
 
 	// Nothing to pull
-	if (!NewerFiles.Num())
+	if (!DifferentFiles.Num())
 	{
 		return true;
 	}
 
-	const TArray<FString>& AbsoluteNewerFiles = AbsoluteFilenames(NewerFiles, InPathToRepositoryRoot);
+	const TArray<FString>& AbsoluteDifferentFiles = AbsoluteFilenames(DifferentFiles, InPathToRepositoryRoot);
 
-	OutFiles.Reserve(AbsoluteNewerFiles.Num() - AlreadyReloaded.Num());
-	for (const auto& File : AbsoluteNewerFiles)
+	if (AlreadyReloaded.Num())
 	{
-		if (!AlreadyReloaded.Contains(File))
+		OutFiles.Reserve(AbsoluteDifferentFiles.Num() - AlreadyReloaded.Num());
+		for (const auto& File : AbsoluteDifferentFiles)
 		{
-			OutFiles.Add(File);
+			if (!AlreadyReloaded.Contains(File))
+			{
+				OutFiles.Add(File);
+			}
 		}
+	}
+	else
+	{
+		OutFiles.Append(AbsoluteDifferentFiles);
 	}
 
 	TArray<FString> Files;
@@ -2145,44 +2152,12 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 
 	// Reset HEAD and index to remote
 	TArray<FString> InfoMessages;
-	Parameters.Reset(1);
-	Parameters.Add(RemoteBranch);
-	bool bSuccess = RunCommand(TEXT("reset"), InPathToGitBinary, InPathToRepositoryRoot, Parameters, FGitSourceControlModule::GetEmptyStringArray(),
+	Parameters.Reset(2);
+	Parameters.Append({
+		"--rebase", "--autostash"
+	});
+	bool bSuccess = RunCommand(TEXT("pull"), InPathToGitBinary, InPathToRepositoryRoot, Parameters, FGitSourceControlModule::GetEmptyStringArray(),
 										  InfoMessages, OutErrorMessages);
-
-	if (bSuccess)
-	{
-		// Now that we reset HEAD to remote, we restore the working directory to our HEAD, for all updated files
-		bSuccess = RunCommand(TEXT("restore"), InPathToGitBinary, InPathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), NewerFiles,
-							  OutResults, OutErrorMessages);
-
-		if (!bSuccess)
-		{
-			UE_LOG(LogSourceControl, Error, TEXT("Failed to pull files!"));
-			// Delete files, so we delete untracked. But the tracked ones will be reset in the following reset + restore.
-			for (const auto& File : AbsoluteNewerFiles)
-			{
-				IFileManager::Get().Delete(*File, false, true);
-			}
-			// Try clean up by moving back to the original head
-			Parameters.Reset(1);
-			Parameters.Add(TEXT("ORIG_HEAD"));
-			bool bCleanUp = RunCommand(TEXT("reset"), InPathToGitBinary, InPathToRepositoryRoot, Parameters,
-											 FGitSourceControlModule::GetEmptyStringArray(), InfoMessages, OutErrorMessages);
-			// Restore file state to ORIG_HEAD (now HEAD)
-			if (bCleanUp)
-			{
-				bCleanUp = RunCommand(TEXT("restore"), InPathToGitBinary, InPathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), NewerFiles,
-									  InfoMessages, OutErrorMessages);
-				
-			}
-
-			if (!bCleanUp)
-			{
-				UE_LOG(LogSourceControl, Error, TEXT("Failed to clean up after pull failure!"));
-			}
-		}
-	}
 
 	if (bShouldReload)
 	{
