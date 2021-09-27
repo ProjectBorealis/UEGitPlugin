@@ -107,14 +107,7 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 	// lock files: execute the LFS command on relative filenames
 	const TArray<FString>& RelativeFiles = GitSourceControlUtils::RelativeFilenames(InCommand.Files, InCommand.PathToRepositoryRoot);
 
-	TArray<FString> LockableRelativeFiles;
-	for (const auto& RelativeFile : RelativeFiles)
-	{
-		if (GitSourceControlUtils::IsFileLFSLockable(RelativeFile))
-		{
-			LockableRelativeFiles.Add(RelativeFile);
-		}
-	}
+	const TArray<FString>& LockableRelativeFiles = RelativeFiles.FilterByPredicate(GitSourceControlUtils::IsFileLFSLockable);
 
 	if (LockableRelativeFiles.Num() < 1)
 	{
@@ -174,122 +167,100 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 	TSharedRef<FCheckIn, ESPMode::ThreadSafe> Operation = StaticCastSharedRef<FCheckIn>(InCommand.Operation);
 
 	// make a temp file to place our commit message in
-	const bool bDoCommit = InCommand.Files.Num() > 0;
+	bool bDoCommit = InCommand.Files.Num() > 0;
 	const FText& CommitMsg = bDoCommit ? Operation->GetDescription() : EmptyCommitMsg;
 	FGitScopedTempFile CommitMsgFile(CommitMsg);
 	if (CommitMsgFile.GetFilename().Len() > 0)
 	{
 		FGitSourceControlProvider& Provider = FGitSourceControlModule::Get().GetProvider();
 
-		TArray<FString> CommitParameters;
-		const TArray<FString>& FilesToCommit = GitSourceControlUtils::RelativeFilenames(InCommand.Files, InCommand.PathToRepositoryRoot);
 		if (bDoCommit)
 		{
 			FString ParamCommitMsgFilename = TEXT("--file=\"");
 			ParamCommitMsgFilename += FPaths::ConvertRelativePathToFull(CommitMsgFile.GetFilename());
 			ParamCommitMsgFilename += TEXT("\"");
-			CommitParameters.Add(ParamCommitMsgFilename);
+			TArray<FString> CommitParameters {ParamCommitMsgFilename};
+			const TArray<FString>& FilesToCommit = GitSourceControlUtils::RelativeFilenames(InCommand.Files, InCommand.PathToRepositoryRoot);
 
-			InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommit(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, CommitParameters,
-																			FilesToCommit, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
-		}
-		else
-		{
-			InCommand.bCommandSuccessful = true;
+			// If no files were committed, this is false, so we treat it as if we never wanted to commit in the first place.
+			bDoCommit = GitSourceControlUtils::RunCommit(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, CommitParameters,
+														FilesToCommit, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 		}
 
 		// If we commit, we can push up the deleted state to gone
 		if (bDoCommit)
 		{
-			if (InCommand.bCommandSuccessful)
+			// Remove any deleted files from status cache
+			TArray<TSharedRef<ISourceControlState, ESPMode::ThreadSafe>> LocalStates;
+			Provider.GetState(InCommand.Files, LocalStates, EStateCacheUsage::Use);
+			for (const auto& State : LocalStates)
 			{
-				// Remove any deleted files from status cache
-				TArray<TSharedRef<ISourceControlState, ESPMode::ThreadSafe>> LocalStates;
-				Provider.GetState(InCommand.Files, LocalStates, EStateCacheUsage::Use);
-				for (const auto& State : LocalStates)
+				if (State->IsDeleted())
 				{
-					if (State->IsDeleted())
-					{
-						Provider.RemoveFileFromCache(State->GetFilename());
-					}
+					Provider.RemoveFileFromCache(State->GetFilename());
 				}
-				Operation->SetSuccessMessage(ParseCommitResults(InCommand.ResultInfo.InfoMessages));
-				const FString& Message = (InCommand.ResultInfo.InfoMessages.Num() > 0) ? InCommand.ResultInfo.InfoMessages[0] : TEXT("");
-				UE_LOG(LogSourceControl, Log, TEXT("commit successful: %s"), *Message);
-				GitSourceControlUtils::GetCommitInfo(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.CommitId, InCommand.CommitSummary);
 			}
-			else
-			{
-				return false;
-			}
+			Operation->SetSuccessMessage(ParseCommitResults(InCommand.ResultInfo.InfoMessages));
+			const FString& Message = (InCommand.ResultInfo.InfoMessages.Num() > 0) ? InCommand.ResultInfo.InfoMessages[0] : TEXT("");
+			UE_LOG(LogSourceControl, Log, TEXT("commit successful: %s"), *Message);
+			GitSourceControlUtils::GetCommitInfo(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.CommitId, InCommand.CommitSummary);
 		}
 
-		// Collect difference between
-		// Do it now, assuming up to date, because if we're not, we will fail the push and won't unlock
-		TArray<FString> CommittedFiles;
+		// Collect difference between the remote and what we have on top of remote locally. This is to handle unpushed commits other than the one we just did.
+		// Doesn't matter that we're not synced. Because our local branch is always based on the remote.
 		FString BranchName;
 		if (!GitSourceControlUtils::GetRemoteBranchName(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, BranchName))
 		{
 			return false;
 		}
 
-		TArray<FString> Parameters;
-		Parameters.Add(TEXT("--name-only"));
-		Parameters.Add(FString::Printf(TEXT("%s...HEAD"), *BranchName));
+		TArray<FString> Parameters {"--name-only", FString::Printf(TEXT("%s...HEAD"), *BranchName), "--"};
+
+		TArray<FString> CommittedFiles;
 
 		bool bDiffSuccess = GitSourceControlUtils::RunCommand(TEXT("diff"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters,
 															  FGitSourceControlModule::GetEmptyStringArray(), CommittedFiles, InCommand.ResultInfo.ErrorMessages);
-		bool bUseCommittedFiles;
+		bool bUnpushedFiles;
+		TSet<FString> FilesToCheckIn {InCommand.Files};
 		if (bDiffSuccess)
 		{
-			// Nothing to push
-			if (CommittedFiles.Num() == 0)
-			{
-				InCommand.bCommandSuccessful = true;
-				return true;
-			}
-			bUseCommittedFiles = true;
+			// Only push if we have a difference (any commits at all, not just the one we just did)
+			bUnpushedFiles = CommittedFiles.Num() > 0;
 			CommittedFiles = GitSourceControlUtils::AbsoluteFilenames(CommittedFiles, InCommand.PathToRepositoryRoot);
+			FilesToCheckIn.Append(CommittedFiles.FilterByPredicate(GitSourceControlUtils::IsFileLFSLockable));
 		}
 		else
 		{
-			bUseCommittedFiles = false;
-			CommittedFiles.Empty();
+			// Be cautious, try pushing anyway
+			bUnpushedFiles = true;
 		}
 
-		TArray<FString> PushParameters;
-		// TODO: configure remote
-		PushParameters.Add(TEXT("origin"));
-		PushParameters.Add(TEXT("HEAD"));
-		InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("push"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot,
-																		 PushParameters, FGitSourceControlModule::GetEmptyStringArray(),
-																		 InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
-
 		TArray<FString> PulledFiles;
-		if (!InCommand.bCommandSuccessful)
+
+		// If we have unpushed files, push
+		if (bUnpushedFiles)
 		{
-			// if out of date, pull first, then try again
-			bool bWasOutOfDate = false;
-			for (const auto& PushError : InCommand.ResultInfo.ErrorMessages)
+			TArray<FString> PushParameters {TEXT("origin"), TEXT("HEAD")};
+			// TODO: configure remote
+			InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("push"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot,
+																			 PushParameters, FGitSourceControlModule::GetEmptyStringArray(),
+																			 InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
+
+			if (!InCommand.bCommandSuccessful)
 			{
-				if ((PushError.Contains(TEXT("[rejected]")) &&
-					(PushError.Contains(TEXT("non-fast-forward")) || PushError.Contains(TEXT("fetch first")))) ||
-					PushError.Contains(TEXT("cannot lock ref")))
+				// if out of date, pull first, then try again
+				bool bWasOutOfDate = false;
+				for (const auto& PushError : InCommand.ResultInfo.ErrorMessages)
 				{
-					// Don't do it during iteration, want to append pull results to InCommand.ResultInfo.ErrorMessages
-					bWasOutOfDate = true;
-					break;
+					if ((PushError.Contains(TEXT("[rejected]")) && (PushError.Contains(TEXT("non-fast-forward")) || PushError.Contains(TEXT("fetch first")))) ||
+						PushError.Contains(TEXT("cannot lock ref")))
+					{
+						// Don't do it during iteration, want to append pull results to InCommand.ResultInfo.ErrorMessages
+						bWasOutOfDate = true;
+						break;
+					}
 				}
-			}
-			if (bWasOutOfDate)
-			{
-				// Rollback the commit, and recommit on latest after
-				Parameters.Reset(1);
-				Parameters.Add(TEXT("HEAD~"));
-				const bool bResetSuccessful = GitSourceControlUtils::RunCommand(TEXT("reset"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot,
-																				  Parameters, FGitSourceControlModule::GetEmptyStringArray(),
-																				  InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
-				if (bResetSuccessful)
+				if (bWasOutOfDate)
 				{
 					// Get latest
 					const bool bFetched = GitSourceControlUtils::FetchRemote(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, false,
@@ -302,69 +273,45 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 																			   InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 						if (bPulled)
 						{
-							// Recommit on the latest
-							if (bDoCommit)
-							{
-								TArray<FString> CommitResults;
-								InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommit(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, CommitParameters,
-																								FilesToCommit, CommitResults, InCommand.ResultInfo.ErrorMessages);
-								if (InCommand.bCommandSuccessful)
-								{
-									Operation->SetSuccessMessage(ParseCommitResults(CommitResults));
-									const FString& Message = (CommitResults.Num() > 0) ? CommitResults[0] : TEXT("");
-									UE_LOG(LogSourceControl, Log, TEXT("commit successful: %s"), *Message);
-									GitSourceControlUtils::GetCommitInfo(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.CommitId,
-																		 InCommand.CommitSummary);
-								}
-								InCommand.ResultInfo.InfoMessages.Append(CommitResults);
-							}
+							InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(
+								TEXT("push"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, PushParameters,
+								FGitSourceControlModule::GetEmptyStringArray(), InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
+						}
+					}
 
-							if (InCommand.bCommandSuccessful)
-							{
-								InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("push"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot,
-																							 PushParameters, FGitSourceControlModule::GetEmptyStringArray(),
-																							 InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
-							}
+					// Our push still wasn't successful
+					if (!InCommand.bCommandSuccessful)
+					{
+						if (!Provider.bPendingRestart)
+						{
+							// If it fails, just let the user do it
+							FText PushFailMessage(LOCTEXT("GitPush_OutOfDate_Msg", "Git Push failed because there are changes you need to pull.\n\n"
+																				   "An attempt was made to pull, but failed, because while the Unreal Editor is "
+																				   "open, files cannot always be updated.\n\n"
+																				   "Please exit the editor, and update the project again."));
+							FText PushFailTitle(LOCTEXT("GitPush_OutOfDate_Title", "Git Pull Required"));
+							FMessageDialog::Open(EAppMsgType::Ok, PushFailMessage, &PushFailTitle);
+							UE_LOG(LogSourceControl, Log, TEXT("Push failed because we're out of date, prompting user to resolve manually"));
 						}
 					}
 				}
-
-				if (!InCommand.bCommandSuccessful)
-				{
-					if (bResetSuccessful)
-					{
-						// Restore to original commit before pull reset
-						Parameters.Reset(1);
-						Parameters.Add(TEXT("ORIG_HEAD"));
-						GitSourceControlUtils::RunCommand(TEXT("reset"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters,
-														  FGitSourceControlModule::GetEmptyStringArray(), InCommand.ResultInfo.InfoMessages,
-														  InCommand.ResultInfo.ErrorMessages);
-					}
-					if (!Provider.bPendingRestart)
-					{
-						// If it fails, just let the user do it
-						FText PushFailMessage(LOCTEXT("GitPush_OutOfDate_Msg", "Git Push failed because there are changes you need to pull.\n\n"
-																			   "An attempt was made to pull, but failed, because while the Unreal Editor is "
-																			   "open, files cannot always be updated.\n\n"
-																			   "Please exit the editor, and update the project again."));
-						FText PushFailTitle(LOCTEXT("GitPush_OutOfDate_Title", "Git Pull Required"));
-						FMessageDialog::Open(EAppMsgType::Ok, PushFailMessage, &PushFailTitle);
-						UE_LOG(LogSourceControl, Log, TEXT("Push failed because we're out of date, prompting user to resolve manually"));
-					}
-				}
 			}
+		}
+		else
+		{
+			InCommand.bCommandSuccessful = true;
 		}
 
 		// git-lfs: unlock files
 		if (InCommand.bUsingGitLfsLocking)
 		{
-			// If we successfully pushed, we can unlock pushed files
+			// If we successfully pushed (or didn't need to push), unlock the files marked for check in
 			if (InCommand.bCommandSuccessful)
 			{
 				// unlock files: execute the LFS command on relative filenames
 				// (unlock only locked files, that is, not Added files)
 				TArray<FString> LockedFiles;
-				GitSourceControlUtils::GetLockedFiles(bUseCommittedFiles ? CommittedFiles : InCommand.Files, LockedFiles);
+				GitSourceControlUtils::GetLockedFiles(FilesToCheckIn.Array(), LockedFiles);
 				if (LockedFiles.Num() > 0)
 				{
 					const TArray<FString>& FilesToUnlock = GitSourceControlUtils::RelativeFilenames(LockedFiles, InCommand.PathToRepositoryRoot);
@@ -387,25 +334,18 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 			}
 		}
 
-		// Collect all the files we touched.
-		TArray<FString> FilesToCheckForUpdate;
-		if (CommittedFiles.Num())
+		// Collect all the files we touched through the pull update
+		if (bUnpushedFiles && PulledFiles.Num())
 		{
-			FilesToCheckForUpdate.Reserve(CommittedFiles.Num() + PulledFiles.Num());
-			FilesToCheckForUpdate.Append(CommittedFiles);
-			FilesToCheckForUpdate.Append(PulledFiles);
+			FilesToCheckIn.Append(PulledFiles);
 		}
-		else
-		{
-			FilesToCheckForUpdate.Reserve(InCommand.Files.Num() + PulledFiles.Num());
-			FilesToCheckForUpdate.Append(InCommand.Files);
-			FilesToCheckForUpdate.Append(PulledFiles);
-		}
+		// Before, we added only lockable files from CommittedFiles. But now, we want to update all files, not just lockables.
+		FilesToCheckIn.Append(CommittedFiles);
 
 		// now update the status of our files
 		TMap<FString, FGitSourceControlState> UpdatedStates;
 		bool bSuccess = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking,
-															   FilesToCheckForUpdate, InCommand.ResultInfo.ErrorMessages, UpdatedStates);
+															   FilesToCheckIn.Array(), InCommand.ResultInfo.ErrorMessages, UpdatedStates);
 		if (bSuccess)
 		{
 			GitSourceControlUtils::CollectNewStates(UpdatedStates, States);
@@ -697,9 +637,8 @@ bool FGitFetchWorker::Execute(FGitSourceControlCommand& InCommand)
 	if (Operation->bUpdateStatus)
 	{
 		// Now update the status of all our files
-		TArray<FString> ProjectDirs;
-		ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()));
-		ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
+		const TArray<FString> ProjectDirs {FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()),
+										   FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath())};
 		TMap<FString, FGitSourceControlState> UpdatedStates;
 		InCommand.bCommandSuccessful = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking,
 																			  ProjectDirs, InCommand.ResultInfo.ErrorMessages, UpdatedStates);
@@ -761,9 +700,8 @@ bool FGitUpdateStatusWorker::Execute(FGitSourceControlCommand& InCommand)
 	else
 	{
 		// no path provided: only update the status of assets in Content/ directory and also Config files
-		TArray<FString> ProjectDirs;
-		ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()));
-		ProjectDirs.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
+		const TArray<FString> ProjectDirs {FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()), FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()),
+										   FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath())};
 		TMap<FString, FGitSourceControlState> UpdatedStates;
 		InCommand.bCommandSuccessful = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, ProjectDirs, InCommand.ResultInfo.ErrorMessages, UpdatedStates);
 		GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));

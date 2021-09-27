@@ -125,7 +125,7 @@ static bool RunCommandInternalRaw(const FString& InCommand, const FString& InPat
 	UE_LOG(LogSourceControl, Log, TEXT("RunCommand: 'git %s'"), *LogableCommand);
 #endif
 
-	FString PathToGitOrEnvBinary = InPathToGitBinary;
+	const FString& PathToGitOrEnvBinary = InPathToGitBinary;
 #if PLATFORM_MAC
 	// The Cocoa application does not inherit shell environment variables, so add the path expected to have git-lfs to PATH
 	FString PathEnv = FPlatformMisc::GetEnvironmentVariable(TEXT("PATH"));
@@ -1260,8 +1260,7 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 	// TODO: Make PBSync optional?
 	FilesToDiff.Add(TEXT(".md5"));
 
-	TArray<FString> ParametersDiff {TEXT("--name-only")};
-	ParametersDiff.SetNum(2);
+	TArray<FString> ParametersDiff {TEXT("--name-only"), TEXT(""), TEXT("--")};
 	for (auto& Branch : BranchesToDiff)
 	{
 		bool bCurrentBranch;
@@ -1323,7 +1322,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessa
 	// You may ask, why are we ignoring state cache, and instead maintaining our own lock cache?
 	// The answer is that state cache updating is another operation, and those that update status
 	// (and thus the state cache) are using GetAllLocks. However, querying remote locks are almost always
-	// irrelevant in most of those update status cases. So, we need to provide a fast way to provide the
+	// irrelevant in most of those update status cases. So, we need to provide a fast way to provide
 	// an updated local lock state. We could do this through the relevant lfs lock command arguments, which
 	// as you will see below, we use only for offline cases, but the exec cost of doing this isn't worth it
 	// when we can easily maintain this cache here. So, we are really emulating an internal Git LFS locks cache
@@ -2099,31 +2098,38 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 		return false;
 	}
 
-	// Get the list of files which will be updated
-	TArray<FString> NewerFiles;
-	TArray<FString> Parameters {TEXT("--name-only"), FString::Printf(TEXT("HEAD...%s"), *RemoteBranch)};
+	// Get the list of files which will be updated (either ones we changed locally, which will get potentially rebased or merged, or the remote ones that will update)
+	TArray<FString> DifferentFiles;
+	TArray<FString> Parameters {TEXT("--name-only"), RemoteBranch};
 	const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InPathToRepositoryRoot, Parameters, FGitSourceControlModule::GetEmptyStringArray(),
-										NewerFiles, OutErrorMessages);
+										DifferentFiles, OutErrorMessages);
 	if (!bResultDiff)
 	{
 		return false;
 	}
 
 	// Nothing to pull
-	if (!NewerFiles.Num())
+	if (!DifferentFiles.Num())
 	{
 		return true;
 	}
 
-	const TArray<FString>& AbsoluteNewerFiles = AbsoluteFilenames(NewerFiles, InPathToRepositoryRoot);
+	const TArray<FString>& AbsoluteDifferentFiles = AbsoluteFilenames(DifferentFiles, InPathToRepositoryRoot);
 
-	OutFiles.Reserve(AbsoluteNewerFiles.Num() - AlreadyReloaded.Num());
-	for (const auto& File : AbsoluteNewerFiles)
+	if (AlreadyReloaded.Num())
 	{
-		if (!AlreadyReloaded.Contains(File))
+		OutFiles.Reserve(AbsoluteDifferentFiles.Num() - AlreadyReloaded.Num());
+		for (const auto& File : AbsoluteDifferentFiles)
 		{
-			OutFiles.Add(File);
+			if (!AlreadyReloaded.Contains(File))
+			{
+				OutFiles.Add(File);
+			}
 		}
+	}
+	else
+	{
+		OutFiles.Append(AbsoluteDifferentFiles);
 	}
 
 	TArray<FString> Files;
@@ -2147,44 +2153,12 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 
 	// Reset HEAD and index to remote
 	TArray<FString> InfoMessages;
-	Parameters.Reset(1);
-	Parameters.Add(RemoteBranch);
-	bool bSuccess = RunCommand(TEXT("reset"), InPathToGitBinary, InPathToRepositoryRoot, Parameters, FGitSourceControlModule::GetEmptyStringArray(),
+	Parameters.Reset(2);
+	Parameters.Append({
+		"--rebase", "--autostash"
+	});
+	bool bSuccess = RunCommand(TEXT("pull"), InPathToGitBinary, InPathToRepositoryRoot, Parameters, FGitSourceControlModule::GetEmptyStringArray(),
 										  InfoMessages, OutErrorMessages);
-
-	if (bSuccess)
-	{
-		// Now that we reset HEAD to remote, we restore the working directory to our HEAD, for all updated files
-		bSuccess = RunCommand(TEXT("restore"), InPathToGitBinary, InPathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), NewerFiles,
-							  OutResults, OutErrorMessages);
-
-		if (!bSuccess)
-		{
-			UE_LOG(LogSourceControl, Error, TEXT("Failed to pull files!"));
-			// Delete files, so we delete untracked. But the tracked ones will be reset in the following reset + restore.
-			for (const auto& File : AbsoluteNewerFiles)
-			{
-				IFileManager::Get().Delete(*File, false, true);
-			}
-			// Try clean up by moving back to the original head
-			Parameters.Reset(1);
-			Parameters.Add(TEXT("ORIG_HEAD"));
-			bool bCleanUp = RunCommand(TEXT("reset"), InPathToGitBinary, InPathToRepositoryRoot, Parameters,
-											 FGitSourceControlModule::GetEmptyStringArray(), InfoMessages, OutErrorMessages);
-			// Restore file state to ORIG_HEAD (now HEAD)
-			if (bCleanUp)
-			{
-				bCleanUp = RunCommand(TEXT("restore"), InPathToGitBinary, InPathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), NewerFiles,
-									  InfoMessages, OutErrorMessages);
-				
-			}
-
-			if (!bCleanUp)
-			{
-				UE_LOG(LogSourceControl, Error, TEXT("Failed to clean up after pull failure!"));
-			}
-		}
-	}
 
 	if (bShouldReload)
 	{

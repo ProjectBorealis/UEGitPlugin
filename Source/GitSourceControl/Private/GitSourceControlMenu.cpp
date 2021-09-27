@@ -93,7 +93,7 @@ bool FGitSourceControlMenu::StashAwayAnyModifications()
 	bool bStashOk = true;
 
 	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+	const FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
 	const FString& PathToRespositoryRoot = Provider.GetPathToRepositoryRoot();
 	const FString& PathToGitBinary = Provider.GetGitBinaryPath();
 	const TArray<FString> ParametersStatus{"--porcelain --untracked-files=no"};
@@ -236,11 +236,11 @@ void FGitSourceControlMenu::RevertClicked()
 	}
 
 	// make sure we update the SCC status of all packages (this could take a long time, so we will run it as a background task)
-	TArray<FString> Filenames;
-	Filenames.Add(FPaths::ConvertRelativePathToFull(FPaths::EngineContentDir()));
-	Filenames.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()));
-	Filenames.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
-	Filenames.Add(FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()));
+	const TArray<FString> Filenames {
+		FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),
+		FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()),
+		FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath())
+	};
 
 	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
 	FSourceControlOperationRef Operation = ISourceControlOperation::Create<FUpdateStatus>();
