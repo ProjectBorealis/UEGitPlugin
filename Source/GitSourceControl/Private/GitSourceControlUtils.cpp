@@ -1257,7 +1257,7 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 		FilesToDiff.Add(RelativeFile);
 	}
 	// TODO: Make PBSync optional?
-	FilesToDiff.Add(TEXT(".md5"));
+	FilesToDiff.Add(TEXT(".checksum"));
 
 	TArray<FString> ParametersDiff {TEXT("--name-only"), TEXT(""), TEXT("--")};
 	for (auto& Branch : BranchesToDiff)
@@ -1283,7 +1283,7 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 				{
 					// TODO: Make PBSync optional?
 					// Check if there's newer binaries pending on this branch
-					if (bCurrentBranch && NewerFileName == TEXT(".md5"))
+					if (bCurrentBranch && NewerFileName == TEXT(".checksum"))
 					{
 						FGitSourceControlModule::Get().GetProvider().bPendingRestart = true;
 					}
