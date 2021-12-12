@@ -2140,7 +2140,7 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 		}
 	}
 
-	const bool bShouldReload = OutFiles.Num() > 0;
+	const bool bShouldReload = Files.Num() > 0;
 	TArray<UPackage*> PackagesToReload;
 	if (bShouldReload)
 	{

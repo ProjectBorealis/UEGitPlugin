@@ -15,6 +15,7 @@
 #include "GitSourceControlModule.h"
 #include "GitSourceControlUtils.h"
 #include "SGitSourceControlSettings.h"
+#include "GitSourceControlRunner.h"
 #include "Logging/MessageLog.h"
 #include "ScopedSourceControlProgress.h"
 #include "SourceControlHelpers.h"
@@ -124,6 +125,7 @@ void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGit
 			{
 				UE_LOG(LogSourceControl, Error, TEXT("Failed to update repo on initialization."));
 			}
+			Runner = new FGitSourceControlRunner();
 		}
 		else
 		{
@@ -170,6 +172,10 @@ void FGitSourceControlProvider::Close()
 	bGitRepositoryFound = false;
 	UserName.Empty();
 	UserEmail.Empty();
+	if (Runner)
+	{
+		delete Runner;
+	}
 }
 
 TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> FGitSourceControlProvider::GetStateInternal(const FString& Filename)

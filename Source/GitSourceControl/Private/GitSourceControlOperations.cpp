@@ -37,7 +37,7 @@ bool FGitConnectWorker::Execute(FGitSourceControlCommand& InCommand)
 	// the connect worker has no side effects. It is simply a query to retrieve information
 	// to be displayed to the user, like in the source control settings or on init.
 	// Therefore, there is no need for synchronously establishing a connection if not there.
-	if (InCommand.Concurrency == EConcurrency::Synchronous && !Operation->GetPassword().IsEmpty())
+	if (InCommand.Concurrency == EConcurrency::Synchronous)
 	{
 		InCommand.bCommandSuccessful = true;
 		return true;
@@ -585,6 +585,12 @@ FName FGitSyncWorker::GetName() const
 bool FGitSyncWorker::Execute(FGitSourceControlCommand& InCommand)
 {
 	TArray<FString> Results;
+	const bool bFetched = GitSourceControlUtils::FetchRemote(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, false, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
+	if (!bFetched)
+	{
+		return false;
+	}
+
 	InCommand.bCommandSuccessful = GitSourceControlUtils::PullOrigin(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.Files, InCommand.Files, Results, InCommand.ResultInfo.ErrorMessages);
 
 	// now update the status of our files
