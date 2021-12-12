@@ -175,6 +175,7 @@ void FGitSourceControlProvider::Close()
 	if (Runner)
 	{
 		delete Runner;
+		Runner = nullptr;
 	}
 }
 

@@ -12,6 +12,7 @@ FGitSourceControlRunner::FGitSourceControlRunner()
 {
 	bRunThread = true;
 	bRefreshSpawned = false;
+	StopEvent = FPlatformProcess::GetSynchEventFromPool(true);
 	Thread = FRunnableThread::Create(this, TEXT("GitSourceControlRunner"));
 }
 
@@ -19,9 +20,8 @@ FGitSourceControlRunner::~FGitSourceControlRunner()
 {
 	if (Thread)
 	{
-		// Kill() is a blocking call, it waits for the thread to finish.
-		// Hopefully that doesn't take too long
 		Thread->Kill();
+		delete StopEvent;
 		delete Thread;
 	}
 }
@@ -35,7 +35,11 @@ uint32 FGitSourceControlRunner::Run()
 {
 	while (bRunThread)
 	{
-		FPlatformProcess::Sleep(30.0f);
+		StopEvent->Wait(30000);
+		if (!bRunThread)
+		{
+			break;
+		}
 		if (!bRefreshSpawned)
 		{
 			bRefreshSpawned = true;
@@ -48,10 +52,13 @@ uint32 FGitSourceControlRunner::Run()
 					FSourceControlOperationComplete::CreateRaw(this, &FGitSourceControlRunner::OnSourceControlOperationComplete));
 				return Result;
 				});
-			ECommandResult::Type Result = ExecuteResult.Get();
-			if (bRefreshSpawned)
+			if (bRefreshSpawned && bRunThread)
 			{
-				bRefreshSpawned = Result == ECommandResult::Succeeded;
+				ECommandResult::Type Result = ExecuteResult.Get();
+				if (bRefreshSpawned)
+				{
+					bRefreshSpawned = Result == ECommandResult::Succeeded;
+				}
 			}
 		}
 	}
@@ -62,6 +69,7 @@ uint32 FGitSourceControlRunner::Run()
 void FGitSourceControlRunner::Stop()
 {
 	bRunThread = false;
+	StopEvent->Trigger();
 }
 
 void FGitSourceControlRunner::OnSourceControlOperationComplete(const FSourceControlOperationRef& InOperation, ECommandResult::Type InResult)

@@ -25,6 +25,7 @@ public:
 
 private:
 	FRunnableThread* Thread;
+	FEvent* StopEvent;
 	bool bRunThread;
 	bool bRefreshSpawned;
 };
