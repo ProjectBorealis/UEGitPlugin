@@ -6,6 +6,9 @@
 
 #include "HAL/Runnable.h"
 
+#include "ISourceControlProvider.h"
+#include "ISourceControlOperation.h"
+
 /**
  *
  */
