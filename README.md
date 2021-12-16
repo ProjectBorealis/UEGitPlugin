@@ -15,7 +15,8 @@ new features and workflow improvements.
   * Only refreshes changed files, which prevents crashes in large projects
   * Uses rebase workflow to properly manage local work
 * Added support for cancelling blocking operations if they are taking too long
-* Added support for Status Branches
+* Added support for Status Branches, which check outdated files vs. remote across multiple branches
+* Periodic background remote refresh to keep remote file statuses up to date
 * Automatic handling of pushing from an outdated local copy
 * Optimized status updates for successful operations
 * Manage both lockable (assets, maps) and non-lockable files (configs, project file) in editor
