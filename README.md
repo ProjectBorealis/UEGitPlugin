@@ -14,7 +14,6 @@ new features and workflow improvements.
 * Greatly improved pull within editor
   * Only refreshes changed files, which prevents crashes in large projects
   * Uses rebase workflow to properly manage local work
-* Added support for cancelling blocking operations if they are taking too long
 * Added support for Status Branches, which check outdated files vs. remote across multiple branches
 * Periodic background remote refresh to keep remote file statuses up to date
 * Automatic handling of pushing from an outdated local copy

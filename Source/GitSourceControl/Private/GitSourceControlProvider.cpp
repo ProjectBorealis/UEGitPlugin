@@ -379,6 +379,8 @@ ECommandResult::Type FGitSourceControlProvider::Execute( const TSharedRef<ISourc
 
 bool FGitSourceControlProvider::CanCancelOperation( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation ) const
 {
+	// TODO: maybe support cancellation again?
+#if 0
 	for (int32 CommandIndex = 0; CommandIndex < CommandQueue.Num(); ++CommandIndex)
 	{
 		const FGitSourceControlCommand& Command = *CommandQueue[CommandIndex];
@@ -388,6 +390,7 @@ bool FGitSourceControlProvider::CanCancelOperation( const TSharedRef<ISourceCont
 			return true;
 		}
 	}
+#endif
 
 	// operation was not in progress!
 	return false;
