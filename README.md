@@ -27,14 +27,14 @@ that include performance optimizations, new features and workflow improvements.
 
 Epic Games added Status Branches in 4.20, and this plugin has implemented support for them. See [Workflow on Fortnite](https://youtu.be/p4RcDpGQ_tI?t=1443) for more information. Here is an example of how we use them in Project Borealis, and how you may apply it to your own game.
 
-1. Make an `UEditorEngine` subclass, preferrably in an editor only module, or guarded by `WITH_EDITOR`.
+1. Make an `UUnrealEdEngine` subclass, preferrably in an editor only module, or guarded by `WITH_EDITOR`.
 2. Add the following:
 
 ```cpp
 #include "ISourceControlModule.h"
 #include "ISourceControlProvider.h"
 
-void UPBEditorEngine::Init(IEngineLoop* InEngineLoop)
+void UMyEdEngine::Init(IEngineLoop* InEngineLoop)
 {
 	Super::Init(InEngineLoop);
 
@@ -51,11 +51,11 @@ void UPBEditorEngine::Init(IEngineLoop* InEngineLoop)
 }
 ```
 
-3. Set to use the editor engine in `Config/DefaultEngine.ini` (make sure `ClassName` is `MyEditorEngine` for a class called `UMyEditorEngine`!):
+3. Set to use the editor engine in `Config/DefaultEngine.ini` (make the class name is `MyEdEngine` for a class called `UMyEdEngine`!):
 
 ```ini
 [/Script/Engine.Engine]
-UnrealEdEngine=/Script/Module.ClassName
+UnrealEdEngine=/Script/MyModule.MyEdEngine
 ```
 
 5. In this example, `promoted` is the highest tested branch. Any changes in this branch are asset changes that do not need testing, and get automatically merged down to `main` and then to `trunk`. `trunk` is where cutting edge development by programmers happen, and they move up to `main`, and then `promoted` after a manual review and merge process. The second argument in `RegisterStateBranches` is Perforce specific and is ignored.
