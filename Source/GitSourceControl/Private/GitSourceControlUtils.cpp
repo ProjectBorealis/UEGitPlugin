@@ -1258,7 +1258,7 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 		FilesToDiff.Add(RelativeFile);
 	}
 	// TODO: Make PBSync optional?
-	FilesToDiff.Add(TEXT(".md5"));
+	FilesToDiff.Add(TEXT(".checksum"));
 
 	TArray<FString> ParametersDiff {TEXT("--name-only"), TEXT(""), TEXT("--")};
 	for (auto& Branch : BranchesToDiff)
@@ -1284,7 +1284,7 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 				{
 					// TODO: Make PBSync optional?
 					// Check if there's newer binaries pending on this branch
-					if (bCurrentBranch && NewerFileName == TEXT(".md5"))
+					if (bCurrentBranch && NewerFileName == TEXT(".checksum"))
 					{
 						FGitSourceControlModule::Get().GetProvider().bPendingRestart = true;
 					}
@@ -2141,7 +2141,7 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 		}
 	}
 
-	const bool bShouldReload = OutFiles.Num() > 0;
+	const bool bShouldReload = Files.Num() > 0;
 	TArray<UPackage*> PackagesToReload;
 	if (bShouldReload)
 	{

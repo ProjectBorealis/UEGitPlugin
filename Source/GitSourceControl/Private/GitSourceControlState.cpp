@@ -219,9 +219,12 @@ bool FGitSourceControlState::IsCheckedOut() const
 
 bool FGitSourceControlState::IsCheckedOutOther(FString* Who) const
 {
-	if (State.LockState == ELockState::LockedOther && Who != NULL)
+	if (State.LockState == ELockState::LockedOther)
 	{
-		*Who = State.LockUser;
+		if (Who != nullptr)
+		{
+			*Who = State.LockUser;
+		}
 		return true;
 	}
 	return false;
