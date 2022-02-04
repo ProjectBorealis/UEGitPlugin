@@ -26,6 +26,7 @@
 
 #include "Logging/MessageLog.h"
 #include "SourceControlHelpers.h"
+#include "SourceControlWindows/Public/SourceControlWindows.h"
 
 static const FName GitSourceControlMenuTabName(TEXT("GitSourceControlMenu"));
 
@@ -39,10 +40,26 @@ void FGitSourceControlMenu::Register()
 	FLevelEditorModule* LevelEditorModule = FModuleManager::GetModulePtr<FLevelEditorModule>(TEXT("LevelEditor"));
 	if (LevelEditorModule)
 	{
+	#if ENGINE_MAJOR_VERSION < 5
 		FLevelEditorModule::FLevelEditorMenuExtender ViewMenuExtender = FLevelEditorModule::FLevelEditorMenuExtender::CreateRaw(this, &FGitSourceControlMenu::OnExtendLevelEditorViewMenu);
 		auto& MenuExtenders = LevelEditorModule->GetAllLevelEditorToolbarSourceControlMenuExtenders();
 		MenuExtenders.Add(ViewMenuExtender);
 		ViewMenuExtenderHandle = MenuExtenders.Last().GetHandle();
+	#else
+		auto MakeMenu = [this](FMenuBarBuilder& Builder)
+		{
+			Builder.AddPullDownMenu(
+				NSLOCTEXT("Git", "Git", "Git"),
+				NSLOCTEXT("Git", "GitMenu_ToolTip", "Open the Git menu"),
+				FNewMenuDelegate::CreateRaw(this, &FGitSourceControlMenu::AddMenuExtension)
+			);
+		};
+		
+		ViewMenuExtender = MakeShareable(new FExtender);
+		ViewMenuExtender->AddMenuBarExtension("Window", EExtensionHook::After, nullptr, FMenuBarExtensionDelegate::CreateLambda(MakeMenu));
+		
+		LevelEditorModule->GetMenuExtensibilityManager()->AddExtender(ViewMenuExtender);
+	#endif
 	}
 }
 
@@ -52,7 +69,11 @@ void FGitSourceControlMenu::Unregister()
 	FLevelEditorModule* LevelEditorModule = FModuleManager::GetModulePtr<FLevelEditorModule>("LevelEditor");
 	if (LevelEditorModule)
 	{
+	#if ENGINE_MAJOR_VERSION < 5
 		LevelEditorModule->GetAllLevelEditorToolbarSourceControlMenuExtenders().RemoveAll([=](const FLevelEditorModule::FLevelEditorMenuExtender& Extender) { return Extender.GetHandle() == ViewMenuExtenderHandle; });
+	#else
+		LevelEditorModule->GetMenuExtensibilityManager()->RemoveExtender(ViewMenuExtender);
+	#endif
 	}
 }
 
@@ -187,6 +208,20 @@ void FGitSourceControlMenu::SyncClicked()
 		SourceControlLog.Warning(LOCTEXT("SourceControlMenu_InProgress", "Source control operation already in progress"));
 		SourceControlLog.Notify();
 	}
+}
+
+void FGitSourceControlMenu::CommitClicked()
+{
+	if (OperationInProgressNotification.IsValid())
+	{
+		FMessageLog SourceControlLog("SourceControl");
+		SourceControlLog.Warning(LOCTEXT("SourceControlMenu_InProgress", "Source control operation already in progress"));
+		SourceControlLog.Notify();
+		return;
+	}
+	
+	FLevelEditorModule & LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+	FSourceControlWindows::ChoosePackagesToCheckIn(nullptr);
 }
 
 void FGitSourceControlMenu::PushClicked()
@@ -447,6 +482,20 @@ void FGitSourceControlMenu::OnSourceControlOperationComplete(const FSourceContro
 
 void FGitSourceControlMenu::AddMenuExtension(FMenuBuilder& Builder)
 {
+#if ENGINE_MAJOR_VERSION >= 5
+	Builder.AddMenuEntry(
+		LOCTEXT("GitCommit", "Submit to Source Control"),
+		LOCTEXT("GitPushTooltip", "Commits all local pending changes"),
+		FSlateIcon(FEditorStyle::GetStyleSetName(), "SourceControl.Actions.Submit"),
+		FUIAction(
+			FExecuteAction::CreateRaw(this, &FGitSourceControlMenu::CommitClicked),
+			FCanExecuteAction::CreateRaw(this, &FGitSourceControlMenu::HaveRemoteUrl)
+		)
+	);
+	
+	Builder.AddSeparator("GitSourceControlPluginActions");
+#endif
+
 	Builder.AddMenuEntry(
 		LOCTEXT("GitPush",				"Push pending local commits"),
 		LOCTEXT("GitPushTooltip",		"Push all pending local commits to the remote server."),

@@ -26,6 +26,7 @@ public class GitSourceControl : ModuleRules
 				"EditorStyle",
 				"UnrealEd",
 				"SourceControl",
+				"SourceControlWindows",
 				"Projects"
 			}
 		);
