@@ -1895,7 +1895,7 @@ bool UpdateCachedStates(const TMap<const FString, FGitState>& InResults)
 		if (NewState.FileState != EFileState::Unset)
 		{
 			// Invalid transition
-			if (NewState.FileState == EFileState::Added && !State->CanAdd())
+			if (NewState.FileState == EFileState::Added && !State->IsUnknown() && !State->CanAdd())
 			{
 				continue;
 			}
