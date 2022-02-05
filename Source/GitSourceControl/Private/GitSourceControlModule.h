@@ -135,10 +135,12 @@ private:
 
 	static TArray<FString> EmptyStringArray;
 
+#if ENGINE_MAJOR_VERSION >= 5
 	// ContentBrowserDelegate Handles
 	FDelegateHandle CbdHandle_OnFilterChanged;
 	FDelegateHandle CbdHandle_OnSearchBoxChanged;
 	FDelegateHandle CbdHandle_OnAssetSelectionChanged;
 	FDelegateHandle CbdHandle_OnSourcesViewChanged;
 	FDelegateHandle CbdHandle_OnAssetPathChanged;
+#endif
 };

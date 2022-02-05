@@ -473,11 +473,15 @@ void FGitSourceControlProvider::UpdateRepositoryStatus(const class FGitSourceCon
 
 void FGitSourceControlProvider::Tick()
 {
+#if ENGINE_MAJOR_VERSION < 5
+	bool bStatesUpdated = false;
+#else
 	bool bStatesUpdated = TicksUntilNextForcedUpdate == 1;
 	if( TicksUntilNextForcedUpdate > 0 )
 	{
 		--TicksUntilNextForcedUpdate;
 	}
+#endif
 
 	for (int32 CommandIndex = 0; CommandIndex < CommandQueue.Num(); ++CommandIndex)
 	{
