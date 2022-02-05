@@ -134,4 +134,11 @@ private:
 	FGitSourceControlSettings GitSourceControlSettings;
 
 	static TArray<FString> EmptyStringArray;
+
+	// ContentBrowserDelegate Handles
+	FDelegateHandle CbdHandle_OnFilterChanged;
+	FDelegateHandle CbdHandle_OnSearchBoxChanged;
+	FDelegateHandle CbdHandle_OnAssetSelectionChanged;
+	FDelegateHandle CbdHandle_OnSourcesViewChanged;
+	FDelegateHandle CbdHandle_OnAssetPathChanged;
 };

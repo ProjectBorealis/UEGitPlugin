@@ -197,6 +197,8 @@ public:
 	/** Indicates editor binaries are to be updated upon next sync */
 	bool bPendingRestart;
 
+	uint32 TicksUntilNextForcedUpdate = 0;
+
 private:
 	/** Is git binary found and working. */
 	bool bGitAvailable;

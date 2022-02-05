@@ -472,8 +472,12 @@ void FGitSourceControlProvider::UpdateRepositoryStatus(const class FGitSourceCon
 }
 
 void FGitSourceControlProvider::Tick()
-{	
-	bool bStatesUpdated = false;
+{
+	bool bStatesUpdated = TicksUntilNextForcedUpdate == 1;
+	if( TicksUntilNextForcedUpdate > 0 )
+	{
+		--TicksUntilNextForcedUpdate;
+	}
 
 	for (int32 CommandIndex = 0; CommandIndex < CommandQueue.Num(); ++CommandIndex)
 	{
