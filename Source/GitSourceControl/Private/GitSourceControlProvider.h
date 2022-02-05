@@ -12,6 +12,7 @@
 #include "IGitSourceControlWorker.h"
 #include "GitSourceControlState.h"
 #include "GitSourceControlMenu.h"
+#include "Runtime/Launch/Resources/Version.h"
 
 class FGitSourceControlCommand;
 
@@ -196,6 +197,10 @@ public:
 
 	/** Indicates editor binaries are to be updated upon next sync */
 	bool bPendingRestart;
+
+#if ENGINE_MAJOR_VERSION >= 5
+	uint32 TicksUntilNextForcedUpdate = 0;
+#endif
 
 private:
 	/** Is git binary found and working. */

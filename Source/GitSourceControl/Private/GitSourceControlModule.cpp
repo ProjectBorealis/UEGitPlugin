@@ -9,6 +9,7 @@
 #include "Modules/ModuleManager.h"
 #include "Features/IModularFeatures.h"
 
+#include "ContentBrowser/Public/ContentBrowserModule.h"
 #include "GitSourceControlOperations.h"
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
@@ -42,6 +43,20 @@ void FGitSourceControlModule::StartupModule()
 
 	// Bind our source control provider to the editor
 	IModularFeatures::Get().RegisterModularFeature( "SourceControl", &GitSourceControlProvider );
+
+#if ENGINE_MAJOR_VERSION >= 5
+	// Register ContentBrowserDelegate Handles for UE5 EA
+	// At the time of writing this UE5 is in Early Access and has no support for source control yet. So instead we hook into the contentbrowser..
+	// .. and force a state update on the next tick for source control. Usually the contentbrowser assets will request this themselves, but that's not working
+	// Values here are 1 or 2 based on whether the change can be done immediately or needs to be delayed as unreal needs to work through its internal delegates first
+	// >> Technically you wouldn't need to use `GetOnAssetSelectionChanged` -- but it's there as a safety mechanism. States aren't forceupdated for the first path that loads
+	// >> Making sure we force an update on selection change that acts like a just in case other measures fail
+	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+	CbdHandle_OnFilterChanged = ContentBrowserModule.GetOnFilterChanged().AddLambda( [this]( const FARFilter&, bool ) { GitSourceControlProvider.TicksUntilNextForcedUpdate = 2; } );
+	CbdHandle_OnSearchBoxChanged = ContentBrowserModule.GetOnSearchBoxChanged().AddLambda( [this]( const FText&, bool ){ GitSourceControlProvider.TicksUntilNextForcedUpdate = 1; } );
+	CbdHandle_OnAssetSelectionChanged = ContentBrowserModule.GetOnAssetSelectionChanged().AddLambda( [this]( const TArray<FAssetData>&, bool ) { GitSourceControlProvider.TicksUntilNextForcedUpdate = 1; } );
+	CbdHandle_OnAssetPathChanged = ContentBrowserModule.GetOnAssetPathChanged().AddLambda( [this]( const FString& ) { GitSourceControlProvider.TicksUntilNextForcedUpdate = 2; } );
+#endif
 }
 
 void FGitSourceControlModule::ShutdownModule()
@@ -51,6 +66,15 @@ void FGitSourceControlModule::ShutdownModule()
 
 	// unbind provider from editor
 	IModularFeatures::Get().UnregisterModularFeature("SourceControl", &GitSourceControlProvider);
+
+#if ENGINE_MAJOR_VERSION >= 5
+	// Unregister ContentBrowserDelegate Handles
+	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+	ContentBrowserModule.GetOnFilterChanged().Remove( CbdHandle_OnFilterChanged );
+	ContentBrowserModule.GetOnSearchBoxChanged().Remove( CbdHandle_OnSearchBoxChanged );
+	ContentBrowserModule.GetOnAssetSelectionChanged().Remove( CbdHandle_OnAssetSelectionChanged );
+	ContentBrowserModule.GetOnAssetPathChanged().Remove( CbdHandle_OnAssetPathChanged );
+#endif
 }
 
 void FGitSourceControlModule::SaveSettings()
