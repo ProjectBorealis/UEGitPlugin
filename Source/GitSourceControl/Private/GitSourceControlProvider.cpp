@@ -583,7 +583,9 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 
 	// Display the progress dialog if a string was provided
 	{
-		FScopedSourceControlProgress Progress(TaskText, FSimpleDelegate::CreateStatic(&Local::CancelCommand, &InCommand));
+		// TODO: support cancellation?
+		//FScopedSourceControlProgress Progress(TaskText, FSimpleDelegate::CreateStatic(&Local::CancelCommand, &InCommand));
+		FScopedSourceControlProgress Progress(TaskText);
 		
 		// Issue the command asynchronously...
 		IssueCommand( InCommand );
