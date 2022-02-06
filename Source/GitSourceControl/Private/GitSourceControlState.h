@@ -122,6 +122,8 @@ struct FGitState
 	/** Name of user who has locked the file */
 	FString LockUser;
 	ERemoteState::Type RemoteState;
+	/** The branch with the latest commit for this file */
+	FString HeadBranch;
 
 	FGitState()
 		: FileState(EFileState::Unknown)
@@ -139,7 +141,8 @@ public:
 	FGitSourceControlState( const FString& InLocalFilename)
 		: LocalFilename(InLocalFilename)
 		, TimeStamp(0)
-		, HeadAction(TEXT("changed"))
+		, HeadCommit(TEXT("Unknown"))
+		, HeadAction(TEXT("Changed"))
 	{
 	}
 
@@ -196,9 +199,6 @@ public:
 
 	/** The timestamp of the last update */
 	FDateTime TimeStamp;
-
-	/** The branch with the latest commit for this file */
-	FString HeadBranch;
 
 	/** The action within the head branch TODO */
 	FString HeadAction;
