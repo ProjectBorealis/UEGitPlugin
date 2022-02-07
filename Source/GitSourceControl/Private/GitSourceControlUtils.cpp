@@ -1239,7 +1239,7 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 	}
 
 	TArray<FString> Results;
-	TMap<FString, bool> NewerFiles;
+	TMap<FString, FString> NewerFiles;
 
 	const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
 	TArray<FString> FilesToDiff;
@@ -1257,7 +1257,7 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 		}
 		FilesToDiff.Add(RelativeFile);
 	}
-	// TODO: Make PBSync optional?
+	// TODO: Make PBSync optional? (already silently ignored by git, but might be nice to skip the check?)
 	FilesToDiff.Add(TEXT(".checksum"));
 
 	TArray<FString> ParametersDiff {TEXT("--name-only"), TEXT(""), TEXT("--")};
@@ -1291,13 +1291,9 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 					continue;
 				}
 				const FString& NewerFilePath = FPaths::ConvertRelativePathToFull(InRepositoryRoot, NewerFileName);
-				if (bCurrentBranch)
+				if (bCurrentBranch || !NewerFiles.Contains(NewerFilePath))
 				{
-					NewerFiles.Add(NewerFilePath, bCurrentBranch);
-				}
-				else
-				{
-					NewerFiles.FindOrAdd(NewerFilePath, bCurrentBranch);
+					NewerFiles.Add(NewerFilePath, Branch);
 				}
 			}
 		}
@@ -1308,7 +1304,8 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 	{
 		if (FGitSourceControlState* FileState = OutStates.Find(NewFile.Key))
 		{
-			FileState->State.RemoteState = NewFile.Value ? ERemoteState::NotAtHead : ERemoteState::NotLatest;
+			FileState->State.RemoteState = NewFile.Value.Equals(CurrentBranchName) ? ERemoteState::NotAtHead : ERemoteState::NotLatest;
+			FileState->State.HeadBranch = NewFile.Value;
 		}
 	}
 
@@ -1915,6 +1912,14 @@ bool UpdateCachedStates(const TMap<const FString, FGitState>& InResults)
 		if (NewState.RemoteState != ERemoteState::Unset)
 		{
 			State->State.RemoteState = NewState.RemoteState;
+			if (NewState.RemoteState == ERemoteState::UpToDate)
+			{
+				State->State.HeadBranch = TEXT("");
+			}
+			else
+			{
+				State->State.HeadBranch = NewState.HeadBranch;
+			}
 		}
 		State->TimeStamp = Now;
 

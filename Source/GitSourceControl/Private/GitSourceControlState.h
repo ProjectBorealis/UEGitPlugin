@@ -9,6 +9,7 @@
 #include "ISourceControlState.h"
 #include "ISourceControlRevision.h"
 #include "GitSourceControlRevision.h"
+#include "Runtime/Launch/Resources/Version.h"
 
 /** A consolidation of state priorities. */
 namespace EGitState
@@ -116,21 +117,14 @@ namespace ERemoteState
 /** Combined state, for updating cache in a map. */
 struct FGitState
 {
-	EFileState::Type FileState;
-	ETreeState::Type TreeState;
-	ELockState::Type LockState;
+	EFileState::Type FileState = EFileState::Unknown;
+	ETreeState::Type TreeState = ETreeState::NotInRepo;
+	ELockState::Type LockState = ELockState::Unknown;
 	/** Name of user who has locked the file */
 	FString LockUser;
-	ERemoteState::Type RemoteState;
-
-	FGitState()
-		: FileState(EFileState::Unknown)
-		, TreeState(ETreeState::NotInRepo)
-		, LockState(ELockState::Unknown)
-		, LockUser(TEXT(""))
-		, RemoteState(ERemoteState::UpToDate)
-	{
-	}
+	ERemoteState::Type RemoteState = ERemoteState::UpToDate;
+	/** The branch with the latest commit for this file */
+	FString HeadBranch;
 };
 
 class FGitSourceControlState : public ISourceControlState, public TSharedFromThis<FGitSourceControlState, ESPMode::ThreadSafe>
@@ -138,8 +132,8 @@ class FGitSourceControlState : public ISourceControlState, public TSharedFromThi
 public:
 	FGitSourceControlState( const FString& InLocalFilename)
 		: LocalFilename(InLocalFilename)
-		, TimeStamp(0)
-		, HeadAction(TEXT("changed"))
+		, HeadAction(TEXT("Changed"))
+		, HeadCommit(TEXT("Unknown"))
 	{
 	}
 
@@ -149,7 +143,12 @@ public:
 	virtual TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FindHistoryRevision(int32 RevisionNumber) const override;
 	virtual TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FindHistoryRevision(const FString& InRevision) const override;
 	virtual TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> GetBaseRevForMerge() const override;
+#if ENGINE_MAJOR_VERSION >= 5
 	virtual FSlateIcon GetIcon() const override;
+#else
+	virtual FName GetIconName() const override;
+	virtual FName GetSmallIconName() const override;
+#endif
 	virtual FText GetDisplayName() const override;
 	virtual FText GetDisplayTooltip() const override;
 	virtual const FString& GetFilename() const override;
@@ -195,9 +194,6 @@ public:
 
 	/** The timestamp of the last update */
 	FDateTime TimeStamp;
-
-	/** The branch with the latest commit for this file */
-	FString HeadBranch;
 
 	/** The action within the head branch TODO */
 	FString HeadAction;
