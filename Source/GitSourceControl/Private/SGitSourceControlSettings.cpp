@@ -5,6 +5,7 @@
 
 #include "SGitSourceControlSettings.h"
 
+#include "Fonts/SlateFontInfo.h"
 #include "Misc/App.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -26,6 +27,8 @@
 #include "SourceControlOperations.h"
 #include "GitSourceControlModule.h"
 #include "GitSourceControlUtils.h"
+#include "Runtime/Launch/Resources/Version.h"
+
 
 #define LOCTEXT_NAMESPACE "SGitSourceControlSettings"
 
@@ -37,7 +40,14 @@ void SGitSourceControlSettings::Construct(const FArguments& InArgs)
 	bAutoInitialCommit = true;
 
 	InitialCommitMessage = LOCTEXT("InitialCommitMessage", "Initial commit");
+	ReadmeContent = FText::FromString(FString(TEXT("# ")) + FApp::GetProjectName() + "\n\nDeveloped with Unreal Engine 4\n");
 
+	ConstructBasedOnEngineVersion( );
+}
+
+#if ENGINE_MAJOR_VERSION < 5
+void SGitSourceControlSettings::ConstructBasedOnEngineVersion( )
+{
 	const FText FileFilterType = NSLOCTEXT("GitSourceControl", "Executables", "Executables");
 #if PLATFORM_WINDOWS
 	const FString FileFilterText = FString::Printf(TEXT("%s (*.exe)|*.exe"), *FileFilterType.ToString());
@@ -45,295 +55,517 @@ void SGitSourceControlSettings::Construct(const FArguments& InArgs)
 	const FString FileFilterText = FString::Printf(TEXT("%s"), *FileFilterType.ToString());
 #endif
 
-	ReadmeContent = FText::FromString(FString(TEXT("# ")) + FApp::GetProjectName() + "\n\nDeveloped with Unreal Engine 4\n");
+	const FSlateFontInfo Font = FEditorStyle::GetFontStyle(TEXT("SourceControl.LoginWindow.Font"));
+	ChildSlot
+	[
+		SNew(SBorder)
+		.BorderImage( FEditorStyle::GetBrush("DetailsView.CategoryBottom"))
+		.Padding(FMargin(0.0f, 3.0f, 0.0f, 0.0f))
+		[
+			SNew(SVerticalBox)
+			// Path to the Git command line executable
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(2.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SHorizontalBox)
+				.ToolTipText(LOCTEXT("BinaryPathLabel_Tooltip", "Path to Git binary"))
+				+SHorizontalBox::Slot()
+				.FillWidth(1.0f)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("BinaryPathLabel", "Git Path"))
+					.Font(Font)
+				]
+				+SHorizontalBox::Slot()
+				.FillWidth(2.0f)
+				[
+					SNew(SFilePathPicker)
+					.BrowseButtonImage(FEditorStyle::GetBrush("PropertyWindow.Button_Ellipsis"))
+					.BrowseButtonStyle(FEditorStyle::Get(), "HoverHintOnly")
+					.BrowseDirectory(FEditorDirectories::Get().GetLastDirectory(ELastDirectory::GENERIC_OPEN))
+					.BrowseTitle(LOCTEXT("BinaryPathBrowseTitle", "File picker..."))
+					.FilePath(this, &SGitSourceControlSettings::GetBinaryPathString)
+					.FileTypeFilter(FileFilterText)
+					.OnPathPicked(this, &SGitSourceControlSettings::OnBinaryPathPicked)
+				]
+			]
+			// Root of the local repository
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(2.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SHorizontalBox)
+				.ToolTipText(LOCTEXT("RepositoryRootLabel_Tooltip", "Path to the root of the Git repository"))
+				+SHorizontalBox::Slot()
+				.FillWidth(1.0f)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("RepositoryRootLabel", "Root of the repository"))
+					.Font(Font)
+				]
+				+SHorizontalBox::Slot()
+				.FillWidth(2.0f)
+				[
+					SNew(STextBlock)
+					.Text(this, &SGitSourceControlSettings::GetPathToRepositoryRoot)
+					.Font(Font)
+				]
+			]
+			// User Name
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(2.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SHorizontalBox)
+				.ToolTipText(LOCTEXT("GitUserName_Tooltip", "User name configured for the Git repository"))
+				+SHorizontalBox::Slot()
+				.FillWidth(1.0f)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("GitUserName", "User Name"))
+					.Font(Font)
+				]
+				+SHorizontalBox::Slot()
+				.FillWidth(2.0f)
+				[
+					SNew(STextBlock)
+					.Text(this, &SGitSourceControlSettings::GetUserName)
+					.Font(Font)
+				]
+			]
+			// User e-mail
+			+SVerticalBox::Slot()
+			.FillHeight(1.0f)
+			.Padding(2.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SHorizontalBox)
+				.ToolTipText(LOCTEXT("GitUserEmail_Tooltip", "User e-mail configured for the Git repository"))
+				+SHorizontalBox::Slot()
+				.FillWidth(1.0f)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("GitUserEmail", "E-Mail"))
+					.Font(Font)
+				]
+				+SHorizontalBox::Slot()
+				.FillWidth(2.0f)
+				[
+					SNew(STextBlock)
+					.Text(this, &SGitSourceControlSettings::GetUserEmail)
+					.Font(Font)
+				]
+			]
+			// Separator
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(2.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SSeparator)
+			]
+			// Explanation text
+			+SVerticalBox::Slot()
+			.FillHeight(1.0f)
+			.Padding(2.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SHorizontalBox)
+				.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
+				+SHorizontalBox::Slot()
+				.FillWidth(1.0f)
+				.HAlign(HAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("RepositoryNotFound", "Current Project is not contained in a Git Repository. Fill the form below to initialize a new Repository."))
+					.ToolTipText(LOCTEXT("RepositoryNotFound_Tooltip", "No Repository found at the level or above the current Project"))
+					.Font(Font)
+				]
+			]
+			// Option to configure the URL of the default remote 'origin'
+			// TODO: option to configure the name of the remote instead of the default origin
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(2.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SHorizontalBox)
+				.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
+				.ToolTipText(LOCTEXT("ConfigureOrigin_Tooltip", "Configure the URL of the default remote 'origin'"))
+				+SHorizontalBox::Slot()
+				.FillWidth(1.0f)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("ConfigureOrigin", "URL of the remote server 'origin'"))
+					.Font(Font)
+				]
+				+SHorizontalBox::Slot()
+				.FillWidth(2.0f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(SEditableTextBox)
+					.Text(this, &SGitSourceControlSettings::GetRemoteUrl)
+					.OnTextCommitted(this, &SGitSourceControlSettings::OnRemoteUrlCommited)
+					.Font(Font)
+				]
+			]
+			// Option to add a proper .gitignore file (true by default)
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(2.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SHorizontalBox)
+				.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
+				.ToolTipText(LOCTEXT("CreateGitIgnore_Tooltip", "Create and add a standard '.gitignore' file"))
+				+SHorizontalBox::Slot()
+				.FillWidth(0.1f)
+				[
+					SNew(SCheckBox)
+					.IsChecked(ECheckBoxState::Checked)
+					.OnCheckStateChanged(this, &SGitSourceControlSettings::OnCheckedCreateGitIgnore)
+				]
+				+SHorizontalBox::Slot()
+				.FillWidth(2.9f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("CreateGitIgnore", "Add a .gitignore file"))
+					.Font(Font)
+				]
+			]
+			// Option to add a README.md file with custom content
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(2.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SHorizontalBox)
+				.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
+				.ToolTipText(LOCTEXT("CreateReadme_Tooltip", "Add a README.md file"))
+				+SHorizontalBox::Slot()
+				.FillWidth(0.1f)
+				[
+					SNew(SCheckBox)
+					.IsChecked(ECheckBoxState::Checked)
+					.OnCheckStateChanged(this, &SGitSourceControlSettings::OnCheckedCreateReadme)
+				]
+				+SHorizontalBox::Slot()
+				.FillWidth(0.9f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("CreateReadme", "Add a basic README.md file"))
+					.Font(Font)
+				]
+				+SHorizontalBox::Slot()
+				.FillWidth(2.0f)
+				.Padding(2.0f)
+				[
+					SNew(SMultiLineEditableTextBox)
+					.Text(this, &SGitSourceControlSettings::GetReadmeContent)
+					.OnTextCommitted(this, &SGitSourceControlSettings::OnReadmeContentCommited)
+					.IsEnabled(this, &SGitSourceControlSettings::GetAutoCreateReadme)
+					.SelectAllTextWhenFocused(true)
+					.Font(Font)
+				]
+			]
+			// Option to add a proper .gitattributes file for Git LFS (false by default)
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(2.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SHorizontalBox)
+				.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
+				.ToolTipText(LOCTEXT("CreateGitAttributes_Tooltip", "Create and add a '.gitattributes' file to enable Git LFS for the whole 'Content/' directory (needs Git LFS extensions to be installed)."))
+				+SHorizontalBox::Slot()
+				.FillWidth(0.1f)
+				[
+					SNew(SCheckBox)
+					.IsChecked(ECheckBoxState::Unchecked)
+					.OnCheckStateChanged(this, &SGitSourceControlSettings::OnCheckedCreateGitAttributes)
+					.IsEnabled(this, &SGitSourceControlSettings::CanInitializeGitLfs)
+				]
+				+SHorizontalBox::Slot()
+				.FillWidth(2.9f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("CreateGitAttributes", "Add a .gitattributes file to enable Git LFS"))
+					.Font(Font)
+				]
+			]
+			// Option to use the Git LFS File Locking workflow (false by default)
+			// Enabled even after init to switch it off in case of no network
+			// TODO LFS turning it off afterwards does not work because all files are readonly !
+			+SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(2.0f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(SHorizontalBox)
+					.ToolTipText(LOCTEXT("UseGitLfsLocking_Tooltip", "Uses Git LFS 2 File Locking workflow (CheckOut and Commit/Push)."))
+				+ SHorizontalBox::Slot()
+				.FillWidth(0.1f)
+				[
+					SNew(SCheckBox)
+					.IsChecked(SGitSourceControlSettings::IsUsingGitLfsLocking())
+				.OnCheckStateChanged(this, &SGitSourceControlSettings::OnCheckedUseGitLfsLocking)
+				.IsEnabled(this, &SGitSourceControlSettings::CanUseGitLfsLocking)
+				]
+			+ SHorizontalBox::Slot()
+				.FillWidth(0.9f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("UseGitLfsLocking", "Uses Git LFS 2 File Locking workflow"))
+				.Font(Font)
+				]
+			// Username credential used to access the Git LFS 2 File Locks server
+			+ SHorizontalBox::Slot()
+				.FillWidth(2.0f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(SEditableTextBox)
+					.Text(this, &SGitSourceControlSettings::GetLfsUserName)
+				.OnTextCommitted(this, &SGitSourceControlSettings::OnLfsUserNameCommited)
+				.IsEnabled(this, &SGitSourceControlSettings::GetIsUsingGitLfsLocking)
+				.HintText(LOCTEXT("LfsUserName_Hint", "Username to lock files on the LFS server"))
+				.Font(Font)
+				]
+				]
+			// Option to Make the initial Git commit with custom message
+			+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(2.0f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(SHorizontalBox)
+					.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
+				.ToolTipText(LOCTEXT("InitialGitCommit_Tooltip", "Make the initial Git commit"))
+				+ SHorizontalBox::Slot()
+				.FillWidth(0.1f)
+				[
+					SNew(SCheckBox)
+					.IsChecked(ECheckBoxState::Checked)
+				.OnCheckStateChanged(this, &SGitSourceControlSettings::OnCheckedInitialCommit)
+				]
+			+ SHorizontalBox::Slot()
+				.FillWidth(0.9f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("InitialGitCommit", "Make the initial Git commit"))
+				.Font(Font)
+				]
+			+ SHorizontalBox::Slot()
+				.FillWidth(2.0f)
+				.Padding(2.0f)
+				[
+					SNew(SMultiLineEditableTextBox)
+					.Text(this, &SGitSourceControlSettings::GetInitialCommitMessage)
+				.OnTextCommitted(this, &SGitSourceControlSettings::OnInitialCommitMessageCommited)
+				.IsEnabled(this, &SGitSourceControlSettings::GetAutoInitialCommit)
+				.SelectAllTextWhenFocused(true)
+				.Font(Font)
+				]
+				]
+			// Button to initialize the project with Git, create .gitignore/.gitattributes files, and make the first commit)
+			+ SVerticalBox::Slot()
+				.FillHeight(2.5f)
+				.Padding(4.0f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(SHorizontalBox)
+					.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
+				+ SHorizontalBox::Slot()
+				.FillWidth(1.0f)
+				[
+					SNew(SButton)
+					.Text(LOCTEXT("GitInitRepository", "Initialize project with Git"))
+				.ToolTipText(LOCTEXT("GitInitRepository_Tooltip", "Initialize current project as a new Git repository"))
+				.OnClicked(this, &SGitSourceControlSettings::OnClickedInitializeGitRepository)
+				.IsEnabled(this, &SGitSourceControlSettings::CanInitializeGitRepository)
+				.HAlign(HAlign_Center)
+				.ContentPadding(6)
+				]
+				]
+		]
+	];
+}
+#else
+void SGitSourceControlSettings::ConstructBasedOnEngineVersion( )
+{
+	const FText FileFilterType = NSLOCTEXT("GitSourceControl", "Executables", "Executables");
+#if PLATFORM_WINDOWS
+	const FString FileFilterText = FString::Printf(TEXT("%s (*.exe)|*.exe"), *FileFilterType.ToString());
+#else
+	const FString FileFilterText = FString::Printf(TEXT("%s"), *FileFilterType.ToString());
+#endif
+
+	using Self = std::remove_pointer_t<decltype(this)>;
+
+	#define ROW_LEFT( PADDING_HEIGHT ) +SHorizontalBox::Slot() \
+			.VAlign(VAlign_Center) \
+			.HAlign(HAlign_Right) \
+			.FillWidth(1.0f) \
+			.Padding(FMargin(0.0f, 0.0f, 16.0f, PADDING_HEIGHT))
+
+	#define ROW_RIGHT( PADDING_HEIGHT ) +SHorizontalBox::Slot() \
+			.VAlign(VAlign_Center) \
+			.FillWidth(2.0f) \
+			.Padding(FMargin(0.0f, 0.0f, 0.0f, PADDING_HEIGHT))
+
+	#define TT_GitPath LOCTEXT("BinaryPathLabel_Tooltip", "Path to Git binary")
+	#define TT_RepoRoot LOCTEXT("RepositoryRootLabel_Tooltip", "Path to the root of the Git repository")
+	#define TT_UserName LOCTEXT("UserNameLabel_Tooltip", "Git Username fetched from local config")
+	#define TT_Email LOCTEXT("GitUserEmail_Tooltip", "Git E-mail fetched from local config")
+	#define TT_LFS LOCTEXT("UseGitLfsLocking_Tooltip", "Uses Git LFS 2 File Locking workflow (CheckOut and Commit/Push).")
 
 	ChildSlot
 	[
 		SNew(SVerticalBox)
-		// Path to the Git command line executable
+		// Git Path
 		+SVerticalBox::Slot()
 		.AutoHeight()
-		.Padding(2.0f)
-		.VAlign(VAlign_Center)
 		[
 			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.FillWidth(1.0f)
+			ROW_LEFT( 10.0f )
 			[
 				SNew(STextBlock)
 				.Text(LOCTEXT("BinaryPathLabel", "Git Path"))
-				.ToolTipText(LOCTEXT("BinaryPathLabel_Tooltip", "Path to Git binary"))
+				.ToolTipText( TT_GitPath )
 			]
-			+SHorizontalBox::Slot()
-			.FillWidth(2.0f)
+			ROW_RIGHT( 10.0f )
 			[
 				SNew(SFilePathPicker)
 				.BrowseButtonImage(FEditorStyle::GetBrush("PropertyWindow.Button_Ellipsis"))
 				.BrowseButtonStyle(FEditorStyle::Get(), "HoverHintOnly")
-				.BrowseButtonToolTip(LOCTEXT("BinaryPathLabel_Tooltip", "Path to Git binary"))
 				.BrowseDirectory(FEditorDirectories::Get().GetLastDirectory(ELastDirectory::GENERIC_OPEN))
 				.BrowseTitle(LOCTEXT("BinaryPathBrowseTitle", "File picker..."))
-				.FilePath(this, &SGitSourceControlSettings::GetBinaryPathString)
+				.FilePath(this, &Self::GetBinaryPathString)
 				.FileTypeFilter(FileFilterText)
-				.OnPathPicked(this, &SGitSourceControlSettings::OnBinaryPathPicked)
+				.OnPathPicked(this, &Self::OnBinaryPathPicked)
 			]
 		]
-		// Root of the local repository
+		// Repository Root
 		+SVerticalBox::Slot()
-		.FillHeight(1.0f)
-		.Padding(2.0f)
-		.VAlign(VAlign_Center)
 		[
 			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.FillWidth(1.0f)
+			ROW_LEFT( 10.0f )
 			[
 				SNew(STextBlock)
 				.Text(LOCTEXT("RepositoryRootLabel", "Root of the repository"))
-				.ToolTipText(LOCTEXT("RepositoryRootLabel_Tooltip", "Path to the root of the Git repository"))
+				.ToolTipText( TT_RepoRoot )
 			]
-			+SHorizontalBox::Slot()
-			.FillWidth(2.0f)
+			ROW_RIGHT( 10.0f )
 			[
 				SNew(STextBlock)
-				.Text(this, &SGitSourceControlSettings::GetPathToRepositoryRoot)
-				.ToolTipText(LOCTEXT("RepositoryRootLabel_Tooltip", "Path to the root of the Git repository"))
+				.Text(this, &Self::GetPathToRepositoryRoot)
+				.ToolTipText( TT_RepoRoot )
 			]
 		]
 		// User Name
 		+SVerticalBox::Slot()
-		.FillHeight(1.0f)
-		.Padding(2.0f)
-		.VAlign(VAlign_Center)
 		[
 			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.FillWidth(1.0f)
+			ROW_LEFT( 10.0f )
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("GitUserName", "User Name"))
-				.ToolTipText(LOCTEXT("GitUserName_Tooltip", "User name configured for the Git repository"))
+				.Text(LOCTEXT("UserNameLabel", "User Name"))
+				.ToolTipText( TT_UserName )
 			]
-			+SHorizontalBox::Slot()
-			.FillWidth(2.0f)
+			ROW_RIGHT( 10.0f )
 			[
 				SNew(STextBlock)
-				.Text(this, &SGitSourceControlSettings::GetUserName)
-				.ToolTipText(LOCTEXT("GitUserName_Tooltip", "User name configured for the Git repository"))
+				.Text(this, &Self::GetUserName)
+				.ToolTipText( TT_UserName )
 			]
 		]
-		// User e-mail
+		// Email
 		+SVerticalBox::Slot()
-		.FillHeight(1.0f)
-		.Padding(2.0f)
-		.VAlign(VAlign_Center)
 		[
 			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.FillWidth(1.0f)
+			ROW_LEFT( 10.0f )
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("GitUserEmail", "E-Mail"))
-				.ToolTipText(LOCTEXT("GitUserEmail_Tooltip", "User e-mail configured for the Git repository"))
+				.Text(LOCTEXT("EmailLabel", "E-mail"))
+				.ToolTipText( TT_Email )
 			]
-			+SHorizontalBox::Slot()
-			.FillWidth(2.0f)
+			ROW_RIGHT( 10.0f )
 			[
 				SNew(STextBlock)
-				.Text(this, &SGitSourceControlSettings::GetUserEmail)
-				.ToolTipText(LOCTEXT("GitUserEmail_Tooltip", "User e-mail configured for the Git repository"))
+				.Text(this, &Self::GetUserEmail )
+				.ToolTipText( TT_Email )
 			]
 		]
-		// Separator
+		// LFS Config
 		+SVerticalBox::Slot()
 		.AutoHeight()
-		.Padding(2.0f)
-		.VAlign(VAlign_Center)
-		[
-			SNew(SSeparator)
-		]
-		// Explanation text
-		+SVerticalBox::Slot()
-		.FillHeight(1.0f)
-		.Padding(2.0f)
-		.VAlign(VAlign_Center)
 		[
 			SNew(SHorizontalBox)
-			.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
-			+SHorizontalBox::Slot()
-			.FillWidth(1.0f)
+			ROW_LEFT( 10.0f )
 			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("RepositoryNotFound", "Current Project is not contained in a Git Repository. Fill the form below to initialize a new Repository."))
-				.WrapTextAt(450.0f)
-				.ToolTipText(LOCTEXT("RepositoryNotFound_Tooltip", "No Repository found at the level or above the current Project"))
+				SNew(SCheckBox)
+				.IsChecked(Self::IsUsingGitLfsLocking())
+				.OnCheckStateChanged(this, &Self::OnCheckedUseGitLfsLocking)
+				.IsEnabled(this, &Self::CanUseGitLfsLocking)
+				.Content()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("UseGitLfsLocking", "Uses Git LFS"))
+					.ToolTipText( TT_LFS )
+				]
 			]
-		]
-		// Option to configure the URL of the default remote 'origin'
-		// TODO: option to configure the name of the remote instead of the default origin
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(2.0f)
-		.VAlign(VAlign_Center)
-		[
-			SNew(SHorizontalBox)
-			.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
-			.ToolTipText(LOCTEXT("ConfigureOrigin_Tooltip", "Configure the URL of the default remote 'origin'"))
-			+SHorizontalBox::Slot()
-			.FillWidth(1.0f)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("ConfigureOrigin", "URL of the remote server 'origin'"))
-			]
-			+SHorizontalBox::Slot()
-			.FillWidth(2.0f)
-			.VAlign(VAlign_Center)
+			ROW_RIGHT( 10.0f )
 			[
 				SNew(SEditableTextBox)
-				.Text(this, &SGitSourceControlSettings::GetRemoteUrl)
-				.OnTextCommitted(this, &SGitSourceControlSettings::OnRemoteUrlCommited)
-			]
-		]
-		// Option to add a proper .gitignore file (true by default)
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(2.0f)
-		.VAlign(VAlign_Center)
-		[
-			SNew(SHorizontalBox)
-			.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
-			
-			+SHorizontalBox::Slot()
-			.FillWidth(0.1f)
-			[
-				SNew(SCheckBox)
-				.ForegroundColor(FSlateColor::UseForeground())
-				.ToolTipText(LOCTEXT("CreateGitIgnore_Tooltip", "Create and add a standard '.gitignore' file"))
-				.IsChecked(ECheckBoxState::Checked)
-				.OnCheckStateChanged(this, &SGitSourceControlSettings::OnCheckedCreateGitIgnore)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("CreateGitIgnore", "Add a .gitignore file"))
-					.ToolTipText(LOCTEXT("CreateGitIgnore_Tooltip", "Create and add a standard '.gitignore' file"))
-				]
-			]
-		]
-		// Option to add a README.md file with custom content
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(2.0f)
-		.VAlign(VAlign_Center)
-		[
-			SNew(SHorizontalBox)
-			.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
-			.ToolTipText(LOCTEXT("CreateReadme_Tooltip", "Add a README.md file"))
-			+SHorizontalBox::Slot()
-			[
-				SNew(SCheckBox)
-				.ForegroundColor(FSlateColor::UseForeground())
-				.IsChecked(ECheckBoxState::Checked)
-				.OnCheckStateChanged(this, &SGitSourceControlSettings::OnCheckedCreateReadme)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("CreateReadme", "Add a basic README.md file"))
-				]
-			]
-			+SHorizontalBox::Slot()
-			.Padding(2.0f)
-			[
-				SNew(SMultiLineEditableTextBox)
-				.Text(this, &SGitSourceControlSettings::GetReadmeContent)
-				.OnTextCommitted(this, &SGitSourceControlSettings::OnReadmeContentCommited)
-				.IsEnabled(this, &SGitSourceControlSettings::GetAutoCreateReadme)
-				.SelectAllTextWhenFocused(true)
-			]
-		]
-		// Option to add a proper .gitattributes file for Git LFS (false by default)
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(2.0f)
-		.VAlign(VAlign_Center)
-		[
-			SNew(SHorizontalBox)
-			.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
-			+SHorizontalBox::Slot()
-			[
-				SNew(SCheckBox)
-				.ForegroundColor(FSlateColor::UseForeground())
-				.ToolTipText(LOCTEXT("CreateGitAttributes_Tooltip", "Create and add a '.gitattributes' file to enable Git LFS for the whole 'Content/' directory (needs Git LFS extensions to be installed)."))
-				.IsChecked(ECheckBoxState::Unchecked)
-				.OnCheckStateChanged(this, &SGitSourceControlSettings::OnCheckedCreateGitAttributes)
-				.IsEnabled(this, &SGitSourceControlSettings::CanInitializeGitLfs)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("CreateGitAttributes", "Add a .gitattributes file to enable Git LFS"))
-				]
-			]
-		]
-		// Option to use the Git LFS File Locking workflow (false by default)
-		// Enabled even after init to switch it off in case of no network
-		// TODO LFS turning it off afterwards does not work because all files are readonly !
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(2.0f)
-		.VAlign(VAlign_Center)
-		[
-			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			[
-				SNew(SCheckBox)
-				.ForegroundColor(FSlateColor::UseForeground())
-				.ToolTipText(LOCTEXT("UseGitLfsLocking_Tooltip", "Uses Git LFS 2 File Locking workflow (CheckOut and Commit/Push)."))
-				.IsChecked(SGitSourceControlSettings::IsUsingGitLfsLocking())
-				.OnCheckStateChanged(this, &SGitSourceControlSettings::OnCheckedUseGitLfsLocking)
-				.IsEnabled(this, &SGitSourceControlSettings::CanUseGitLfsLocking)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("UseGitLfsLocking", "Uses Git LFS 2 File Locking workflow"))
-				]
-			]			
-			// Username credential used to access the Git LFS 2 File Locks server
-			+SHorizontalBox::Slot()
-			[
-				SNew(SEditableTextBox)
-				.Text(this, &SGitSourceControlSettings::GetLfsUserName)
-				.OnTextCommitted(this, &SGitSourceControlSettings::OnLfsUserNameCommited)
-				.IsEnabled(this, &SGitSourceControlSettings::GetIsUsingGitLfsLocking)
+				.Text(this, &Self::GetLfsUserName)
+				.OnTextCommitted(this, &Self::OnLfsUserNameCommited)
+				.IsEnabled(this, &Self::GetIsUsingGitLfsLocking)
 				.HintText(LOCTEXT("LfsUserName_Hint", "Username to lock files on the LFS server"))
 			]
 		]
-		// Option to Make the initial Git commit with custom message
+		// [Optional] Initial Git Commit
 		+SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(2.0f)
 		.VAlign(VAlign_Center)
 		[
 			SNew(SHorizontalBox)
+			.ToolTipText(LOCTEXT("InitialGitCommit_Tooltip", "Make the initial Git commit"))
 			.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
-			+SHorizontalBox::Slot()
+			+ SHorizontalBox::Slot()
+			.FillWidth(0.1f)
 			[
 				SNew(SCheckBox)
-				.ForegroundColor(FSlateColor::UseForeground())
-				.ToolTipText(LOCTEXT("InitialGitCommit_Tooltip", "Make the initial Git commit"))
 				.IsChecked(ECheckBoxState::Checked)
 				.OnCheckStateChanged(this, &SGitSourceControlSettings::OnCheckedInitialCommit)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("InitialGitCommit", "Make the initial Git commit"))
-				]
-			]			
-			+SHorizontalBox::Slot()
+			]
+			+ SHorizontalBox::Slot()
+			.FillWidth(0.9f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("InitialGitCommit", "Make the initial Git commit"))
+			]
+			+ SHorizontalBox::Slot()
+			.FillWidth(2.0f)
 			.Padding(2.0f)
 			[
 				SNew(SMultiLineEditableTextBox)
 				.Text(this, &SGitSourceControlSettings::GetInitialCommitMessage)
-				.ToolTipText(LOCTEXT("InitialCommitMessage_Tooltip", "Message of initial commit"))
 				.OnTextCommitted(this, &SGitSourceControlSettings::OnInitialCommitMessageCommited)
 				.IsEnabled(this, &SGitSourceControlSettings::GetAutoInitialCommit)
 				.SelectAllTextWhenFocused(true)
 			]
 		]
-		// Button to initialize the project with Git, create .gitignore/.gitattributes files, and make the first commit)
+		// [Optional] Initialize Project with Git
 		+SVerticalBox::Slot()
 		.FillHeight(2.5f)
 		.Padding(4.0f)
@@ -341,7 +573,7 @@ void SGitSourceControlSettings::Construct(const FArguments& InArgs)
 		[
 			SNew(SHorizontalBox)
 			.Visibility(this, &SGitSourceControlSettings::MustInitializeGitRepository)
-			+SHorizontalBox::Slot()
+			+ SHorizontalBox::Slot()
 			.FillWidth(1.0f)
 			[
 				SNew(SButton)
@@ -354,7 +586,10 @@ void SGitSourceControlSettings::Construct(const FArguments& InArgs)
 			]
 		]
 	];
+
+	// TODO [RW] The UE5 GUI for the two optional initial git support functionalities has not been tested
 }
+#endif
 
 SGitSourceControlSettings::~SGitSourceControlSettings()
 {

@@ -9,8 +9,11 @@
 #include "Modules/ModuleManager.h"
 #include "Features/IModularFeatures.h"
 
-#include "ContentBrowser/Public/ContentBrowserModule.h"
 #include "GitSourceControlOperations.h"
+
+#if ENGINE_MAJOR_VERSION >= 5
+#include "ContentBrowser/Public/ContentBrowserModule.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
 

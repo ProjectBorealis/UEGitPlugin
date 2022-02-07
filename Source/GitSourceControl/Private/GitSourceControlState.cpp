@@ -4,7 +4,10 @@
 // or copy at http://opensource.org/licenses/MIT)
 
 #include "GitSourceControlState.h"
+
+#if ENGINE_MAJOR_VERSION >= 5
 #include "Styling/AppStyle.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "GitSourceControl.State"
 
@@ -59,33 +62,75 @@ TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlS
 	return nullptr;
 }
 
+// @todo add Slate icons for git specific states (NotAtHead vs Conflicted...)
+
+#if ENGINE_MAJOR_VERSION < 5
+#define GET_ICON_RETURN( NAME ) FName( NAME )
+FName FGitSourceControlState::GetIconName() const
+{
+#else
+#define GET_ICON_RETURN( NAME ) FSlateIcon(FAppStyle::GetAppStyleSetName(), NAME )
 FSlateIcon FGitSourceControlState::GetIcon() const
 {
+#endif
 	switch (GetGitState())
 	{
 	case EGitState::NotAtHead:
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), "Perforce.NotAtHeadRevision");
+		return GET_ICON_RETURN("Perforce.NotAtHeadRevision");
 	case EGitState::LockedOther:
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), "Perforce.CheckedOutByOtherUser");
+		return GET_ICON_RETURN("Perforce.CheckedOutByOtherUser");
 	case EGitState::NotLatest:
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), "Perforce.ModifiedOtherBranch");
+		return GET_ICON_RETURN("Perforce.ModifiedOtherBranch");
 	case EGitState::Unmerged:
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), "Perforce.Branched");
+		return GET_ICON_RETURN("Perforce.Branched");
 	case EGitState::Added:
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), "Perforce.OpenForAdd");
+		return GET_ICON_RETURN("Perforce.OpenForAdd");
 	case EGitState::Untracked:
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), "Perforce.NotInDepot");
+		return GET_ICON_RETURN("Perforce.NotInDepot");
 	case EGitState::Deleted:
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), "Perforce.MarkedForDelete");
+		return GET_ICON_RETURN("Perforce.MarkedForDelete");
 	case EGitState::Modified:
 	case EGitState::CheckedOut:
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), "Perforce.CheckedOut");
+		return GET_ICON_RETURN("Perforce.CheckedOut");
 	case EGitState::Ignored:
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), "Perforce.NotInDepot");
+		return GET_ICON_RETURN("Perforce.NotInDepot");
 	default:
-		return FSlateIcon();
+#if ENGINE_MAJOR_VERSION < 5
+	  return NAME_None;
+#else
+	  return {};
+#endif
 	}
 }
+
+#if ENGINE_MAJOR_VERSION < 5
+FName FGitSourceControlState::GetSmallIconName() const
+{
+	switch (GetGitState()) {
+	case EGitState::NotAtHead:
+	  return FName("Perforce.NotAtHeadRevision_Small");
+	case EGitState::LockedOther:
+	  return FName("Perforce.CheckedOutByOtherUser_Small");
+	case EGitState::NotLatest:
+	  return FName("Perforce.ModifiedOtherBranch_Small");
+	case EGitState::Unmerged:
+	  return FName("Perforce.Branched_Small");
+	case EGitState::Added:
+	  return FName("Perforce.OpenForAdd_Small");
+	case EGitState::Untracked:
+	  return FName("Perforce.NotInDepot_Small");
+	case EGitState::Deleted:
+	  return FName("Perforce.MarkedForDelete_Small");
+	case EGitState::Modified:
+        case EGitState::CheckedOut:
+                return FName("Perforce.CheckedOut_Small");
+	case EGitState::Ignored:
+	  return FName("Perforce.NotInDepot_Small");
+	default:
+	  return NAME_None;
+	}
+}
+#endif
 
 FText FGitSourceControlState::GetDisplayName() const
 {
