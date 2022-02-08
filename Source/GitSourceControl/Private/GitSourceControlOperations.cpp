@@ -17,6 +17,9 @@
 #include "Logging/MessageLog.h"
 #include "Misc/MessageDialog.h"
 
+#include <chrono>
+#include <thread>
+
 #define LOCTEXT_NAMESPACE "GitSourceControl"
 
 FName FGitConnectWorker::GetName() const
@@ -525,7 +528,20 @@ bool FGitRevertWorker::Execute(FGitSourceControlCommand& InCommand)
 		if (OtherThanAddedExistingFiles.Num() > 0)
 		{
 			// revert any changes in working copy (this would fails if the asset was in "Added" state, since after "reset" it is now "untracked")
-			InCommand.bCommandSuccessful &= GitSourceControlUtils::RunCommand(TEXT("checkout"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), OtherThanAddedExistingFiles, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
+			// may need to try a few times due to file locks from prior operations
+			bool CheckoutSuccess = false;
+			for (int32 i = 0; i < 10; ++i)
+			{
+				CheckoutSuccess = GitSourceControlUtils::RunCommand(TEXT("checkout"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), OtherThanAddedExistingFiles, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
+				if (CheckoutSuccess)
+				{
+					break;
+				}
+
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			}
+			
+			InCommand.bCommandSuccessful &= CheckoutSuccess;
 		}
 	}
 
