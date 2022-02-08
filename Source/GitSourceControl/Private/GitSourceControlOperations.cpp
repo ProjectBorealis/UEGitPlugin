@@ -16,6 +16,7 @@
 #include "SourceControlHelpers.h"
 #include "Logging/MessageLog.h"
 #include "Misc/MessageDialog.h"
+#include "HAL/PlatformProcess.h"
 
 #include <chrono>
 #include <thread>
@@ -530,7 +531,8 @@ bool FGitRevertWorker::Execute(FGitSourceControlCommand& InCommand)
 			// revert any changes in working copy (this would fails if the asset was in "Added" state, since after "reset" it is now "untracked")
 			// may need to try a few times due to file locks from prior operations
 			bool CheckoutSuccess = false;
-			for (int32 i = 0; i < 10; ++i)
+			int32 Attempts = 0;
+			while( --Attempts >= 0 )
 			{
 				CheckoutSuccess = GitSourceControlUtils::RunCommand(TEXT("checkout"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), OtherThanAddedExistingFiles, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 				if (CheckoutSuccess)
@@ -538,7 +540,7 @@ bool FGitRevertWorker::Execute(FGitSourceControlCommand& InCommand)
 					break;
 				}
 
-				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				FPlatformProcess::Sleep(0.1f);
 			}
 			
 			InCommand.bCommandSuccessful &= CheckoutSuccess;
