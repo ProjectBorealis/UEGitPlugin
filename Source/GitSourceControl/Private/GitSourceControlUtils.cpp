@@ -1228,7 +1228,7 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 		{
 			bDiffAgainstRemoteCurrent = true;
 			// without origin
-			BranchesToDiff.Add(RemoteBranch.RightChop(7));
+			BranchesToDiff.Add(RemoteBranch.RightChop(6));
 		}
 	}
 
