@@ -9,6 +9,8 @@
 #include "GitSourceControlModule.h"
 #include "GitSourceControlPrivatePCH.h"
 #include "GitSourceControlProvider.h"
+#include "HAL/PlatformProcess.h"
+#include "HAL/PlatformFileManager.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFilemanager.h"
 #include "HAL/PlatformProcess.h"
@@ -149,7 +151,6 @@ static bool RunCommandInternalRaw(const FString& InCommand, const FString& InPat
 #endif
 
 	FPlatformProcess::ExecProcess(*PathToGitOrEnvBinary, *FullCommand, &ReturnCode, &OutResults, &OutErrors);
-
 
 #if UE_BUILD_DEBUG
 	// TODO: add a setting to easily enable Verbose logging
@@ -2104,9 +2105,7 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 
 	// Get the list of files which will be updated (either ones we changed locally, which will get potentially rebased or merged, or the remote ones that will update)
 	TArray<FString> DifferentFiles;
-	TArray<FString> Parameters {TEXT("--name-only"), RemoteBranch};
-	const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InPathToRepositoryRoot, Parameters, FGitSourceControlModule::GetEmptyStringArray(),
-										DifferentFiles, OutErrorMessages);
+	const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InPathToRepositoryRoot, { TEXT("--name-only"), RemoteBranch }, FGitSourceControlModule::GetEmptyStringArray(), DifferentFiles, OutErrorMessages);
 	if (!bResultDiff)
 	{
 		return false;
@@ -2157,11 +2156,7 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 
 	// Reset HEAD and index to remote
 	TArray<FString> InfoMessages;
-	Parameters.Reset(2);
-	Parameters.Append({
-		"--rebase", "--autostash"
-	});
-	bool bSuccess = RunCommand(TEXT("pull"), InPathToGitBinary, InPathToRepositoryRoot, Parameters, FGitSourceControlModule::GetEmptyStringArray(),
+	bool bSuccess = RunCommand(TEXT("pull"), InPathToGitBinary, InPathToRepositoryRoot, { "--rebase", "--autostash" }, FGitSourceControlModule::GetEmptyStringArray(),
 										  InfoMessages, OutErrorMessages);
 
 	if (bShouldReload)

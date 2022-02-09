@@ -275,6 +275,13 @@ ECommandResult::Type FGitSourceControlProvider::GetState( const TArray<FString>&
 	return ECommandResult::Succeeded;
 }
 
+#if ENGINE_MAJOR_VERSION >= 5
+ECommandResult::Type FGitSourceControlProvider::GetState(const TArray<FSourceControlChangelistRef>& InChangelists, TArray<FSourceControlChangelistStateRef>& OutState, EStateCacheUsage::Type InStateCacheUsage)
+{
+    return ECommandResult::Failed;
+}
+#endif
+
 TArray<FSourceControlStateRef> FGitSourceControlProvider::GetCachedStateByPredicate(TFunctionRef<bool(const FSourceControlStateRef&)> Predicate) const
 {
 	TArray<FSourceControlStateRef> Result;
@@ -325,7 +332,11 @@ void FGitSourceControlProvider::UnregisterSourceControlStateChanged_Handle( FDel
 	OnSourceControlStateChanged.Remove( Handle );
 }
 
+#if ENGINE_MAJOR_VERSION < 5
 ECommandResult::Type FGitSourceControlProvider::Execute( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation, const TArray<FString>& InFiles, EConcurrency::Type InConcurrency, const FSourceControlOperationComplete& InOperationCompleteDelegate )
+#else
+ECommandResult::Type FGitSourceControlProvider::Execute( const FSourceControlOperationRef& InOperation, FSourceControlChangelistPtr InChangelist, const TArray<FString>& InFiles, EConcurrency::Type InConcurrency, const FSourceControlOperationComplete& InOperationCompleteDelegate )
+#endif
 {
 	if(!IsEnabled() && !(InOperation->GetName() == "Connect")) // Only Connect operation allowed while not Enabled (Repository found)
 	{
@@ -377,7 +388,11 @@ ECommandResult::Type FGitSourceControlProvider::Execute( const TSharedRef<ISourc
 	}
 }
 
+#if ENGINE_MAJOR_VERSION < 5
 bool FGitSourceControlProvider::CanCancelOperation( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation ) const
+#else
+bool FGitSourceControlProvider::CanCancelOperation( const FSourceControlOperationRef& InOperation ) const
+#endif
 {
 	// TODO: maybe support cancellation again?
 #if 0
@@ -396,7 +411,11 @@ bool FGitSourceControlProvider::CanCancelOperation( const TSharedRef<ISourceCont
 	return false;
 }
 
+#if ENGINE_MAJOR_VERSION < 5
 void FGitSourceControlProvider::CancelOperation( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation )
+#else
+void FGitSourceControlProvider::CancelOperation( const FSourceControlOperationRef& InOperation )
+#endif
 {
 	for (int32 CommandIndex = 0; CommandIndex < CommandQueue.Num(); ++CommandIndex)
 	{
@@ -467,8 +486,16 @@ void FGitSourceControlProvider::UpdateRepositoryStatus(const class FGitSourceCon
 }
 
 void FGitSourceControlProvider::Tick()
-{	
+{
+#if ENGINE_MAJOR_VERSION < 5
 	bool bStatesUpdated = false;
+#else
+	bool bStatesUpdated = TicksUntilNextForcedUpdate == 1;
+	if( TicksUntilNextForcedUpdate > 0 )
+	{
+		--TicksUntilNextForcedUpdate;
+	}
+#endif
 
 	for (int32 CommandIndex = 0; CommandIndex < CommandQueue.Num(); ++CommandIndex)
 	{
@@ -534,6 +561,13 @@ TArray< TSharedRef<ISourceControlLabel> > FGitSourceControlProvider::GetLabels( 
 	// Reserved for internal use by Epic Games with Perforce only
 	return Tags;
 }
+
+#if ENGINE_MAJOR_VERSION >= 5
+TArray<FSourceControlChangelistRef> FGitSourceControlProvider::GetChangelists( EStateCacheUsage::Type InStateCacheUsage )
+{
+    return TArray<FSourceControlChangelistRef>();
+}
+#endif
 
 #if SOURCE_CONTROL_WITH_SLATE
 TSharedRef<class SWidget> FGitSourceControlProvider::MakeSettingsWidget() const

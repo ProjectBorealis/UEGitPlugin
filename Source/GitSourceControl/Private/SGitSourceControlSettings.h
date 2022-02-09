@@ -31,6 +31,7 @@ public:
 	~SGitSourceControlSettings();
 
 private:
+	void ConstructBasedOnEngineVersion( );
 
 	/** Delegates to get Git binary path from/to settings */
 	FString GetBinaryPathString() const;
