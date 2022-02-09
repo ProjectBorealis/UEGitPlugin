@@ -531,8 +531,8 @@ bool FGitRevertWorker::Execute(FGitSourceControlCommand& InCommand)
 			// revert any changes in working copy (this would fails if the asset was in "Added" state, since after "reset" it is now "untracked")
 			// may need to try a few times due to file locks from prior operations
 			bool CheckoutSuccess = false;
-			int32 Attempts = 0;
-			while( --Attempts >= 0 )
+			int32 Attempts = 10;
+			while( Attempts-- > 0 )
 			{
 				CheckoutSuccess = GitSourceControlUtils::RunCommand(TEXT("checkout"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), OtherThanAddedExistingFiles, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 				if (CheckoutSuccess)
