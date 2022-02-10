@@ -1242,25 +1242,12 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 	TMap<FString, FString> NewerFiles;
 
 	const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
-	TArray<FString> FilesToDiff;
-	for (const auto& RelativeFile : RelativeFiles)
-	{
-		const FString& File = FPaths::ConvertRelativePathToFull(InRepositoryRoot, RelativeFile);
-		// Don't add a file if it is not source controlled
-		// It's ok if the state is not found. In that case, it's a folder.
-		if (const FGitSourceControlState* FileState = OutStates.Find(File))
-		{
-			if (!FileState->IsSourceControlled())
-			{
-				continue;
-			}
-		}
-		FilesToDiff.Add(RelativeFile);
-	}
-	// TODO: Make PBSync optional? (already silently ignored by git, but might be nice to skip the check?)
-	FilesToDiff.Add(TEXT(".checksum"));
+	// Get the full remote status of the Content folder, since it's the only lockable folder we track in editor. 
+	// This shows any new files as well.
+	// Also update the status of `.checksum`.
+	TArray<FString> FilesToDiff{FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()), ".checksum"};
 
-	TArray<FString> ParametersDiff {TEXT("--name-only"), TEXT(""), TEXT("--")};
+	TArray<FString> ParametersLog{TEXT("--pretty="), TEXT("--name-only"), TEXT(""), TEXT("--")};
 	for (auto& Branch : BranchesToDiff)
 	{
 		bool bCurrentBranch;
@@ -1272,9 +1259,12 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 		{
 			bCurrentBranch = false;
 		}
-		ParametersDiff[1] = FString::Printf(TEXT("HEAD...origin/%s"), *Branch);
+		// empty defaults to HEAD
+		// .. means commits in the right that are not in the left
+		// origin for each remote branch
+		ParametersLog[2] = FString::Printf(TEXT("..origin/%s"), *Branch);
 
-		const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, ParametersDiff, FilesToDiff, Results, ErrorMessages);
+		const bool bResultDiff = RunCommand(TEXT("log"), InPathToGitBinary, InRepositoryRoot, ParametersLog, FilesToDiff, Results, ErrorMessages);
 		if (bResultDiff)
 		{
 			for (const FString& NewerFileName : Results)
@@ -1282,7 +1272,6 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 				// Don't care about mergeable files (.collection, .ini, .uproject, etc)
 				if (!IsFileLFSLockable(NewerFileName))
 				{
-					// TODO: Make PBSync optional?
 					// Check if there's newer binaries pending on this branch
 					if (bCurrentBranch && NewerFileName == TEXT(".checksum"))
 					{

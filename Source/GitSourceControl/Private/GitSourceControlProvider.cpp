@@ -702,13 +702,12 @@ int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& StateBranchN
 	// Order matters. Lower values are lower in the hierarchy, i.e., changes from higher branches get automatically merged down.
 	// The higher branch is, the stabler it is, and has changes manually promoted up.
 
-	const int32 CurrentBranchStatusIndex = StatusBranchNames.IndexOfByKey(BranchName);
-	const bool bCurrentBranchInStatusBranches = CurrentBranchStatusIndex != INDEX_NONE;
-
 	// Check if we are checking the index of the current branch
 	// UE uses FEngineVersion for the current branch name because of UEGames setup, but we want to handle otherwise for Git repos.
 	if (StateBranchName == FEngineVersion::Current().GetBranch())
 	{
+		const int32 CurrentBranchStatusIndex = StatusBranchNames.IndexOfByKey(BranchName);
+		const bool bCurrentBranchInStatusBranches = CurrentBranchStatusIndex != INDEX_NONE;
 		// If the user's current branch is tracked as a status branch, give the proper index
 		if (bCurrentBranchInStatusBranches)
 		{

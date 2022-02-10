@@ -265,15 +265,18 @@ bool FGitSourceControlState::IsCheckedOut() const
 
 bool FGitSourceControlState::IsCheckedOutOther(FString* Who) const
 {
-	if (State.LockState == ELockState::LockedOther)
+	if (Who != nullptr)
 	{
-		if (Who != nullptr)
+		// The packages dialog uses our lock user regardless if it was locked by other or us.
+		// But, if there is no lock user, it shows information about modification in other branches, which is important.
+		// So, only show our own lock user if it hasn't been modified in another branch.
+		// This is a very, very rare state (maybe impossible), but one that should be displayed properly.
+		if (State.LockState == ELockState::LockedOther || (State.LockState == ELockState::Locked && !IsModifiedInOtherBranch()))
 		{
 			*Who = State.LockUser;
 		}
-		return true;
 	}
-	return false;
+	return State.LockState == ELockState::LockedOther;
 }
 
 bool FGitSourceControlState::IsCheckedOutInOtherBranch(const FString& CurrentBranch) const
