@@ -1210,27 +1210,26 @@ static void ParseStatusResults(const FString& InPathToGitBinary, const FString& 
 	ParseFileStatusResult(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, Files, InResults, OutStates);
 }
 
-void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& Files,
+void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& Files,
 				 TArray<FString>& OutErrorMessages, TMap<FString, FGitSourceControlState>& OutStates)
 {
-	// Using git diff, we can obtain a list of files that were modified between our current origin and HEAD. Assumes that fetch has been run to get accurate info.
+	// We can obtain a list of files that were modified between our remote branches and HEAD. Assumes that fetch has been run to get accurate info.
 
 	// Gather valid remote branches
 	TArray<FString> ErrorMessages;
 
-	TSet<FString> BranchesToDiff {FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames()};
-	bool bDiffAgainstRemoteCurrent = BranchesToDiff.Contains(CurrentBranchName);
+	TSet<FString> BranchesToDiff{ FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames() };
 
-	// If not already added, we still need to diff current branch
-	if (!bDiffAgainstRemoteCurrent)
+	bool bDiffAgainstRemoteCurrent = false;
+
+	// Get the current branch's remote.
+	FString CurrentBranchName;
+	if (GetRemoteBranchName(InPathToGitBinary, InRepositoryRoot, CurrentBranchName))
 	{
-		FString RemoteBranch;
-		if (GetRemoteBranchName(InPathToGitBinary, InRepositoryRoot, RemoteBranch))
-		{
-			bDiffAgainstRemoteCurrent = true;
-			// without origin
-			BranchesToDiff.Add(RemoteBranch.RightChop(6));
-		}
+		// We have a valid remote, so diff against it.
+		bDiffAgainstRemoteCurrent = true;
+		// Ensure that the remote branch is in there.
+		BranchesToDiff.Add(CurrentBranchName);
 	}
 
 	if (!BranchesToDiff.Num())
@@ -1261,8 +1260,7 @@ void CheckRemote(const FString& CurrentBranchName, const FString& InPathToGitBin
 		}
 		// empty defaults to HEAD
 		// .. means commits in the right that are not in the left
-		// origin for each remote branch
-		ParametersLog[2] = FString::Printf(TEXT("..origin/%s"), *Branch);
+		ParametersLog[2] = FString::Printf(TEXT("..%s"), *Branch);
 
 		const bool bResultDiff = RunCommand(TEXT("log"), InPathToGitBinary, InRepositoryRoot, ParametersLog, FilesToDiff, Results, ErrorMessages);
 		if (bResultDiff)
@@ -1420,10 +1418,6 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 		return false;
 	}
 
-	// Get the current branch name, since we need origin of current branch
-	FString BranchName;
-	GetBranchName(InPathToGitBinary, InRepositoryRoot, BranchName);
-
 	TArray<FString> Parameters;
 	Parameters.Add(TEXT("--porcelain"));
 	Parameters.Add(TEXT("-unormal")); // make sure we use -unormal (user can customize it)
@@ -1442,10 +1436,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 		ParseStatusResults(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, RepoFiles, ResultsMap, OutStates);
 	}
 
-	if (!BranchName.IsEmpty())
-	{
-		CheckRemote(BranchName, InPathToGitBinary, InRepositoryRoot, RepoFiles, OutErrorMessages, OutStates);
-	}
+	CheckRemote(InPathToGitBinary, InRepositoryRoot, RepoFiles, OutErrorMessages, OutStates);
 
 	return bResult;
 }

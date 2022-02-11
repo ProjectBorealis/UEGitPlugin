@@ -12,7 +12,7 @@
 #include "ISourceControlOperation.h"
 
 /**
- * Internal operation used to fetch from remote origin
+ * Internal operation used to fetch from remote
  */
 class FGitFetch : public ISourceControlOperation
 {

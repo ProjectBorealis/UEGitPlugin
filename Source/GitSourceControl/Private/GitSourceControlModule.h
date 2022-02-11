@@ -62,7 +62,6 @@ Use "TODO LFS" in the code to track things left to do/improve/refactor:
 
 ### What *cannot* be done presently
 - Branch/Merge are not in the current Editor workflow
-- Fetch is not in the current Editor workflow
 - Amend a commit is not in the current Editor workflow
 - Configure user name & email ('git config user.name' & git config user.email')
 
@@ -70,10 +69,8 @@ Use "TODO LFS" in the code to track things left to do/improve/refactor:
 - the Editor does not show deleted files (only when deleted externally?)
 - the Editor does not show missing files
 - missing localization for git specific messages
-- displaying states of 'Engine' assets (also needs management of 'out of tree' files)
 - renaming a Blueprint in Editor leaves a redirector file, AND modify too much the asset to enable git to track its history through renaming
 - standard Editor commit dialog asks if user wants to "Keep Files Checked Out" => no use for Git or Mercurial CanCheckOut()==false
-
  */
 class FGitSourceControlModule : public IModuleInterface
 {

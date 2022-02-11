@@ -244,7 +244,7 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 		// If we have unpushed files, push
 		if (bUnpushedFiles)
 		{
-			TArray<FString> PushParameters {TEXT("origin"), TEXT("HEAD")};
+			TArray<FString> PushParameters {TEXT("-u")};
 			// TODO: configure remote
 			InCommand.bCommandSuccessful = GitSourceControlUtils::RunCommand(TEXT("push"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot,
 																			 PushParameters, FGitSourceControlModule::GetEmptyStringArray(),
