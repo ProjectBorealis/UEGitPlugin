@@ -34,6 +34,9 @@ public:
 	/** Save settings to ini file */
 	void SaveSettings() const;
 
+	// Retuns an array of configurable commands for the Sync Operation
+	TArray<FString> GetSyncCommands() const;
+  
 private:
 	/** A critical section for settings access */
 	mutable FCriticalSection CriticalSection;
@@ -46,4 +49,7 @@ private:
 
 	/** Username used by the Git LFS 2 File Locks server */
 	FString LfsUserName;
+
+	// An array of configurable commands for the Sync Operation
+	TArray<FString> SyncCommands;
 };

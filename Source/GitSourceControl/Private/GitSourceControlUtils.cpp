@@ -2135,9 +2135,13 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 	}
 
 	// Reset HEAD and index to remote
+	bool bSuccess = true;
 	TArray<FString> InfoMessages;
-	bool bSuccess = RunCommand(TEXT("pull"), InPathToGitBinary, InPathToRepositoryRoot, { "--rebase", "--autostash" }, FGitSourceControlModule::GetEmptyStringArray(),
-										  InfoMessages, OutErrorMessages);
+	const auto& Commands = FGitSourceControlModule::Get().AccessSettings().GetSyncCommands();
+	for( const auto& Command : Commands )
+	{
+		bSuccess &= RunCommand( Command, InPathToGitBinary, InPathToRepositoryRoot, { }, { }, InfoMessages, OutErrorMessages);
+	}
 
 	if (bShouldReload)
 	{
