@@ -45,7 +45,7 @@ void UMyEdEngine::Init(IEngineLoop* InEngineLoop)
 		ISourceControlProvider& SourceControlProvider = SourceControlModule.GetProvider();
 		// Order matters. Lower values are lower in the hierarchy, i.e., changes from higher branches get automatically merged down.
 		// The higher branch is, the stabler it is, and has changes manually promoted up.
-		const TArray<FString> Branches {"trunk", "main", "promoted"};
+		const TArray<FString> Branches {"origin/trunk", "origin/main", "origin/promoted"};
 		SourceControlProvider.RegisterStateBranches(Branches, TEXT(""));
 	}
 }
