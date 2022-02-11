@@ -70,6 +70,12 @@ bool FGitSourceControlSettings::SetLfsUserName(const FString& InString)
 	return bChanged;
 }
 
+TArray<FString> FGitSourceControlSettings::GetSyncCommands() const
+{
+	FScopeLock ScopeLock(&CriticalSection);
+	return SyncCommands;
+}
+
 // This is called at startup nearly before anything else in our module: BinaryPath will then be used by the provider
 void FGitSourceControlSettings::LoadSettings()
 {
@@ -78,6 +84,14 @@ void FGitSourceControlSettings::LoadSettings()
 	GConfig->GetString(*GitSettingsConstants::SettingsSection, TEXT("BinaryPath"), BinaryPath, IniFile);
 	GConfig->GetBool(*GitSettingsConstants::SettingsSection, TEXT("UsingGitLfsLocking"), bUsingGitLfsLocking, IniFile);
 	GConfig->GetString(*GitSettingsConstants::SettingsSection, TEXT("LfsUserName"), LfsUserName, IniFile);
+
+	// Use shared project settings for commands
+	constexpr auto IniSection = TEXT("/Script/GitSourceControl.Commands");
+	GConfig->GetArray(IniSection, TEXT("Sync"), SyncCommands, GEngineIni);
+	if( SyncCommands.IsEmpty() )
+	{
+		SyncCommands.Emplace( "pull --rebase --autostash" );
+	}
 }
 
 void FGitSourceControlSettings::SaveSettings() const
