@@ -10,9 +10,14 @@
 #include "GitSourceControlPrivatePCH.h"
 #include "GitSourceControlProvider.h"
 #include "HAL/PlatformProcess.h"
+
+#if ( ENGINE_MAJOR_VERSION == 5 )
 #include "HAL/PlatformFileManager.h"
-#include "HAL/FileManager.h"
+#else
 #include "HAL/PlatformFilemanager.h"
+#endif
+
+#include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
 #include "Interfaces/IPluginManager.h"
 #include "ISourceControlModule.h"
