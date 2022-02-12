@@ -7,6 +7,7 @@
 
 #include "CoreMinimal.h"
 #include "ISourceControlRevision.h"
+#include "Runtime/Launch/Resources/Version.h"
 
 /** Revision of a file, linked to a specific commit */
 class FGitSourceControlRevision : public ISourceControlRevision, public TSharedFromThis<FGitSourceControlRevision, ESPMode::ThreadSafe>
@@ -18,7 +19,12 @@ public:
 	}
 
 	/** ISourceControlRevision interface */
+#if ( ENGINE_MAJOR_VERSION == 5 ) && ( ENGINE_MINOR_VERSION == 1 )
+	virtual bool Get( FString& InOutFilename, EConcurrency::Type InConcurrency = EConcurrency::Synchronous ) const override;
+#else
 	virtual bool Get( FString& InOutFilename ) const override;
+#endif
+
 	virtual bool GetAnnotated( TArray<FAnnotationLine>& OutLines ) const override;
 	virtual bool GetAnnotated( FString& InOutFilename ) const override;
 	virtual const FString& GetFilename() const override;
