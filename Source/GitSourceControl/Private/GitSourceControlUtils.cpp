@@ -12,7 +12,6 @@
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformFileManager.h"
 #include "HAL/FileManager.h"
-#include "HAL/PlatformFilemanager.h"
 #include "HAL/PlatformProcess.h"
 #include "Interfaces/IPluginManager.h"
 #include "ISourceControlModule.h"
