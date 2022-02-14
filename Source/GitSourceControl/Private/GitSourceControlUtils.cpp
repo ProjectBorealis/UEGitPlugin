@@ -591,6 +591,10 @@ bool GetRemoteBranchName(const FString& InPathToGitBinary, const FString& InRepo
 	{
 		OutBranchName = InfoMessages[0];
 	}
+	if (!bResults)
+	{
+		ErrorMessages = {TEXT("Upstream branch not found for the current branch, skipping current branch for remote check. Please push a remote branch.")};
+	}
 	return bResults;
 }
 
