@@ -1430,6 +1430,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	TArray<FString> Parameters;
 	Parameters.Add(TEXT("--porcelain"));
 	Parameters.Add(TEXT("-unormal")); // make sure we use -unormal (user can customize it)
+	Parameters.Add(TEXT("--no-optional-locks"));
 	// We skip checking ignored since no one ignores files that Unreal would read in as source controlled (Content/{*.uasset,*.umap},Config/*.ini).
 	TArray<FString> Results;
 	const bool bResult = RunCommand(TEXT("status"), InPathToGitBinary, InRepositoryRoot, Parameters, RepoFiles, Results, OutErrorMessages);
