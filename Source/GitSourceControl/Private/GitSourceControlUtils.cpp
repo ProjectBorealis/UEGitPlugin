@@ -106,7 +106,6 @@ static bool RunCommandInternalRaw(const FString& InCommand, const FString& InPat
 		FullCommand = TEXT("-C \"");
 		FullCommand += RepositoryRoot;
 		FullCommand += TEXT("\" ");
-		FullCommand += TEXT("--no-optional-locks "); // avoid locking the index when not needed (useful for status updates)
 	}
 	// then the git command itself ("status", "log", "commit"...)
 	LogableCommand += InCommand;
@@ -1438,7 +1437,8 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	Parameters.Add(TEXT("-unormal")); // make sure we use -unormal (user can customize it)
 	// We skip checking ignored since no one ignores files that Unreal would read in as source controlled (Content/{*.uasset,*.umap},Config/*.ini).
 	TArray<FString> Results;
-	const bool bResult = RunCommand(TEXT("status"), InPathToGitBinary, InRepositoryRoot, Parameters, RepoFiles, Results, OutErrorMessages);
+	// avoid locking the index when not needed (useful for status updates)
+	const bool bResult = RunCommand(TEXT("--no-optional-locks status"), InPathToGitBinary, InRepositoryRoot, Parameters, RepoFiles, Results, OutErrorMessages);
 	TMap<FString, FString> ResultsMap;
 	for (const auto& Result : Results)
 	{
