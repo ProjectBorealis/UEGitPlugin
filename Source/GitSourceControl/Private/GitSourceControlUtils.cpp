@@ -106,6 +106,7 @@ static bool RunCommandInternalRaw(const FString& InCommand, const FString& InPat
 		FullCommand = TEXT("-C \"");
 		FullCommand += RepositoryRoot;
 		FullCommand += TEXT("\" ");
+		FullCommand += TEXT("--no-optional-locks "); // avoid locking the index when not needed (useful for status updates)
 	}
 	// then the git command itself ("status", "log", "commit"...)
 	LogableCommand += InCommand;
@@ -160,11 +161,11 @@ static bool RunCommandInternalRaw(const FString& InCommand, const FString& InPat
 #if UE_BUILD_DEBUG
 	// TODO: add a setting to easily enable Verbose logging
 	UE_LOG(LogSourceControl, Verbose, TEXT("RunCommand(%s):\n%s"), *InCommand, *OutResults);
-#endif
-	if(ReturnCode != ExpectedReturnCode)
+	if (ReturnCode != ExpectedReturnCode)
 	{
 		UE_LOG(LogSourceControl, Warning, TEXT("RunCommand(%s) ReturnCode=%d:\n%s"), *InCommand, ReturnCode, *OutErrors);
 	}
+#endif
 
 	// Move push/pull progress information from the error stream to the info stream
 	if(ReturnCode == ExpectedReturnCode && OutErrors.Len() > 0)
@@ -593,7 +594,12 @@ bool GetRemoteBranchName(const FString& InPathToGitBinary, const FString& InRepo
 	}
 	if (!bResults)
 	{
-		ErrorMessages = {TEXT("Upstream branch not found for the current branch, skipping current branch for remote check. Please push a remote branch.")};
+		static bool bRunOnce = true;
+		if (bRunOnce)
+		{
+			UE_LOG(LogSourceControl, Warning, TEXT("Upstream branch not found for the current branch, skipping current branch for remote check. Please push a remote branch."));
+			bRunOnce = false;
+		}
 	}
 	return bResults;
 }
@@ -1430,7 +1436,6 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	TArray<FString> Parameters;
 	Parameters.Add(TEXT("--porcelain"));
 	Parameters.Add(TEXT("-unormal")); // make sure we use -unormal (user can customize it)
-	Parameters.Add(TEXT("--no-optional-locks"));
 	// We skip checking ignored since no one ignores files that Unreal would read in as source controlled (Content/{*.uasset,*.umap},Config/*.ini).
 	TArray<FString> Results;
 	const bool bResult = RunCommand(TEXT("status"), InPathToGitBinary, InRepositoryRoot, Parameters, RepoFiles, Results, OutErrorMessages);
