@@ -47,7 +47,7 @@ void UMyEdEngine::Init(IEngineLoop* InEngineLoop)
 		// (Automatic merging requires an appropriately configured CI pipeline)
 		// With this paradigm, the higher the branch is, the stabler it is, and has changes manually promoted up.
 		const TArray<FString> Branches {"origin/develop", "origin/promoted"};
-		SourceControlProvider.RegisterStateBranches(Branches, TEXT(""));
+		SourceControlProvider.RegisterStateBranches(Branches, TEXT("Content"));
 	}
 }
 ```
@@ -60,7 +60,7 @@ UnrealEdEngine=/Script/MyModule.MyEdEngine
 ```
 
 5. In this example, `origin/promoted` is the highest tested branch. Any changes in this branch are asset changes that do not need testing, and get automatically merged down to `origin/develop`. This may be extended to involve multiple branches, like `origin/trunk`, `origin/main`, or whatever you may prefer, where changes may be cascaded from most-stable to least-stable automatically. With this paradigm, changes from less-stable branches are manually promoted to more-stable branches after a merge review.   
-**NOTE**: The second argument in `RegisterStateBranches` is Perforce specific and is ignored.
+**NOTE**: The second argument in `RegisterStateBranches` is Perforce specific and is ignored, but is meant to point to the relative content path.
 
 ## Status Branches - Conceptual Overview  
 
