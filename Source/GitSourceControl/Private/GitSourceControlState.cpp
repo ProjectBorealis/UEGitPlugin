@@ -258,8 +258,7 @@ bool FGitSourceControlState::IsCheckedOut() const
 	}
 	else
 	{
-		// We check for modified here too, because sometimes you don't lock a file but still want to push it. CanCheckout still true, so that you can lock it later...
-		return State.LockState == ELockState::Locked || (State.FileState == EFileState::Modified && State.LockState != ELockState::LockedOther);
+		return State.LockState == ELockState::Locked;
 	}
 }
 
