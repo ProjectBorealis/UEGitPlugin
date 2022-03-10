@@ -23,6 +23,12 @@ that include performance optimizations, new features and workflow improvements.
 * Integration with [PBSync](https://github.com/ProjectBorealis/PBSync) binaries syncing
 * General improvements to performance and memory usage
 
+## Note about .gitattributes
+
+This plugin requires explicit file attributes for `*.umap` and `*.uasset`, rather than other approaches of using wildcards for the content folder (`Content/**`).
+
+See [our own `.gitattributes`](https://github.com/ProjectBorealis/Base-Project/blob/main/.gitattributes) for an example.
+
 ## Status Branches - Required Code Changes (For Programmers)  
 
 Epic Games added Status Branches in 4.20, and this plugin has implemented support for them. See [Workflow on Fortnite](https://youtu.be/p4RcDpGQ_tI?t=1443) for more information. Here is an example of how you may apply it to your own game.
