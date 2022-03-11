@@ -95,8 +95,8 @@ Additionally, if you're switching back and forth between two or more branches lo
 ***
 
 ### Connecting to source control:
-Generally speaking, the field next to `Uses Git LFS 2 File Locking workflow` should match your `User Name` above it, like so:
-(If you find that the checkmark turns blue shortly after checking out a file, then the LFS name is likely incorrect)
+Generally speaking, the field next to `Uses Git LFS 2 File Locking workflow` should match your Git server's `User Name`, like so:
+(If you find that the checkmark turns blue shortly after checking out a file, then the LFS name is incorrect, update it to the name it says checked out the file)
 
 ![Connecting to Source Control](https://iili.io/1HzKep.webp)
   
