@@ -23,6 +23,12 @@ that include performance optimizations, new features and workflow improvements.
 * Integration with [PBSync](https://github.com/ProjectBorealis/PBSync) binaries syncing
 * General improvements to performance and memory usage
 
+## Installation
+
+Either install this into your project's `Plugins/` folder, or if you would like to install to the engine,
+rename `Engine/Plugins/Developer/GitSourceControl.uplugin` to `Engine/Plugins/Developer/GitSourceControl.uplugin.disabled` 
+and then install this plugin to the `Engine/Plugins` folder.
+
 ## Note about .gitattributes
 
 This plugin requires explicit file attributes for `*.umap` and `*.uasset`, rather than other approaches of using wildcards for the content folder (`Content/**`).
