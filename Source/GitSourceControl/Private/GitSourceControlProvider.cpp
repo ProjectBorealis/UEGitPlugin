@@ -20,6 +20,7 @@
 #include "ScopedSourceControlProgress.h"
 #include "SourceControlHelpers.h"
 #include "SourceControlOperations.h"
+#include "Async/Async.h"
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/FileManager.h"
 #include "Interfaces/IPluginManager.h"
@@ -113,18 +114,27 @@ void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGit
 											   FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath())};
 			ErrorMessages.Empty();
 			TMap<FString, FGitSourceControlState> States;
-			if (GitSourceControlUtils::RunUpdateStatus(InPathToGitBinary, PathToRepositoryRoot, bUsingGitLfsLocking, ProjectDirs, ErrorMessages, States))
-			{
-				TMap<const FString, FGitState> Results;
-				if (GitSourceControlUtils::CollectNewStates(States, Results))
+			AsyncTask(ENamedThreads::AnyHiPriThreadNormalTask, [&]()
 				{
-					GitSourceControlUtils::UpdateCachedStates(Results);
-				}
-			}
-			else
-			{
-				UE_LOG(LogSourceControl, Error, TEXT("Failed to update repo on initialization."));
-			}
+					bool bResult = GitSourceControlUtils::RunUpdateStatus(InPathToGitBinary, PathToRepositoryRoot, bUsingGitLfsLocking, ProjectDirs, ErrorMessages, States);
+					AsyncTask(ENamedThreads::GameThread, [&]()
+						{
+							if (bResult)
+							{
+								TMap<const FString, FGitState> Results;
+								if (GitSourceControlUtils::CollectNewStates(States, Results))
+								{
+									GitSourceControlUtils::UpdateCachedStates(Results);
+								}
+								bGitRepositoryFound = true;
+							}
+							else
+							{
+								UE_LOG(LogSourceControl, Error, TEXT("Failed to update repo on initialization."));
+								bGitRepositoryFound = false;
+							}
+						});
+				});			
 			Runner = new FGitSourceControlRunner();
 		}
 		else
