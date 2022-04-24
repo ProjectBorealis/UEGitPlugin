@@ -112,12 +112,12 @@ void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGit
 			const TArray<FString> ProjectDirs {FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),
 											   FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()),
 											   FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath())};
-			ErrorMessages.Empty();
-			TMap<FString, FGitSourceControlState> States;
-			AsyncTask(ENamedThreads::AnyHiPriThreadNormalTask, [&]()
+			AsyncTask(ENamedThreads::AnyHiPriThreadNormalTask, [InPathToGitBinary, ProjectDirs, this]()
 				{
-					bool bResult = GitSourceControlUtils::RunUpdateStatus(InPathToGitBinary, PathToRepositoryRoot, bUsingGitLfsLocking, ProjectDirs, ErrorMessages, States);
-					AsyncTask(ENamedThreads::GameThread, [&]()
+					TMap<FString, FGitSourceControlState> States;
+					TArray<FString> StatusErrorMessages;
+					bool bResult = GitSourceControlUtils::RunUpdateStatus(InPathToGitBinary, PathToRepositoryRoot, bUsingGitLfsLocking, ProjectDirs, StatusErrorMessages, States);
+					AsyncTask(ENamedThreads::GameThread, [bResult, States, this]()
 						{
 							if (bResult)
 							{
