@@ -44,7 +44,6 @@ private:
 
 	EVisibility MustInitializeGitRepository() const;
 	bool CanInitializeGitRepository() const;
-	bool CanInitializeGitLfs() const;
 	bool CanUseGitLfsLocking() const;
 
 	/** Delegate to initialize a new Git repository */

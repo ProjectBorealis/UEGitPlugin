@@ -289,7 +289,6 @@ void SGitSourceControlSettings::ConstructBasedOnEngineVersion( )
 					SNew(SCheckBox)
 					.IsChecked(ECheckBoxState::Unchecked)
 					.OnCheckStateChanged(this, &SGitSourceControlSettings::OnCheckedCreateGitAttributes)
-					.IsEnabled(this, &SGitSourceControlSettings::CanInitializeGitLfs)
 				]
 				+SHorizontalBox::Slot()
 				.FillWidth(2.9f)
@@ -656,21 +655,12 @@ bool SGitSourceControlSettings::CanInitializeGitRepository() const
 	return (bGitAvailable && !bGitRepositoryFound && bGitLfsConfigOk && bInitialCommitConfigOk);
 }
 
-bool SGitSourceControlSettings::CanInitializeGitLfs() const
-{
-	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	const FString& PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
-	const bool bGitLfsAvailable = GitSourceControl.GetProvider().GetGitVersion().bHasGitLfs;
-	return bGitLfsAvailable;
-}
-
 bool SGitSourceControlSettings::CanUseGitLfsLocking() const
 {
 	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	const bool bGitLfsLockingAvailable = GitSourceControl.GetProvider().GetGitVersion().bHasGitLfsLocking;
 	// TODO LFS SRombauts : check if .gitattributes file is present and if Content/ is already tracked!
 	const bool bGitAttributesCreated = true;
-	return (bGitLfsLockingAvailable && (bAutoCreateGitAttributes || bGitAttributesCreated));
+	return (bAutoCreateGitAttributes || bGitAttributesCreated);
 }
 
 FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()

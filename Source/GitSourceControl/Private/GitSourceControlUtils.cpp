@@ -379,8 +379,6 @@ bool CheckGitAvailability(const FString& InPathToGitBinary, FGitVersion* OutVers
 		else if (OutVersion)
 		{
 			ParseGitVersion(InfoMessages, OutVersion);
-			FindGitCapabilities(InPathToGitBinary, OutVersion);
-			FindGitLfsCapabilities(InPathToGitBinary, OutVersion);
 		}
 	}
 
@@ -389,6 +387,7 @@ bool CheckGitAvailability(const FString& InPathToGitBinary, FGitVersion* OutVers
 
 void ParseGitVersion(const FString& InVersionString, FGitVersion* OutVersion)
 {
+#if UE_BUILD_DEBUG
 	// Parse "git version 2.31.1.vfs.0.3" into the string "2.31.1.vfs.0.3"
 	const FString& TokenVersionStringPtr = InVersionString.RightChop(12);
 	if (!TokenVersionStringPtr.IsEmpty())
@@ -433,33 +432,7 @@ void ParseGitVersion(const FString& InVersionString, FGitVersion* OutVersion)
 			}
 		}
 	}
-}
-
-void FindGitCapabilities(const FString& InPathToGitBinary, FGitVersion* OutVersion)
-{
-	FString InfoMessages;
-	FString ErrorMessages;
-	RunCommandInternalRaw(TEXT("cat-file -h"), InPathToGitBinary, FString(), FGitSourceControlModule::GetEmptyStringArray(), FGitSourceControlModule::GetEmptyStringArray(), InfoMessages, ErrorMessages, 129);
-	if (InfoMessages.Contains("--filters"))
-	{
-		OutVersion->bHasCatFileWithFilters = true;
-	}
-}
-
-void FindGitLfsCapabilities(const FString& InPathToGitBinary, FGitVersion* OutVersion)
-{
-	TArray<FString> InfoMessages;
-	TArray<FString> ErrorMessages;
-	const bool bGitLfsAvailable = RunLFSCommand(TEXT("version"),FString(), FGitSourceControlModule::GetEmptyStringArray(), FGitSourceControlModule::GetEmptyStringArray(), InfoMessages, ErrorMessages);
-	if (bGitLfsAvailable)
-	{
-		OutVersion->bHasGitLfs = true;
-		OutVersion->bHasGitLfsLocking = true;
-		for (const auto& Info : InfoMessages)
-		{
-			UE_LOG(LogSourceControl, Log, TEXT("%s"), *Info);
-		}
-	}
+#endif
 }
 
 // Find the root of the Git repository, looking from the provided path and upward in its parent directories.
@@ -1109,6 +1082,10 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 		}
 		else
 		{
+			// do we need to distinguish between unmodified and not in repo?
+			// FileExists is expensive
+			FileState.State.TreeState = ETreeState::Unmodified;
+#if 0
 			FileState.State.FileState = EFileState::Unknown;
 			// File not found in status
 			if (FPaths::FileExists(File))
@@ -1127,6 +1104,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 				UE_LOG(LogSourceControl, Log, TEXT("Status(%s) not found and does not exists => new/not controled"), *File);
 #endif
 			}
+#endif
 		}
 		if (!InUsingLfsLocking)
 		{
@@ -1463,7 +1441,6 @@ bool RunDumpToFile(const FString& InPathToGitBinary, const FString& InRepository
 	FString FullCommand;
 
 	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	const FGitVersion& GitVersion = GitSourceControl.GetProvider().GetGitVersion();
 
 	if (!InRepositoryRoot.IsEmpty())
 	{
@@ -1474,16 +1451,8 @@ bool RunDumpToFile(const FString& InPathToGitBinary, const FString& InRepository
 	}
 
 	// then the git command itself
-	if (GitVersion.bHasCatFileWithFilters)
-	{
-		// Newer versions (2.9.3.windows.2) support smudge/clean filters used by Git LFS, git-fat, git-annex, etc
-		FullCommand += TEXT("cat-file --filters ");
-	}
-	else
-	{
-		// Previous versions fall-back on "git show" like before
-		FullCommand += TEXT("show ");
-	}
+	// Newer versions (2.9.3.windows.2) support smudge/clean filters used by Git LFS, git-fat, git-annex, etc
+	FullCommand += TEXT("cat-file --filters ");
 
 	// Append to the command the parameter
 	FullCommand += InParameter;
