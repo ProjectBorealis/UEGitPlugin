@@ -24,6 +24,7 @@
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/FileManager.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/App.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/MessageDialog.h"
 
@@ -85,7 +86,8 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 {
 	GitSourceControlMenu.Register();
 
-	AsyncTask(ENamedThreads::AnyHiPriThreadNormalTask, [this]()
+	// If unattended, we should block on init
+	AsyncTask((FApp::IsUnattended() || IsRunningCommandlet()) ? ENamedThreads::GameThread : ENamedThreads::AnyHiPriThreadNormalTask, [this]()
 		{
 			TMap<FString, FGitSourceControlState> States;
 			auto ConditionalRepoInit = [this, &States]()
