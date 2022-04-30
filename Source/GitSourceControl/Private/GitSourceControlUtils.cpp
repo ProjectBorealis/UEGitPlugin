@@ -2036,6 +2036,7 @@ bool FetchRemote(const FString& InPathToGitBinary, const FString& InPathToReposi
 		TMap<FString, FString> Locks;
 		GetAllLocks(InPathToRepositoryRoot, OutErrorMessages, Locks, true);
 	}
+	TArray<FString> Params{"--no-tags"};
 	// fetch latest repo
 	// TODO specify branches?
 	return RunCommand(TEXT("fetch"), InPathToGitBinary, InPathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(),
