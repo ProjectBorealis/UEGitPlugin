@@ -1082,10 +1082,6 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 		}
 		else
 		{
-			// do we need to distinguish between unmodified and not in repo?
-			// FileExists is expensive
-			FileState.State.TreeState = ETreeState::Unmodified;
-#if 0
 			FileState.State.FileState = EFileState::Unknown;
 			// File not found in status
 			if (FPaths::FileExists(File))
@@ -1104,7 +1100,6 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 				UE_LOG(LogSourceControl, Log, TEXT("Status(%s) not found and does not exists => new/not controled"), *File);
 #endif
 			}
-#endif
 		}
 		if (!InUsingLfsLocking)
 		{
