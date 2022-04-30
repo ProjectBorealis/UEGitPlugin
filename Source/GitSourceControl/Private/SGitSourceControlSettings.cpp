@@ -683,7 +683,7 @@ FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
 	}
 
 	// Check the new repository status to enable connection (branch, user e-mail)
-	GitSourceControl.GetProvider().CheckRepositoryStatus(PathToGitBinary);
+	GitSourceControl.GetProvider().CheckGitAvailability();
 	if(GitSourceControl.GetProvider().IsAvailable())
 	{
 		// List of files to add to Source Control (.uproject, Config/, Content/, Source/ files and .gitignore/.gitattributes if any)

@@ -65,11 +65,8 @@ void FGitSourceControlProvider::CheckGitAvailability()
 	if(!PathToGitBinary.IsEmpty())
 	{
 		UE_LOG(LogSourceControl, Log, TEXT("Using '%s'"), *PathToGitBinary);
-		bGitAvailable = GitSourceControlUtils::CheckGitAvailability(PathToGitBinary, &GitVersion);
-		if(bGitAvailable)
-		{
-			CheckRepositoryStatus(PathToGitBinary);
-		}
+		bGitAvailable = true;
+		CheckRepositoryStatus();
 	}
 	else
 	{
@@ -84,71 +81,75 @@ void FGitSourceControlProvider::UpdateSettings()
 	LockUser = GitSourceControl.AccessSettings().GetLfsUserName();
 }
 
-void FGitSourceControlProvider::CheckRepositoryStatus(const FString& InPathToGitBinary)
+void FGitSourceControlProvider::CheckRepositoryStatus()
 {
-	// Find the path to the root Git directory (if any, else uses the ProjectDir)
-	const FString PathToProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
-	bGitRepositoryFound = GitSourceControlUtils::FindRootDirectory(PathToProjectDir, PathToRepositoryRoot);
-	if(bGitRepositoryFound)
-	{
-		GitSourceControlMenu.Register();
+	GitSourceControlMenu.Register();
 
-		// Get branch name
-		bGitRepositoryFound = GitSourceControlUtils::GetBranchName(InPathToGitBinary, PathToRepositoryRoot, BranchName);
-		if(bGitRepositoryFound)
+	AsyncTask(ENamedThreads::AnyHiPriThreadNormalTask, [this]()
 		{
-			GitSourceControlUtils::GetRemoteBranchName(InPathToGitBinary, PathToRepositoryRoot, RemoteBranchName);
-			GitSourceControlUtils::GetRemoteUrl(InPathToGitBinary, PathToRepositoryRoot, RemoteUrl);
-			UpdateSettings();
-			TArray<FString> Files {TEXT("*.uasset"), TEXT("*.umap")};
-			TArray<FString> ErrorMessages;
-			if (!GitSourceControlUtils::CheckLFSLockable(InPathToGitBinary, PathToRepositoryRoot, Files, ErrorMessages))
+			TMap<FString, FGitSourceControlState> States;
+			auto ConditionalRepoInit = [this, &States]()
 			{
-				for (const auto& ErrorMessage : ErrorMessages)
+				// Find the path to the root Git directory (if any, else uses the ProjectDir)
+				const FString PathToProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+				if (!GitSourceControlUtils::FindRootDirectory(PathToProjectDir, PathToRepositoryRoot))
 				{
-					UE_LOG(LogSourceControl, Error, TEXT("%s"), *ErrorMessage);
+					return false;
 				}
-			}
-			const TArray<FString> ProjectDirs {FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),
-											   FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()),
-											   FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath())};
-			AsyncTask(ENamedThreads::AnyHiPriThreadNormalTask, [InPathToGitBinary, ProjectDirs, this]()
+				if (!GitSourceControlUtils::CheckGitAvailability(PathToGitBinary, &GitVersion))
 				{
-					TMap<FString, FGitSourceControlState> States;
-					TArray<FString> StatusErrorMessages;
-					bool bResult = GitSourceControlUtils::RunUpdateStatus(InPathToGitBinary, PathToRepositoryRoot, bUsingGitLfsLocking, ProjectDirs, StatusErrorMessages, States);
-					AsyncTask(ENamedThreads::GameThread, [bResult, States, this]()
+					return false;
+				}
+				if (!GitSourceControlUtils::GetBranchName(PathToGitBinary, PathToRepositoryRoot, BranchName))
+				{
+					return false;
+				}
+				GitSourceControlUtils::GetRemoteBranchName(PathToGitBinary, PathToRepositoryRoot, RemoteBranchName);
+				GitSourceControlUtils::GetRemoteUrl(PathToGitBinary, PathToRepositoryRoot, RemoteUrl);
+				const TArray<FString> Files{ TEXT("*.uasset"), TEXT("*.umap") };
+				TArray<FString> LockableErrorMessages;
+				if (!GitSourceControlUtils::CheckLFSLockable(PathToGitBinary, PathToRepositoryRoot, Files, LockableErrorMessages))
+				{
+					for (const auto& ErrorMessage : LockableErrorMessages)
+					{
+						UE_LOG(LogSourceControl, Error, TEXT("%s"), *ErrorMessage);
+					}
+				}
+				// Get user name & email (of the repository, else from the global Git config)
+				GitSourceControlUtils::GetUserConfig(PathToGitBinary, PathToRepositoryRoot, UserName, UserEmail);
+				const TArray<FString> ProjectDirs{ FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),
+										   FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()),
+										   FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()) };
+				TArray<FString> StatusErrorMessages;
+				if (!GitSourceControlUtils::RunUpdateStatus(PathToGitBinary, PathToRepositoryRoot, bUsingGitLfsLocking, ProjectDirs, StatusErrorMessages, States))
+				{
+					return false;
+				}
+				return true;
+			};
+			if (ConditionalRepoInit())
+			{
+				AsyncTask(ENamedThreads::GameThread, [States, this]()
+					{
+						TMap<const FString, FGitState> Results;
+						if (GitSourceControlUtils::CollectNewStates(States, Results))
 						{
-							if (bResult)
-							{
-								TMap<const FString, FGitState> Results;
-								if (GitSourceControlUtils::CollectNewStates(States, Results))
-								{
-									GitSourceControlUtils::UpdateCachedStates(Results);
-								}
-								bGitRepositoryFound = true;
-							}
-							else
-							{
-								UE_LOG(LogSourceControl, Error, TEXT("Failed to update repo on initialization."));
-								bGitRepositoryFound = false;
-							}
-						});
-				});			
-			Runner = new FGitSourceControlRunner();
-		}
-		else
-		{
-			UE_LOG(LogSourceControl, Error, TEXT("'%s' is not a valid Git repository"), *PathToRepositoryRoot);
-		}
-	}
-	else
-	{
-		UE_LOG(LogSourceControl, Warning, TEXT("'%s' is not part of a Git repository"), *FPaths::ProjectDir());
-	}
-
-	// Get user name & email (of the repository, else from the global Git config)
-	GitSourceControlUtils::GetUserConfig(InPathToGitBinary, PathToRepositoryRoot, UserName, UserEmail);
+							GitSourceControlUtils::UpdateCachedStates(Results);
+						}
+						Runner = new FGitSourceControlRunner();
+						bGitRepositoryFound = true;
+					});
+			}
+			else
+			{
+				AsyncTask(ENamedThreads::GameThread, [States, this]()
+					{
+						UE_LOG(LogSourceControl, Error, TEXT("Failed to update repo on initialization."));
+						bGitRepositoryFound = false;
+					});
+			}
+			UpdateSettings();
+		});
 }
 
 void FGitSourceControlProvider::SetLastErrors(const TArray<FText>& InErrors)

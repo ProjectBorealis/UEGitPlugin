@@ -104,9 +104,9 @@ public:
 	void UpdateSettings();
 
 	/**
-	 * Find the .git/ repository and check it's status.
+	 * Find the .git/ repository and check its status.
 	 */
-	void CheckRepositoryStatus(const FString& InPathToGitBinary);
+	void CheckRepositoryStatus();
 
 	/** Is git binary found and working. */
 	inline bool IsGitAvailable() const
