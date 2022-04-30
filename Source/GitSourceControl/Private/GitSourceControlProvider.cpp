@@ -89,7 +89,7 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 	// Make sure our settings our up to date
 	UpdateSettings();
 
-	const auto& InitFunc = [this]()
+	TUniqueFunction<void()> InitFunc = [this]()
 	{
 		TMap<FString, FGitSourceControlState> States;
 		auto ConditionalRepoInit = [this, &States]()
@@ -133,7 +133,7 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 		};
 		if (ConditionalRepoInit())
 		{
-			const auto& SuccessFunc = [States, this]()
+			TUniqueFunction<void()> SuccessFunc = [States, this]()
 			{
 				TMap<const FString, FGitState> Results;
 				if (GitSourceControlUtils::CollectNewStates(States, Results))
@@ -149,12 +149,12 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 			}
 			else
 			{
-				AsyncTask(ENamedThreads::GameThread, SuccessFunc);
+				AsyncTask(ENamedThreads::GameThread, MoveTemp(SuccessFunc));
 			}
 		}
 		else
 		{
-			const auto& ErrorFunc = [States, this]()
+			TUniqueFunction<void()> ErrorFunc = [States, this]()
 			{
 				UE_LOG(LogSourceControl, Error, TEXT("Failed to update repo on initialization."));
 				bGitRepositoryFound = false;
@@ -165,7 +165,7 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 			}
 			else
 			{
-				AsyncTask(ENamedThreads::GameThread, ErrorFunc);
+				AsyncTask(ENamedThreads::GameThread, MoveTemp(ErrorFunc));
 			}
 		}
 	};
@@ -176,7 +176,7 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 	}
 	else
 	{
-		AsyncTask(ENamedThreads::AnyHiPriThreadNormalTask, InitFunc);
+		AsyncTask(ENamedThreads::AnyHiPriThreadNormalTask, MoveTemp(InitFunc));
 	}
 }
 
