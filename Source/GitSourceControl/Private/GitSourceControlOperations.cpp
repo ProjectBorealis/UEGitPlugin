@@ -212,18 +212,24 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 
 		// Collect difference between the remote and what we have on top of remote locally. This is to handle unpushed commits other than the one we just did.
 		// Doesn't matter that we're not synced. Because our local branch is always based on the remote.
+		TArray<FString> CommittedFiles;
 		FString BranchName;
-		if (!GitSourceControlUtils::GetRemoteBranchName(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, BranchName))
+		bool bDiffSuccess;
+		if (GitSourceControlUtils::GetRemoteBranchName(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, BranchName))
 		{
-			return false;
+			TArray<FString> Parameters {"--name-only", FString::Printf(TEXT("%s...HEAD"), *BranchName), "--"};
+			bDiffSuccess = GitSourceControlUtils::RunCommand(TEXT("diff"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters,
+															  FGitSourceControlModule::GetEmptyStringArray(), CommittedFiles, InCommand.ResultInfo.ErrorMessages);
+		}
+		else
+		{
+			// Get all non-remote commits and list out their files
+			TArray<FString> Parameters {"--branches", "--not" "--remotes", "--name-only", "--pretty="};
+			bDiffSuccess = GitSourceControlUtils::RunCommand(TEXT("log"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters, FGitSourceControlModule::GetEmptyStringArray(), CommittedFiles, InCommand.ResultInfo.ErrorMessages);
+			// Dedup files list between commits
+			CommittedFiles = TSet<FString>{CommittedFiles}.Array();
 		}
 
-		TArray<FString> Parameters {"--name-only", FString::Printf(TEXT("%s...HEAD"), *BranchName), "--"};
-
-		TArray<FString> CommittedFiles;
-
-		bool bDiffSuccess = GitSourceControlUtils::RunCommand(TEXT("diff"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameters,
-															  FGitSourceControlModule::GetEmptyStringArray(), CommittedFiles, InCommand.ResultInfo.ErrorMessages);
 		bool bUnpushedFiles;
 		TSet<FString> FilesToCheckIn {InCommand.Files};
 		if (bDiffSuccess)
@@ -459,27 +465,28 @@ void GetMissingVsExistingFiles(const TArray<FString>& InFiles, TArray<FString>& 
 
 	TArray<TSharedRef<ISourceControlState, ESPMode::ThreadSafe>> LocalStates;
 	Provider.GetState(Files, LocalStates, EStateCacheUsage::Use);
-	for(const auto& State : LocalStates)
+	for (const auto& State : LocalStates)
 	{
-		if(FPaths::FileExists(State->GetFilename()))
+		if (FPaths::FileExists(State->GetFilename()))
 		{
-			if(State->IsAdded())
+			if (State->IsAdded())
 			{
 				OutAllExistingFiles.Add(State->GetFilename());
 			}
-			else if(State->IsModified())
+			else if (State->IsModified())
 			{
 				OutOtherThanAddedExistingFiles.Add(State->GetFilename());
 				OutAllExistingFiles.Add(State->GetFilename());
 			}
-			else if(State->CanRevert()) // for locked but unmodified files
+			else if (State->CanRevert()) // for locked but unmodified files
 			{
 				OutOtherThanAddedExistingFiles.Add(State->GetFilename());
 			}
 		}
 		else
 		{
-			if (State->IsSourceControlled())
+			// If already queued for deletion, don't try to delete again
+			if (State->IsSourceControlled() && !State->IsDeleted())
 			{
 				OutMissingFiles.Add(State->GetFilename());
 			}
