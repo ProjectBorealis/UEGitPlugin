@@ -42,6 +42,10 @@
 #include <sys/ioctl.h>
 #endif
 
+#ifndef GIT_DEBUG_STATUS
+#define GIT_DEBUG_STATUS 0
+#endif
+
 #define LOCTEXT_NAMESPACE "GitSourceControl"
 
 namespace GitSourceControlConstants
@@ -1068,7 +1072,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 		{
 			// File found in status results; only the case for "changed" files
 			FGitStatusParser StatusParser(Result);
-#if UE_BUILD_DEBUG
+#if UE_BUILD_DEBUG && GIT_DEBUG_STATUS
 			UE_LOG(LogSourceControl, Log, TEXT("Status(%s) = '%s' => File:%d, Tree:%d"), *File, *Result, static_cast<int>(StatusParser.FileState), static_cast<int>(StatusParser.TreeState));
 #endif
 
@@ -1088,7 +1092,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 			{
 				// usually means the file is unchanged,
 				FileState.State.TreeState = ETreeState::Unmodified;
-#if UE_BUILD_DEBUG
+#if UE_BUILD_DEBUG && GIT_DEBUG_STATUS
 				UE_LOG(LogSourceControl, Log, TEXT("Status(%s) not found but exists => unchanged"), *File);
 #endif
 			}
@@ -1096,7 +1100,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 			{
 				// but also the case for newly created content: there is no file on disk until the content is saved for the first time
 				FileState.State.TreeState = ETreeState::NotInRepo;
-#if UE_BUILD_DEBUG
+#if UE_BUILD_DEBUG && GIT_DEBUG_STATUS
 				UE_LOG(LogSourceControl, Log, TEXT("Status(%s) not found and does not exists => new/not controled"), *File);
 #endif
 			}
@@ -1135,7 +1139,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 				else
 				{
 					FileState.State.LockState = ELockState::NotLocked;
-#if UE_BUILD_DEBUG
+#if UE_BUILD_DEBUG && GIT_DEBUG_STATUS
 					UE_LOG(LogSourceControl, Log, TEXT("Status(%s) Not Locked"), *File);
 #endif
 				}
@@ -1146,7 +1150,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 			}
 			
 			
-#if UE_BUILD_DEBUG
+#if UE_BUILD_DEBUG && GIT_DEBUG_STATUS
 			UE_LOG(LogSourceControl, Log, TEXT("Status(%s) Locked by '%s'"), *File, *FileState.State.LockUser);
 #endif
 		}
@@ -1318,7 +1322,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessa
 			for (const FString& Result : Results)
 			{
 				FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
-#if UE_BUILD_DEBUG
+#if UE_BUILD_DEBUG && GIT_DEBUG_STATUS
 				UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
 #endif
 				OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
@@ -1339,7 +1343,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessa
 		for (const FString& Result : Results)
 		{
 			FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
-#if UE_BUILD_DEBUG
+#if UE_BUILD_DEBUG && GIT_DEBUG_STATUS
 			UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
 #endif
 			// Only update remote locks
@@ -1357,7 +1361,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessa
 		for (const FString& Result : Results)
 		{
 			FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
-#if UE_BUILD_DEBUG
+#if UE_BUILD_DEBUG && GIT_DEBUG_STATUS
 			UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
 #endif
 			// Only update local locks
