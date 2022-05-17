@@ -42,7 +42,7 @@ private:
 	FString BinaryPath;
 
 	/** Tells if using the Git LFS file Locking workflow */
-	bool bUsingGitLfsLocking;
+	bool bUsingGitLfsLocking = true;
 
 	/** Username used by the Git LFS 2 File Locks server */
 	FString LfsUserName;

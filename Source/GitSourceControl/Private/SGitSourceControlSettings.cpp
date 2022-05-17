@@ -903,8 +903,20 @@ void SGitSourceControlSettings::OnLfsUserNameCommited(const FText& InText, EText
 
 FText SGitSourceControlSettings::GetLfsUserName() const
 {
-	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	return FText::FromString(GitSourceControl.AccessSettings().GetLfsUserName());
+	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
+	const FString LFSUserName = GitSourceControl.AccessSettings().GetLfsUserName();
+	if (LFSUserName.IsEmpty())
+	{
+		const FString& UserName = GetUserName().ToString();
+		GitSourceControl.AccessSettings().SetLfsUserName(UserName);
+		GitSourceControl.AccessSettings().SaveSettings();
+		GitSourceControl.GetProvider().UpdateSettings();
+		return FText::FromString(UserName);
+	}
+	else
+	{
+		return FText::FromString(LFSUserName);
+	}
 }
 
 void SGitSourceControlSettings::OnCheckedInitialCommit(ECheckBoxState NewCheckedState)
