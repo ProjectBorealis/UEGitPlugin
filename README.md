@@ -52,7 +52,6 @@ void UMyEdEngine::Init(IEngineLoop* InEngineLoop)
 
 	// Register state branches
 	const ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
-	if (SourceControlModule.IsEnabled())
 	{
 		ISourceControlProvider& SourceControlProvider = SourceControlModule.GetProvider();
 		// Order matters. Lower values are lower in the hierarchy, i.e., changes from higher branches get automatically merged down.
