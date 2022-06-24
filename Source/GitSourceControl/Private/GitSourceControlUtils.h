@@ -111,6 +111,14 @@ bool GetBranchName(const FString& InPathToGitBinary, const FString& InRepository
  */
 bool GetRemoteBranchName(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutBranchName);
 
+ // WCA EDIT - BEGIN
+ /**
+ * Get Git remote tracking branches that match wildcard
+ * @returns false if no matching branches
+ */
+ bool GetRemoteBranchesWildcard(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const FString& PatternMatch, TArray<FString>& OutBranchNames);
+ // WCA EDIT - END
+ 
 /**
  * Get Git current commit details
  * @param	InPathToGitBinary	The path to the Git binary

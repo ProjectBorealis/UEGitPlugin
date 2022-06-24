@@ -194,11 +194,10 @@ public:
 
 	const FString& GetRemoteBranchName() const { return RemoteBranchName; }
 
-	const TArray<FString>& GetStatusBranchNames() const
-	{
-		return StatusBranchNames;
-	}
-
+	// WCA EDIT - BEGIN
+	TArray<FString> GetStatusBranchNames() const;
+	// WCA EDIT - END
+	
 	/** Indicates editor binaries are to be updated upon next sync */
 	bool bPendingRestart;
 
@@ -291,8 +290,10 @@ private:
 	*/
 	TArray<FString> IgnoreForceCache;
 
-	/** Array of branch names for status queries */
-	TArray<FString> StatusBranchNames;
-
+	// WCA EDIT - BEGIN
+	/** Array of branch name patterns for status queries */
+	TArray<FString> StatusBranchNamePatternsInternal;
+	// WCA EDIT - END
+		
 	class FGitSourceControlRunner* Runner = nullptr;
 };

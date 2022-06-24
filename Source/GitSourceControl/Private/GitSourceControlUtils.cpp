@@ -587,6 +587,33 @@ bool GetRemoteBranchName(const FString& InPathToGitBinary, const FString& InRepo
 	return bResults;
 }
 
+// WCA EDIT - BEGIN
+bool GetRemoteBranchesWildcard(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const FString& PatternMatch, TArray<FString>& OutBranchNames)
+{
+	TArray<FString> InfoMessages;
+	TArray<FString> ErrorMessages;
+	TArray<FString> Parameters;
+	Parameters.Add(TEXT("--remotes"));
+	Parameters.Add(TEXT("--list"));
+	bool bResults = RunCommand(TEXT("branch"), InPathToGitBinary, InRepositoryRoot, Parameters, { PatternMatch },
+								InfoMessages, ErrorMessages);
+	if (bResults && InfoMessages.Num() > 0)
+	{
+		OutBranchNames = InfoMessages;
+	}
+	if (!bResults)
+	{
+		static bool bRunOnce = true;
+		if (bRunOnce)
+		{
+			UE_LOG(LogSourceControl, Warning, TEXT("No remote branches matching pattern \"%s\" were found."), *PatternMatch);
+			bRunOnce = false;
+		}
+	}
+	return bResults;	
+}
+// WCA EDIT - END
+	
 bool GetCommitInfo(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutCommitId, FString& OutCommitSummary)
 {
 	bool bResults;
@@ -1241,9 +1268,10 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 	const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
 	// Get the full remote status of the Content folder, since it's the only lockable folder we track in editor. 
 	// This shows any new files as well.
-	// Also update the status of `.checksum` and `Binaries` since that lets us know if editor binaries got updated.
-	TArray<FString> FilesToDiff{FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()), ".checksum", "Binaries"};
-
+	// Also update the status of `.checksum`.
+	// WCA EDIT - BEGIN - also include binaries and plugins
+	TArray<FString> FilesToDiff{FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()), ".checksum", "Binaries/", "Plugins/"};
+	// WCA EDIT - END
 	TArray<FString> ParametersLog{TEXT("--pretty="), TEXT("--name-only"), TEXT(""), TEXT("--")};
 	for (auto& Branch : BranchesToDiff)
 	{
@@ -1268,11 +1296,14 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 				// Don't care about mergeable files (.collection, .ini, .uproject, etc)
 				if (!IsFileLFSLockable(NewerFileName))
 				{
+					// WCA EDIT - BEGIN - also include binaries and plugins
 					// Check if there's newer binaries pending on this branch
-					if (bCurrentBranch && (NewerFileName == TEXT(".checksum") || NewerFileName.StartsWith("Binaries")))
+					if (bCurrentBranch && (NewerFileName == TEXT(".checksum") || NewerFileName.StartsWith("Binaries/", ESearchCase::IgnoreCase) ||
+						NewerFileName.StartsWith("Plugins/", ESearchCase::IgnoreCase)))
 					{
 						FGitSourceControlModule::Get().GetProvider().bPendingRestart = true;
 					}
+					// WCA EDIT - END
 					continue;
 				}
 				const FString& NewerFilePath = FPaths::ConvertRelativePathToFull(InRepositoryRoot, NewerFileName);
@@ -2045,8 +2076,13 @@ bool FetchRemote(const FString& InPathToGitBinary, const FString& InPathToReposi
 	TArray<FString> Params{"--no-tags"};
 	// fetch latest repo
 	// TODO specify branches?
-	return RunCommand(TEXT("fetch"), InPathToGitBinary, InPathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(),
+
+	// WCA EDIT - BEGIN
+	Params.Add(TEXT("--prune"));
+	return RunCommand(TEXT("fetch"), InPathToGitBinary, InPathToRepositoryRoot, Params,
 					  FGitSourceControlModule::GetEmptyStringArray(), OutResults, OutErrorMessages);
+	// WCA EDIT - END
+
 }
 
 bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToRepositoryRoot, const TArray<FString>& InFiles, TArray<FString>& OutFiles,
