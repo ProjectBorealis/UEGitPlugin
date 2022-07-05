@@ -10,6 +10,7 @@
 #include "Modules/ModuleManager.h"
 #include "GitSourceControlModule.h"
 #include "GitSourceControlUtils.h"
+#include "ISourceControlModule.h"
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
 
