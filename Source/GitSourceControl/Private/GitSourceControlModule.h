@@ -57,7 +57,7 @@ Use "TODO LFS" in the code to track things left to do/improve/refactor:
    - does Git LFS have a command to do this deactivation ?
      - perhaps should we rely on detection of such flags to detect LFS 2 usage (ie. the need to do a checkout)
        - see SubversionSourceControl plugin that deals with such flags
-       - this would need a rework of the way the "bIsUsingFileLocking" si propagated, since this would no more be a configuration (or not only) but a file state
+       - this would need a rework of the way the "bIsUsingFileLocking" is propagated, since this would no more be a configuration (or not only) but a file state
      - else we should at least revert those read-only flags when going out of "Lock mode"
 
 ### What *cannot* be done presently
