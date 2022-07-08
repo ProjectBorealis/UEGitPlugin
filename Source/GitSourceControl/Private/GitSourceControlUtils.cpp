@@ -1188,10 +1188,13 @@ static void ParseStatusResults(const FString& InPathToGitBinary, const FString& 
 		if (FPaths::DirectoryExists(File))
 		{
 			TArray<FString> DirectoryFiles;
-			FPlatformFileManager::Get().GetPlatformFile().FindFilesRecursively(DirectoryFiles, *File, NULL);
-			for (const auto& InnerFile : DirectoryFiles)
+			const bool bResult = ListFilesInDirectoryRecurse(InPathToGitBinary, InRepositoryRoot, File, DirectoryFiles);
+			if (bResult)
 			{
-				Files.Add(InnerFile);
+				for (const auto& InnerFile : DirectoryFiles)
+				{
+					Files.Add(InnerFile);
+				}
 			}
 		}
 		else
