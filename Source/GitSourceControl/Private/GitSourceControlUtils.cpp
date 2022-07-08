@@ -1415,7 +1415,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 
 	TArray<FString> Parameters;
 	Parameters.Add(TEXT("--porcelain"));
-	Parameters.Add(TEXT("-unormal")); // make sure we use -unormal (user can customize it)
+	Parameters.Add(TEXT("-uall")); // make sure we use -uall to list all files instead of directories
 	// We skip checking ignored since no one ignores files that Unreal would read in as source controlled (Content/{*.uasset,*.umap},Config/*.ini).
 	TArray<FString> Results;
 	// avoid locking the index when not needed (useful for status updates)
