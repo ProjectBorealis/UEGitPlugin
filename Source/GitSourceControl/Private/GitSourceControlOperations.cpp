@@ -17,8 +17,13 @@
 #include "Logging/MessageLog.h"
 #include "Misc/MessageDialog.h"
 #include "HAL/PlatformProcess.h"
+#include "GenericPlatform/GenericPlatformFile.h"
+#if ENGINE_MAJOR_VERSION >= 5
+#include "HAL/PlatformFileManager.h"
+#else
+#include "HAL/PlatformFilemanager.h"
+#endif
 
-#include <chrono>
 #include <thread>
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
@@ -132,6 +137,10 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 			FPaths::NormalizeFilename(AbsoluteFile);
 			AbsoluteFiles.Add(AbsoluteFile);
 		}
+		for (const auto& File : AbsoluteFiles)
+		{
+			FPlatformFileManager::Get().GetPlatformFile().SetReadOnly(*File, false);
+		}
 		GitSourceControlUtils::CollectNewStates(AbsoluteFiles, States, EFileState::Unset, ETreeState::Unset, ELockState::Locked);
 		for (auto& State : States)
 		{
@@ -207,6 +216,10 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 			Operation->SetSuccessMessage(ParseCommitResults(InCommand.ResultInfo.InfoMessages));
 			const FString& Message = (InCommand.ResultInfo.InfoMessages.Num() > 0) ? InCommand.ResultInfo.InfoMessages[0] : TEXT("");
 			UE_LOG(LogSourceControl, Log, TEXT("commit successful: %s"), *Message);
+			for (const FString& File : InCommand.Files)
+			{
+				FPlatformFileManager::Get().GetPlatformFile().SetReadOnly(*File, true);
+			}
 			GitSourceControlUtils::GetCommitInfo(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.CommitId, InCommand.CommitSummary);
 		}
 
