@@ -30,5 +30,10 @@ public class GitSourceControl : ModuleRules
 				"Projects"
 			}
 		);
+
+		if (Target.Version.MajorVersion == 5)
+		{
+			PrivateDependencyModuleNames.Add("ToolMenus");
+		}
 	}
 }

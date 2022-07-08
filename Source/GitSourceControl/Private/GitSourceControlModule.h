@@ -46,8 +46,6 @@ Written and contributed by Sebastien Rombauts (sebastien.rombauts@gmail.com)
 
 Known issues:
 0. False error logs after a successful push:
-To https://github.com/SRombauts/UE4GitLfs2FileLocks.git
-   ee44ff5..59da15e HEAD -> master
 
 Use "TODO LFS" in the code to track things left to do/improve/refactor:
 2. Implement FGitSourceControlProvider::bWorkingOffline like the SubversionSourceControl plugin

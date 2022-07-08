@@ -46,13 +46,6 @@ struct FGitVersion
 class FGitSourceControlProvider : public ISourceControlProvider
 {
 public:
-	/** Constructor */
-	FGitSourceControlProvider() 
-		: bGitAvailable(false)
-		, bGitRepositoryFound(false)
-	{
-	}
-
 	/* ISourceControlProvider implementation */
 	virtual void Init(bool bForceConnection = true) override;
 	virtual void Close() override;
@@ -71,9 +64,9 @@ public:
 	virtual FDelegateHandle RegisterSourceControlStateChanged_Handle(const FSourceControlStateChanged::FDelegate& SourceControlStateChanged) override;
 	virtual void UnregisterSourceControlStateChanged_Handle(FDelegateHandle Handle) override;
 #if ENGINE_MAJOR_VERSION < 5
-	virtual ECommandResult::Type Execute( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation, const TArray<FString>& InFiles, EConcurrency::Type InConcurrency = EConcurrency::Synchronous, const FSourceControlOperationComplete& InOperationCompleteDelegate = FSourceControlOperationComplete()) override;
-	virtual bool CanCancelOperation( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation ) const override;
-	virtual void CancelOperation( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation ) override;
+	virtual ECommandResult::Type Execute( const FSourceControlOperationRef& InOperation, const TArray<FString>& InFiles, EConcurrency::Type InConcurrency = EConcurrency::Synchronous, const FSourceControlOperationComplete& InOperationCompleteDelegate = FSourceControlOperationComplete()) override;
+	virtual bool CanCancelOperation( const FSourceControlOperationRef& InOperation ) const override;
+	virtual void CancelOperation( const FSourceControlOperationRef& InOperation ) override;
 #else
 	virtual ECommandResult::Type Execute(const FSourceControlOperationRef& InOperation, FSourceControlChangelistPtr InChangelist, const TArray<FString>& InFiles, EConcurrency::Type InConcurrency = EConcurrency::Synchronous, const FSourceControlOperationComplete& InOperationCompleteDelegate = FSourceControlOperationComplete()) override;
 	virtual bool CanCancelOperation( const FSourceControlOperationRef& InOperation ) const override;
@@ -204,10 +197,10 @@ public:
 
 private:
 	/** Is git binary found and working. */
-	bool bGitAvailable;
+	bool bGitAvailable = false;
 
 	/** Is git repository found. */
-	bool bGitRepositoryFound;
+	bool bGitRepositoryFound = false;
 
 	/** Is LFS locking enabled? */
 	bool bUsingGitLfsLocking = false;
@@ -280,7 +273,7 @@ private:
 
 	/**
 		Ignore these files when forcing status updates. We add to this list when we've just updated the status already.
-		UE4's SourceControl has a habit of performing a double status update, immediately after an operation.
+		UE's SourceControl has a habit of performing a double status update, immediately after an operation.
 	*/
 	TArray<FString> IgnoreForceCache;
 

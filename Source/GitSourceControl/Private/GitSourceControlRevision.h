@@ -13,13 +13,8 @@
 class FGitSourceControlRevision : public ISourceControlRevision
 {
 public:
-	FGitSourceControlRevision()
-		: RevisionNumber(0)
-	{
-	}
-
 	/** ISourceControlRevision interface */
-#if ENGINE_MAJOR_VERSION == 5
+#if ENGINE_MAJOR_VERSION >= 5
 	virtual bool Get( FString& InOutFilename, EConcurrency::Type InConcurrency = EConcurrency::Synchronous ) const override;
 #else
 	virtual bool Get( FString& InOutFilename ) const override;
@@ -51,10 +46,10 @@ public:
 	FString ShortCommitId;
 
 	/** The numeric value of the short SHA1 (8 first hex char out of 40) */
-	int32 CommitIdNumber;
+	int32 CommitIdNumber = 0;
 
 	/** The index of the revision in the history (SBlueprintRevisionMenu assumes order for the "Depot" label) */
-	int32 RevisionNumber;
+	int32 RevisionNumber = 0;
 
 	/** The SHA1 identifier of the file at this revision */
 	FString FileHash;

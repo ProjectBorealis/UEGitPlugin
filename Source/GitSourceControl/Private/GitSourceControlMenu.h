@@ -38,9 +38,12 @@ private:
 	bool StashAwayAnyModifications();
 	void ReApplyStashedModifications();
 
+#if ENGINE_MAJOR_VERSION >= 5
+	void AddMenuExtension(FToolMenuSection& Builder);
+#else
 	void AddMenuExtension(FMenuBuilder& Builder);
-
 	TSharedRef<class FExtender> OnExtendLevelEditorViewMenu(const TSharedRef<class FUICommandList> CommandList);
+#endif
 
 	static void DisplayInProgressNotification(const FText& InOperationInProgressString);
 	static void RemoveInProgressNotification();
@@ -50,8 +53,6 @@ private:
 private:
 #if ENGINE_MAJOR_VERSION < 5
 	FDelegateHandle ViewMenuExtenderHandle;
-#else
-	TSharedPtr<FExtender> ViewMenuExtender;
 #endif
 
 	/** Was there a need to stash away modifications before Sync? */

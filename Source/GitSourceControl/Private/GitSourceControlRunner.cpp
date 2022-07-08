@@ -48,8 +48,13 @@ uint32 FGitSourceControlRunner::Run()
 				FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
 				TSharedRef<FGitFetch, ESPMode::ThreadSafe> RefreshOperation = ISourceControlOperation::Create<FGitFetch>();
 				RefreshOperation->bUpdateStatus = true;
+#if ENGINE_MAJOR_VERSION >= 5
+				const ECommandResult::Type Result = Provider.Execute(RefreshOperation, FSourceControlChangelistPtr(), FGitSourceControlModule::GetEmptyStringArray(), EConcurrency::Asynchronous,
+					FSourceControlOperationComplete::CreateRaw(this, &FGitSourceControlRunner::OnSourceControlOperationComplete));
+#else
 				const ECommandResult::Type Result = Provider.Execute(RefreshOperation, FGitSourceControlModule::GetEmptyStringArray(), EConcurrency::Asynchronous,
 					FSourceControlOperationComplete::CreateRaw(this, &FGitSourceControlRunner::OnSourceControlOperationComplete));
+#endif
 				return Result;
 				});
 			if (bRefreshSpawned && bRunThread)

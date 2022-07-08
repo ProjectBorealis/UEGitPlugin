@@ -36,7 +36,7 @@ bool FGitConnectWorker::Execute(FGitSourceControlCommand& InCommand)
 
 	// Skip login operations, since Git does not have to login.
 	// It's not a big deal for async commands though, so let those go through.
-	// More information: this is a heuristic for cases where UE4 is trying to create
+	// More information: this is a heuristic for cases where UE is trying to create
 	// a valid Perforce connection as a side effect for the connect worker. For Git,
 	// the connect worker has no side effects. It is simply a query to retrieve information
 	// to be displayed to the user, like in the source control settings or on init.

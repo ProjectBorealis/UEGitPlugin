@@ -11,7 +11,7 @@
 #include "GitSourceControlProvider.h"
 #include "HAL/PlatformProcess.h"
 
-#if ( ENGINE_MAJOR_VERSION == 5 )
+#if ENGINE_MAJOR_VERSION >= 5
 #include "HAL/PlatformFileManager.h"
 #else
 #include "HAL/PlatformFilemanager.h"
@@ -930,7 +930,7 @@ static void RunGetConflictStatus(const FString& InPathToGitBinary, const FString
 TArray<UPackage*> UnlinkPackages(const TArray<FString>& InPackageNames)
 {
 	TArray<UPackage*> LoadedPackages;
-	// UE4-COPY: ContentBrowserUtils::SyncPathsFromSourceControl()
+	// UE-COPY: ContentBrowserUtils::SyncPathsFromSourceControl()
 	if (InPackageNames.Num() > 0)
 	{
 		TArray<FString> PackagesToUnlink;
@@ -966,7 +966,7 @@ TArray<UPackage*> UnlinkPackages(const TArray<FString>& InPackageNames)
 
 void ReloadPackages(TArray<UPackage*>& InPackagesToReload)
 {
-	// UE4-COPY: ContentBrowserUtils::SyncPathsFromSourceControl()
+	// UE-COPY: ContentBrowserUtils::SyncPathsFromSourceControl()
 	// Syncing may have deleted some packages, so we need to unload those rather than re-load them...
 	TArray<UPackage*> PackagesToUnload;
 	InPackagesToReload.RemoveAll([&](UPackage* InPackage) -> bool {
@@ -1331,7 +1331,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessa
 			FGitLockedFilesCache::LockedFiles = OutLocks;
 			return bResult;
 		}
-		// We tried to invalidate the UE4 cache, but we failed for some reason. Try updating lock state from LFS cache.
+		// We tried to invalidate the UE cache, but we failed for some reason. Try updating lock state from LFS cache.
 		// Get the last known state of remote locks
 		TArray<FString> Params;
 		Params.Add(TEXT("--cached"));

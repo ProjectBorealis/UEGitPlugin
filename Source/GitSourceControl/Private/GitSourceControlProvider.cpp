@@ -372,7 +372,7 @@ void FGitSourceControlProvider::UnregisterSourceControlStateChanged_Handle( FDel
 }
 
 #if ENGINE_MAJOR_VERSION < 5
-ECommandResult::Type FGitSourceControlProvider::Execute( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation, const TArray<FString>& InFiles, EConcurrency::Type InConcurrency, const FSourceControlOperationComplete& InOperationCompleteDelegate )
+ECommandResult::Type FGitSourceControlProvider::Execute( const FSourceControlOperationRef& InOperation, const TArray<FString>& InFiles, EConcurrency::Type InConcurrency, const FSourceControlOperationComplete& InOperationCompleteDelegate )
 #else
 ECommandResult::Type FGitSourceControlProvider::Execute( const FSourceControlOperationRef& InOperation, FSourceControlChangelistPtr InChangelist, const TArray<FString>& InFiles, EConcurrency::Type InConcurrency, const FSourceControlOperationComplete& InOperationCompleteDelegate )
 #endif
@@ -428,7 +428,7 @@ ECommandResult::Type FGitSourceControlProvider::Execute( const FSourceControlOpe
 }
 
 #if ENGINE_MAJOR_VERSION < 5
-bool FGitSourceControlProvider::CanCancelOperation( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation ) const
+bool FGitSourceControlProvider::CanCancelOperation( const FSourceControlOperationRef& InOperation ) const
 #else
 bool FGitSourceControlProvider::CanCancelOperation( const FSourceControlOperationRef& InOperation ) const
 #endif
@@ -451,7 +451,7 @@ bool FGitSourceControlProvider::CanCancelOperation( const FSourceControlOperatio
 }
 
 #if ENGINE_MAJOR_VERSION < 5
-void FGitSourceControlProvider::CancelOperation( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation )
+void FGitSourceControlProvider::CancelOperation( const FSourceControlOperationRef& InOperation )
 #else
 void FGitSourceControlProvider::CancelOperation( const FSourceControlOperationRef& InOperation )
 #endif
@@ -657,7 +657,7 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 			}
 			i++;
 
-			// Sleep so we don't busy-wait so much.
+			// Sleep for a bit so we don't busy-wait so much.
 			FPlatformProcess::Sleep(0.01f);
 		}
 
