@@ -9,7 +9,7 @@
 #include "ISourceControlProvider.h"
 #include "Runtime/Launch/Resources/Version.h"
 
-class FToolBarBuilder;
+struct FToolMenuSection;
 class FMenuBuilder;
 
 /** Git extension of the Source Control toolbar menu */
