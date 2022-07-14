@@ -233,7 +233,7 @@ void FGitSourceControlMenu::CommitClicked()
 		return;
 	}
 	
-	FLevelEditorModule & LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+	FLevelEditorModule & LevelEditorModule = FModuleManager::Get().LoadModuleChecked<FLevelEditorModule>("LevelEditor");
 	FSourceControlWindows::ChoosePackagesToCheckIn(nullptr);
 }
 

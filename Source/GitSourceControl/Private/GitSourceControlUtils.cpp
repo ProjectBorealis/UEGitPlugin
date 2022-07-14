@@ -499,6 +499,10 @@ void GetUserConfig(const FString& InPathToGitBinary, const FString& InRepository
 	{
 		OutUserName = InfoMessages[0];
 	}
+	else
+	{
+		OutUserName = TEXT("");
+	}
 
 	Parameters.Reset(1);
 	Parameters.Add(TEXT("user.email"));
@@ -507,6 +511,10 @@ void GetUserConfig(const FString& InPathToGitBinary, const FString& InRepository
 	if (bResults && InfoMessages.Num() > 0)
 	{
 		OutUserEmail = InfoMessages[0];
+	}
+	else
+	{
+		OutUserEmail = TEXT("");
 	}
 }
 

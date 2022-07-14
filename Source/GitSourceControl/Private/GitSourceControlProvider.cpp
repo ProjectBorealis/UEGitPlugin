@@ -89,21 +89,28 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 	// Make sure our settings our up to date
 	UpdateSettings();
 
+	// Find the path to the root Git directory (if any, else uses the ProjectDir)
+	const FString PathToProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+	if (!GitSourceControlUtils::FindRootDirectory(PathToProjectDir, PathToRepositoryRoot))
+	{
+		UE_LOG(LogSourceControl, Error, TEXT("Failed to find valid Git root directory."));
+		bGitRepositoryFound = false;
+		return;
+	}
+	if (!GitSourceControlUtils::CheckGitAvailability(PathToGitBinary, &GitVersion))
+	{
+		UE_LOG(LogSourceControl, Error, TEXT("Failed to find valid Git executable."));
+		bGitRepositoryFound = false;
+		return;
+	}
+	// Get user name & email (of the repository, else from the global Git config)
+	GitSourceControlUtils::GetUserConfig(PathToGitBinary, PathToRepositoryRoot, UserName, UserEmail);
+
 	TUniqueFunction<void()> InitFunc = [this]()
 	{
 		TMap<FString, FGitSourceControlState> States;
 		auto ConditionalRepoInit = [this, &States]()
 		{
-			// Find the path to the root Git directory (if any, else uses the ProjectDir)
-			const FString PathToProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
-			if (!GitSourceControlUtils::FindRootDirectory(PathToProjectDir, PathToRepositoryRoot))
-			{
-				return false;
-			}
-			if (!GitSourceControlUtils::CheckGitAvailability(PathToGitBinary, &GitVersion))
-			{
-				return false;
-			}
 			if (!GitSourceControlUtils::GetBranchName(PathToGitBinary, PathToRepositoryRoot, BranchName))
 			{
 				return false;
@@ -119,8 +126,6 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 					UE_LOG(LogSourceControl, Error, TEXT("%s"), *ErrorMessage);
 				}
 			}
-			// Get user name & email (of the repository, else from the global Git config)
-			GitSourceControlUtils::GetUserConfig(PathToGitBinary, PathToRepositoryRoot, UserName, UserEmail);
 			const TArray<FString> ProjectDirs{FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),
 											  FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()),
 											  FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath())};

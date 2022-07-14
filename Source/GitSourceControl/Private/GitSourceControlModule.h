@@ -115,7 +115,7 @@ public:
 	 */
 	static inline FGitSourceControlModule& Get()
 	{
-		return FModuleManager::LoadModuleChecked< FGitSourceControlModule >("GitSourceControl");
+		return FModuleManager::Get().LoadModuleChecked< FGitSourceControlModule >("GitSourceControl");
 	}
 
 	/** Set list of error messages that occurred after last git command */
