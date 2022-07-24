@@ -251,7 +251,6 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 		else
 		{
 			// Be cautious, try pushing anyway
-			for (const FString& File : InCommand.Files)
 			bUnpushedFiles = true;
 		}
 
