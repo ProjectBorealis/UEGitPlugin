@@ -216,10 +216,6 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 			Operation->SetSuccessMessage(ParseCommitResults(InCommand.ResultInfo.InfoMessages));
 			const FString& Message = (InCommand.ResultInfo.InfoMessages.Num() > 0) ? InCommand.ResultInfo.InfoMessages[0] : TEXT("");
 			UE_LOG(LogSourceControl, Log, TEXT("commit successful: %s"), *Message);
-			for (const FString& File : InCommand.Files)
-			{
-				FPlatformFileManager::Get().GetPlatformFile().SetReadOnly(*File, true);
-			}
 			GitSourceControlUtils::GetCommitInfo(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.CommitId, InCommand.CommitSummary);
 		}
 
@@ -255,6 +251,7 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 		else
 		{
 			// Be cautious, try pushing anyway
+			for (const FString& File : InCommand.Files)
 			bUnpushedFiles = true;
 		}
 
@@ -354,6 +351,12 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 						}
 					}
 				}
+#if 0
+				for (const FString& File : FilesToCheckIn.Array())
+				{
+					FPlatformFileManager::Get().GetPlatformFile().SetReadOnly(*File, true);
+				}
+#endif
 			}
 		}
 
