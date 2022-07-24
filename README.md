@@ -136,6 +136,10 @@ You can pull the latest changes from your currently checked-out branch within th
    
 ![Submitting to source control](https://iili.io/1HhI7R.webp)
   
+## Additional Resources
+
+You can learn more about how we set up our Git repository at [the PBCore wiki](https://github.com/ProjectBorealis/PBCore/wiki).
+
 
 ## Additional Tips (For Programmers)
 ***
