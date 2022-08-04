@@ -12,7 +12,9 @@
 
 #include "GitSourceControlSettings.h"
 #include "GitSourceControlProvider.h"
+#include "Framework/MultiBox/MultiBoxExtender.h"
 
+struct FAssetData;
 /**
 
 UEGitPlugin is a simple Git Source Control Plugin for Unreal Engine
@@ -122,6 +124,11 @@ public:
 	static void SetLastErrors(const TArray<FText>& InErrors);
 
 private:
+    TSharedRef< FExtender > OnExtendContentBrowserAssetSelectionMenu( const TArray< FAssetData > & selected_assets );
+    void CreateGitContentBrowserAssetMenu( FMenuBuilder & menu_builder, const TArray< FAssetData > selected_assets );
+    void DiffAssetAgainstGitOriginDevelop( const TArray< FAssetData > selected_assets ) const;
+    void DiffAgainstOriginDevelop( UObject * InObject, const FString & InPackagePath, const FString & InPackageName ) const;
+
 	/** The one and only Git source control provider */
 	FGitSourceControlProvider GitSourceControlProvider;
 
@@ -137,5 +144,6 @@ private:
 	FDelegateHandle CbdHandle_OnAssetSelectionChanged;
 	FDelegateHandle CbdHandle_OnSourcesViewChanged;
 	FDelegateHandle CbdHandle_OnAssetPathChanged;
+    FDelegateHandle ContentBrowserAssetExtenderDelegateHandle;
 #endif
 };

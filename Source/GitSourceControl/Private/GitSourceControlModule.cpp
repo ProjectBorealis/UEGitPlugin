@@ -5,11 +5,20 @@
 
 #include "GitSourceControlModule.h"
 
+#include "AssetToolsModule.h"
+#include "EditorStyleSet.h"
 #include "Misc/App.h"
 #include "Modules/ModuleManager.h"
 #include "Features/IModularFeatures.h"
 
+#include "ContentBrowserModule.h"
+#include "ContentBrowserDelegates.h"
+
 #include "GitSourceControlOperations.h"
+#include "GitSourceControlUtils.h"
+#include "SourceControlHelpers.h"
+#include "Framework/Commands/UIAction.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 
 #if ENGINE_MAJOR_VERSION >= 5
 #include "ContentBrowser/Public/ContentBrowserModule.h"
@@ -59,6 +68,10 @@ void FGitSourceControlModule::StartupModule()
 	CbdHandle_OnSearchBoxChanged = ContentBrowserModule.GetOnSearchBoxChanged().AddLambda( [this]( const FText&, bool ){ GitSourceControlProvider.TicksUntilNextForcedUpdate = 1; } );
 	CbdHandle_OnAssetSelectionChanged = ContentBrowserModule.GetOnAssetSelectionChanged().AddLambda( [this]( const TArray<FAssetData>&, bool ) { GitSourceControlProvider.TicksUntilNextForcedUpdate = 1; } );
 	CbdHandle_OnAssetPathChanged = ContentBrowserModule.GetOnAssetPathChanged().AddLambda( [this]( const FString& ) { GitSourceControlProvider.TicksUntilNextForcedUpdate = 2; } );
+
+    auto  & extenders = ContentBrowserModule.GetAllAssetViewContextMenuExtenders();
+    extenders.Add( FContentBrowserMenuExtender_SelectedAssets::CreateRaw( this, &FGitSourceControlModule::OnExtendContentBrowserAssetSelectionMenu ) );
+    ContentBrowserAssetExtenderDelegateHandle = extenders.Last().GetHandle();
 #endif
 }
 
@@ -72,11 +85,16 @@ void FGitSourceControlModule::ShutdownModule()
 
 #if ENGINE_MAJOR_VERSION >= 5
 	// Unregister ContentBrowserDelegate Handles
-	FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+    FContentBrowserModule & ContentBrowserModule = FModuleManager::Get().LoadModuleChecked< FContentBrowserModule >( "ContentBrowser" );
 	ContentBrowserModule.GetOnFilterChanged().Remove( CbdHandle_OnFilterChanged );
 	ContentBrowserModule.GetOnSearchBoxChanged().Remove( CbdHandle_OnSearchBoxChanged );
 	ContentBrowserModule.GetOnAssetSelectionChanged().Remove( CbdHandle_OnAssetSelectionChanged );
 	ContentBrowserModule.GetOnAssetPathChanged().Remove( CbdHandle_OnAssetPathChanged );
+
+	auto & extenders = ContentBrowserModule.GetAllAssetViewContextMenuExtenders();
+    extenders.RemoveAll( [ &extender_delegate = ContentBrowserAssetExtenderDelegateHandle ]( const FContentBrowserMenuExtender_SelectedAssets & delegate ) {
+        return delegate.GetHandle() == extender_delegate;
+    } );
 #endif
 }
 
@@ -99,6 +117,102 @@ void FGitSourceControlModule::SetLastErrors(const TArray<FText>& InErrors)
 	}
 }
 
-IMPLEMENT_MODULE(FGitSourceControlModule, GitSourceControl);
+TSharedRef<FExtender> FGitSourceControlModule::OnExtendContentBrowserAssetSelectionMenu( const TArray<FAssetData> & selected_assets )
+{
+    TSharedRef< FExtender > extender( new FExtender() );
+
+    extender->AddMenuExtension(
+        "AssetSourceControlActions",
+        EExtensionHook::After,
+        nullptr,
+        FMenuExtensionDelegate::CreateRaw( this, &FGitSourceControlModule::CreateGitContentBrowserAssetMenu, selected_assets ) );
+
+    return extender;
+}
+
+void FGitSourceControlModule::CreateGitContentBrowserAssetMenu( FMenuBuilder & menu_builder, const TArray<FAssetData> selected_assets )
+{
+    menu_builder.AddMenuEntry(
+        LOCTEXT( "GitPlugin", "Diff against origin/develop" ),
+        LOCTEXT( "GitPlugin", "Diff that asset against the version on origin/develop." ),
+        FSlateIcon( FEditorStyle::GetStyleSetName(), "SourceControl.Actions.Diff" ),
+        FUIAction( FExecuteAction::CreateRaw( this, &FGitSourceControlModule::DiffAssetAgainstGitOriginDevelop, selected_assets ) ) );
+}
+
+void FGitSourceControlModule::DiffAssetAgainstGitOriginDevelop( const TArray<FAssetData> selected_assets ) const
+{
+    for ( int32 AssetIdx = 0; AssetIdx < selected_assets.Num(); AssetIdx++ )
+    {
+        // Get the actual asset (will load it)
+        const FAssetData & AssetData = selected_assets[ AssetIdx ];
+
+        if ( UObject * CurrentObject = AssetData.GetAsset() )
+        {
+            const FString PackagePath = AssetData.PackageName.ToString();
+            const FString PackageName = AssetData.AssetName.ToString();
+            DiffAgainstOriginDevelop( CurrentObject, PackagePath, PackageName );
+        }
+    }
+}
+
+void FGitSourceControlModule::DiffAgainstOriginDevelop( UObject * InObject, const FString & InPackagePath, const FString & InPackageName ) const
+{
+    check( InObject );
+
+    const FGitSourceControlModule & GitSourceControl = FModuleManager::GetModuleChecked< FGitSourceControlModule >( "GitSourceControl" );
+    const auto PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
+    const auto PathToRepositoryRoot = GitSourceControl.GetProvider().GetPathToRepositoryRoot();
+
+    ISourceControlProvider & SourceControlProvider = ISourceControlModule::Get().GetProvider();
+
+    const FAssetToolsModule & AssetToolsModule = FModuleManager::GetModuleChecked< FAssetToolsModule >( "AssetTools" );
+
+    // Get the SCC state
+    const FSourceControlStatePtr SourceControlState = SourceControlProvider.GetState( SourceControlHelpers::PackageFilename( InPackagePath ), EStateCacheUsage::Use );
+
+    // If we have an asset and its in SCC..
+    if ( SourceControlState.IsValid() && InObject != nullptr && SourceControlState->IsSourceControlled() )
+    {
+        // Get the file name of package
+        FString RelativeFileName;
+        if ( FPackageName::DoesPackageExist( InPackagePath, &RelativeFileName ) )
+        {
+            //if(SourceControlState->GetHistorySize() > 0)
+            {
+                TArray< FString > Errors;
+                const auto Revision = GitSourceControlUtils::GetOriginDevelopRevision( PathToGitBinary, PathToRepositoryRoot, RelativeFileName, Errors );
+
+                check( Revision.IsValid() );
+
+                FString TempFileName;
+                if ( Revision->Get( TempFileName ) )
+                {
+                    // Try and load that package
+                    UPackage * TempPackage = LoadPackage( nullptr, *TempFileName, LOAD_ForDiff | LOAD_DisableCompileOnLoad );
+                    if ( TempPackage != nullptr )
+                    {
+                        // Grab the old asset from that old package
+                        UObject * OldObject = FindObject< UObject >( TempPackage, *InPackageName );
+                        if ( OldObject != nullptr )
+                        {
+                            /* Set the revision information*/
+                            FRevisionInfo OldRevision;
+                            OldRevision.Changelist = Revision->GetCheckInIdentifier();
+                            OldRevision.Date = Revision->GetDate();
+                            OldRevision.Revision = Revision->GetRevision();
+
+                            FRevisionInfo NewRevision;
+                            NewRevision.Revision = TEXT( "" );
+
+                            AssetToolsModule.Get().DiffAssets( OldObject, InObject, OldRevision, NewRevision );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+IMPLEMENT_MODULE( FGitSourceControlModule, GitSourceControl );
 
 #undef LOCTEXT_NAMESPACE
