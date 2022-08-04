@@ -515,7 +515,13 @@ void GetUserConfig(const FString& InPathToGitBinary, const FString& InRepository
 
 bool GetBranchName(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutBranchName)
 {
-	const FGitSourceControlProvider& Provider = FGitSourceControlModule::Get().GetProvider();
+    auto * git_module = FModuleManager::Get().LoadModulePtr< FGitSourceControlModule >( "GitSourceControl" );
+	if ( git_module == nullptr )
+	{
+        return false;
+	}
+
+    const FGitSourceControlProvider & Provider = git_module->GetProvider();
 	if (!Provider.GetBranchName().IsEmpty())
 	{
 		OutBranchName = Provider.GetBranchName();
@@ -2157,6 +2163,43 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 	return bSuccess;
 }
 
+TSharedPtr<ISourceControlRevision, ESPMode::ThreadSafe> GetOriginDevelopRevision( const FString & InPathToGitBinary, const FString & InRepositoryRoot, const FString & InRelativeFileName, TArray<FString> & OutErrorMessages )
+{
+    TGitSourceControlHistory OutHistory;
+
+    TArray< FString > Results;
+    TArray< FString > Parameters;
+    Parameters.Add( TEXT( "origin/develop" ) );
+    Parameters.Add( TEXT( "--date=raw" ) );
+    Parameters.Add( TEXT( "--pretty=medium" ) ); // make sure format matches expected in ParseLogResults
+
+    TArray< FString > Files;
+    const auto bResults = RunCommand( TEXT( "show" ), InPathToGitBinary, InRepositoryRoot, Parameters, Files, Results, OutErrorMessages );
+
+    if ( bResults )
+    {
+        ParseLogResults( Results, OutHistory );
+    }
+
+    if ( OutHistory.Num() > 0 )
+    {
+        auto AbsoluteFileName = FPaths::ConvertRelativePathToFull( InRelativeFileName );
+
+        AbsoluteFileName.RemoveFromStart( InRepositoryRoot );
+
+		if ( AbsoluteFileName[ 0 ] == '/' )
+		{
+            AbsoluteFileName.RemoveAt( 0 );    
+		}
+        
+
+        OutHistory[ 0 ]->Filename = AbsoluteFileName;
+
+        return OutHistory[ 0 ];
+    }
+
+    return nullptr;
+}
 } // namespace GitSourceControlUtils
 
 #undef LOCTEXT_NAMESPACE
