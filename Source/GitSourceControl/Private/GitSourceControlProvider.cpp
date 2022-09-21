@@ -106,6 +106,9 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 	// Get user name & email (of the repository, else from the global Git config)
 	GitSourceControlUtils::GetUserConfig(PathToGitBinary, PathToRepositoryRoot, UserName, UserEmail);
 
+	// Load Git source control module
+	FGitSourceControlModule::Get();
+
 	TUniqueFunction<void()> InitFunc = [this]()
 	{
 		TMap<FString, FGitSourceControlState> States;
