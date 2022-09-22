@@ -178,14 +178,18 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 		}
 	};
 
+	#if ENGINE_MAJOR_VERSION >= 5
 	if (FApp::IsUnattended() || IsRunningCommandlet())
+	#endif
 	{
 		InitFunc();
 	}
+	#if ENGINE_MAJOR_VERSION == 4
 	else
 	{
 		AsyncTask(ENamedThreads::AnyHiPriThreadNormalTask, MoveTemp(InitFunc));
 	}
+	#endif
 }
 
 void FGitSourceControlProvider::SetLastErrors(const TArray<FText>& InErrors)
