@@ -178,7 +178,7 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 		}
 	};
 
-	#if ENGINE_MAJOR_VERSION >= 5
+	#if ENGINE_MAJOR_VERSION == 4
 	if (FApp::IsUnattended() || IsRunningCommandlet())
 	#endif
 	{
