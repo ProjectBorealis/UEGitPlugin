@@ -33,7 +33,9 @@ and then install this plugin to the `Engine/Plugins` folder.
 
 This plugin requires explicit file attributes for `*.umap` and `*.uasset`, rather than other approaches of using wildcards for the content folder (`Content/**`).
 
-See [our own `.gitattributes`](https://github.com/ProjectBorealis/Base-Project/blob/main/.gitattributes) for an example.
+See [our own `.gitattributes`](https://github.com/ProjectBorealis/PBCore/blob/main/.gitattributes) for an example.
+
+You may also want to check out [our robust `.gitignore`](https://github.com/ProjectBorealis/PBCore/blob/main/.gitignore) too
 
 ## Status Branches - Required Code Changes (For Programmers)  
 
