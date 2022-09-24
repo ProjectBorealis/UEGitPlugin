@@ -495,6 +495,13 @@ bool FGitSourceControlProvider::UsesCheckout() const
 	return bUsingGitLfsLocking; // Git LFS Lock uses read-only state
 }
 
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
+bool FGitSourceControlProvider::UsesFileRevisions() const
+{
+	return false;
+}
+#endif
+
 TSharedPtr<IGitSourceControlWorker, ESPMode::ThreadSafe> FGitSourceControlProvider::CreateWorker(const FName& InOperationName) const
 {
 	const FGetGitSourceControlWorker* Operation = WorkersMap.Find(InOperationName);
@@ -645,7 +652,7 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 	{
 		TaskText = FText::GetEmpty();
 	}
-	
+
 	int i = 0;
 
 	// Display the progress dialog if a string was provided
@@ -653,7 +660,7 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 		// TODO: support cancellation?
 		//FScopedSourceControlProgress Progress(TaskText, FSimpleDelegate::CreateStatic(&Local::CancelCommand, &InCommand));
 		FScopedSourceControlProgress Progress(TaskText);
-		
+
 		// Issue the command asynchronously...
 		IssueCommand( InCommand );
 
@@ -724,7 +731,7 @@ ECommandResult::Type FGitSourceControlProvider::IssueCommand(FGitSourceControlCo
 
 bool FGitSourceControlProvider::QueryStateBranchConfig(const FString& ConfigSrc, const FString& ConfigDest)
 {
-	// Check similar preconditions to Perforce (valid src and dest), 
+	// Check similar preconditions to Perforce (valid src and dest),
 	if (ConfigSrc.Len() == 0 || ConfigDest.Len() == 0)
 	{
 		return false;
@@ -771,7 +778,7 @@ int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& StateBranchN
 		// of the stream. i.e, promoted/stable changes are always up for consumption by this branch.
 		return INT32_MAX;
 	}
-	
+
 	// If we're not checking the current branch, then we don't need to do special handling.
 	// If it is not a status branch, there is no message
 	return StatusBranchNames.IndexOfByKey(StateBranchName);
