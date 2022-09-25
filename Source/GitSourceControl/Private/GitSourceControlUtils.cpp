@@ -1274,7 +1274,7 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 				if (!IsFileLFSLockable(NewerFileName))
 				{
 					// Check if there's newer binaries pending on this branch
-					if (bCurrentBranch && NewerFileName == TEXT(".checksum"))
+					if (bCurrentBranch && (NewerFileName == TEXT(".checksum") || NewerFileName.StartsWith("Binaries")))
 					{
 						FGitSourceControlModule::Get().GetProvider().bPendingRestart = true;
 					}
