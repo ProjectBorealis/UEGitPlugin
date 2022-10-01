@@ -77,6 +77,8 @@ public:
 	virtual bool UsesCheckout() const override;
 #if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
 	virtual bool UsesFileRevisions() const override;
+	virtual TOptional<bool> IsAtLatestRevision() const override;
+	virtual TOptional<int> GetNumLocalChanges() const override;
 #endif
 	virtual void Tick() override;
 	virtual TArray< TSharedRef<class ISourceControlLabel> > GetLabels( const FString& InMatchingSpec ) const override;

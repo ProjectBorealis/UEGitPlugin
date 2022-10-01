@@ -500,6 +500,16 @@ bool FGitSourceControlProvider::UsesFileRevisions() const
 {
 	return false;
 }
+
+TOptional<bool> FGitSourceControlProvider::IsAtLatestRevision() const
+{
+	return {};
+}
+
+TOptional<int> FGitSourceControlProvider::GetNumLocalChanges() const
+{
+	return {};
+}
 #endif
 
 TSharedPtr<IGitSourceControlWorker, ESPMode::ThreadSafe> FGitSourceControlProvider::CreateWorker(const FName& InOperationName) const
