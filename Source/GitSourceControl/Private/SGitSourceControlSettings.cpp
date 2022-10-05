@@ -5,6 +5,7 @@
 
 #include "SGitSourceControlSettings.h"
 
+#include "Launch/Resources/Version.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Misc/App.h"
 #include "Misc/FileHelper.h"
