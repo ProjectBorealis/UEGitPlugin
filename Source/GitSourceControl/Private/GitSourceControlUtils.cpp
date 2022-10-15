@@ -7,7 +7,6 @@
 
 #include "GitSourceControlCommand.h"
 #include "GitSourceControlModule.h"
-#include "GitSourceControlPrivatePCH.h"
 #include "GitSourceControlProvider.h"
 #include "HAL/PlatformProcess.h"
 

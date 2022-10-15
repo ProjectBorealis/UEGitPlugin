@@ -113,6 +113,20 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 		return InCommand.bCommandSuccessful;
 	}
 
+	FGitSourceControlProvider& Provider = FGitSourceControlModule::Get().GetProvider();
+	// Get lockable files so we don't try to lock files we already locked.
+	// This happens when you get prompted to check out a file while the file is being automatically checked out.
+	TArray<FString> LockableFiles;
+	LockableFiles.Reserve(InCommand.Files.Num());
+	for (auto const& AbsoluteFile : InCommand.Files)
+	{
+		const TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(AbsoluteFile);
+		if (State->State.LockState != ELockState::Locked)
+		{
+			LockableFiles.Add(AbsoluteFile);
+		}
+	}
+
 	// lock files: execute the LFS command on relative filenames
 	const TArray<FString>& RelativeFiles = GitSourceControlUtils::RelativeFilenames(InCommand.Files, InCommand.PathToRepositoryRoot);
 

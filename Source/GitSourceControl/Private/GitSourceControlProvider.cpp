@@ -106,11 +106,18 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 	// Get user name & email (of the repository, else from the global Git config)
 	GitSourceControlUtils::GetUserConfig(PathToGitBinary, PathToRepositoryRoot, UserName, UserEmail);
 
-	// Load Git source control module
-	FGitSourceControlModule::Get();
-
 	TUniqueFunction<void()> InitFunc = [this]()
 	{
+		if (!IsInGameThread())
+		{
+			// Wait until the module interface is valid
+			IModuleInterface* GitModule;
+			do
+			{
+				GitModule = FModuleManager::Get().GetModule("GitSourceControl");
+			} while (!GitModule);
+		}
+		
 		TMap<FString, FGitSourceControlState> States;
 		auto ConditionalRepoInit = [this, &States]()
 		{
@@ -178,18 +185,14 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 		}
 	};
 
-	#if ENGINE_MAJOR_VERSION == 4
 	if (FApp::IsUnattended() || IsRunningCommandlet())
-	#endif
 	{
 		InitFunc();
 	}
-	#if ENGINE_MAJOR_VERSION == 4
 	else
 	{
 		AsyncTask(ENamedThreads::AnyHiPriThreadNormalTask, MoveTemp(InitFunc));
 	}
-	#endif
 }
 
 void FGitSourceControlProvider::SetLastErrors(const TArray<FText>& InErrors)
