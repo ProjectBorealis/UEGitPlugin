@@ -630,19 +630,22 @@ void SGitSourceControlSettings::OnBinaryPathPicked( const FString& PickedPath ) 
 FText SGitSourceControlSettings::GetPathToRepositoryRoot() const
 {
 	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	return FText::FromString(GitSourceControl.GetProvider().GetPathToRepositoryRoot());
+	const FString& PathToRepositoryRoot = GitSourceControl.GetProvider().GetPathToRepositoryRoot();
+	return FText::FromString(PathToRepositoryRoot);
 }
 
 FText SGitSourceControlSettings::GetUserName() const
 {
 	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	return FText::FromString(GitSourceControl.GetProvider().GetUserName());
+	const FString& UserName = GitSourceControl.GetProvider().GetUserName();
+	return FText::FromString(UserName);
 }
 
 FText SGitSourceControlSettings::GetUserEmail() const
 {
 	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	return FText::FromString(GitSourceControl.GetProvider().GetUserEmail());
+	const FString& UserEmail = GitSourceControl.GetProvider().GetUserEmail();
+	return FText::FromString(UserEmail);
 }
 
 EVisibility SGitSourceControlSettings::MustInitializeGitRepository() const
@@ -650,7 +653,11 @@ EVisibility SGitSourceControlSettings::MustInitializeGitRepository() const
 	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	const bool bGitAvailable = GitSourceControl.GetProvider().IsGitAvailable();
 	const bool bGitRepositoryFound = GitSourceControl.GetProvider().IsEnabled();
+#if 0
 	return (bGitAvailable && !bGitRepositoryFound) ? EVisibility::Visible : EVisibility::Collapsed;
+#else
+	return EVisibility::Collapsed;
+#endif
 }
 
 bool SGitSourceControlSettings::CanInitializeGitRepository() const
@@ -662,7 +669,11 @@ bool SGitSourceControlSettings::CanInitializeGitRepository() const
 	const bool bIsUsingGitLfsLocking = GitSourceControl.GetProvider().UsesCheckout();
 	const bool bGitLfsConfigOk = !bIsUsingGitLfsLocking || !LfsUserName.IsEmpty();
 	const bool bInitialCommitConfigOk = !bAutoInitialCommit || !InitialCommitMessage.IsEmpty();
+#if 0
 	return (bGitAvailable && !bGitRepositoryFound && bGitLfsConfigOk && bInitialCommitConfigOk);
+#else
+	return false;
+#endif
 }
 
 bool SGitSourceControlSettings::CanUseGitLfsLocking() const
@@ -751,6 +762,8 @@ FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
 		LaunchMarkForAddOperation(ProjectFiles);
 
 		// 4. The CheckIn will follow, at completion of the MarkForAdd operation
+		FGitSourceControlProvider& Provider = FGitSourceControlModule::Get().GetProvider();
+		Provider.CheckRepositoryStatus();
 	}
 	return FReply::Handled();
 }
@@ -929,11 +942,11 @@ FText SGitSourceControlSettings::GetLfsUserName() const
 	const FString LFSUserName = GitSourceControl.AccessSettings().GetLfsUserName();
 	if (LFSUserName.IsEmpty())
 	{
-		const FString& UserName = GetUserName().ToString();
-		GitSourceControl.AccessSettings().SetLfsUserName(UserName);
+		const FText& UserName = GetUserName();
+		GitSourceControl.AccessSettings().SetLfsUserName(UserName.ToString());
 		GitSourceControl.AccessSettings().SaveSettings();
 		GitSourceControl.GetProvider().UpdateSettings();
-		return FText::FromString(UserName);
+		return UserName;
 	}
 	else
 	{

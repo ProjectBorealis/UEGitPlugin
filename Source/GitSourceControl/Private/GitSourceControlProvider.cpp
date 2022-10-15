@@ -103,8 +103,6 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 		bGitRepositoryFound = false;
 		return;
 	}
-	// Get user name & email (of the repository, else from the global Git config)
-	GitSourceControlUtils::GetUserConfig(PathToGitBinary, PathToRepositoryRoot, UserName, UserEmail);
 
 	TUniqueFunction<void()> InitFunc = [this]()
 	{
@@ -117,6 +115,9 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 				GitModule = FModuleManager::Get().GetModule("GitSourceControl");
 			} while (!GitModule);
 		}
+
+		// Get user name & email (of the repository, else from the global Git config)
+		GitSourceControlUtils::GetUserConfig(PathToGitBinary, PathToRepositoryRoot, UserName, UserEmail);
 		
 		TMap<FString, FGitSourceControlState> States;
 		auto ConditionalRepoInit = [this, &States]()
