@@ -128,7 +128,7 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 	}
 
 	// lock files: execute the LFS command on relative filenames
-	const TArray<FString>& RelativeFiles = GitSourceControlUtils::RelativeFilenames(InCommand.Files, InCommand.PathToRepositoryRoot);
+	const TArray<FString>& RelativeFiles = GitSourceControlUtils::RelativeFilenames(LockableFiles, InCommand.PathToRepositoryRoot);
 
 	const TArray<FString>& LockableRelativeFiles = RelativeFiles.FilterByPredicate(GitSourceControlUtils::IsFileLFSLockable);
 
