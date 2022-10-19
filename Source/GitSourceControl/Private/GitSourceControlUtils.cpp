@@ -443,47 +443,19 @@ bool FindRootDirectory(const FString& InPath, FString& OutRepositoryRoot)
 {
 	OutRepositoryRoot = InPath;
 
-#if 1
-	return true;
-#else
-	auto TrimTrailing = [](FString& Str, const TCHAR Char) {
-		int32 Len = Str.Len();
-		while (Len && Str[Len - 1] == Char)
-		{
-			Str = Str.LeftChop(1);
-			Len = Str.Len();
-		}
-	};
+	const FString PathToGitBinary = FindGitBinaryPath();
+	TArray<FString> Parameters;
+	Parameters.Add("--show-toplevel");
 
-	TrimTrailing(OutRepositoryRoot, '\\');
-	TrimTrailing(OutRepositoryRoot, '/');
+	TArray<FString> InfoMessages;
+	TArray<FString> ErrorMessages;
+	const bool bResults = RunCommandInternal(TEXT("rev-parse"), PathToGitBinary, InPath, Parameters, FGitSourceControlModule::GetEmptyStringArray(), InfoMessages, ErrorMessages);
+	if(bResults && InfoMessages.Num() > 0)
+	{
+		OutRepositoryRoot = InfoMessages[0];
+	}
 
-	bool bFound = false;
-	FString PathToGitSubdirectory;
-	while (!bFound && !OutRepositoryRoot.IsEmpty())
-	{
-		// Look for the ".git" subdirectory (or file) present at the root of every Git repository
-		PathToGitSubdirectory = OutRepositoryRoot / TEXT(".git");
-		bFound = IFileManager::Get().DirectoryExists(*PathToGitSubdirectory) || IFileManager::Get().FileExists(*PathToGitSubdirectory);
-		if (!bFound)
-		{
-			int32 LastSlashIndex;
-			if (OutRepositoryRoot.FindLastChar('/', LastSlashIndex))
-			{
-				OutRepositoryRoot = OutRepositoryRoot.Left(LastSlashIndex);
-			}
-			else
-			{
-				OutRepositoryRoot.Empty();
-			}
-		}
-	}
-	if (!bFound)
-	{
-		OutRepositoryRoot = InPath; // If not found, return the provided dir as best possible root.
-	}
-	return bFound;
-#endif
+	return bResults && InfoMessages.Num() > 0;
 }
 
 void GetUserConfig(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutUserName, FString& OutUserEmail)
