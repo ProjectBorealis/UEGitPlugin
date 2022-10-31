@@ -91,7 +91,8 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 
 	// Find the path to the root Git directory (if any, else uses the ProjectDir)
 	const FString PathToProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
-	if (!GitSourceControlUtils::FindRootDirectory(PathToProjectDir, PathToRepositoryRoot))
+	PathToRepositoryRoot = PathToProjectDir;
+	if (!GitSourceControlUtils::FindRootDirectory(PathToProjectDir, PathToGitRoot))
 	{
 		UE_LOG(LogSourceControl, Error, TEXT("Failed to find valid Git root directory."));
 		bGitRepositoryFound = false;

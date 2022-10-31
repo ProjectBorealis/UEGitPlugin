@@ -443,9 +443,6 @@ bool FindRootDirectory(const FString& InPath, FString& OutRepositoryRoot)
 {
 	OutRepositoryRoot = InPath;
 
-#if 1
-	return true;
-#else
 	auto TrimTrailing = [](FString& Str, const TCHAR Char) {
 		int32 Len = Str.Len();
 		while (Len && Str[Len - 1] == Char)
@@ -483,7 +480,6 @@ bool FindRootDirectory(const FString& InPath, FString& OutRepositoryRoot)
 		OutRepositoryRoot = InPath; // If not found, return the provided dir as best possible root.
 	}
 	return bFound;
-#endif
 }
 
 void GetUserConfig(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutUserName, FString& OutUserEmail)

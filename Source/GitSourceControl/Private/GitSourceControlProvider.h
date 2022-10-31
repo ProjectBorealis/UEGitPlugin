@@ -118,10 +118,16 @@ public:
 		return GitVersion;
 	}
 
-	/** Get the path to the root of the Git repository: can be the ProjectDir itself, or any parent directory */
+	/** Path to the root of the Unreal source control repository: usually the ProjectDir */
 	inline const FString& GetPathToRepositoryRoot() const
 	{
 		return PathToRepositoryRoot;
+	}
+
+	/** Path to the root of the Git repository: can be the ProjectDir itself, or any parent directory (found by the "Connect" operation) */
+	inline const FString& GetPathToGitRoot() const
+	{
+		return PathToGitRoot;
 	}
 
 	/** Gets the path to the Git binary */
@@ -234,8 +240,11 @@ private:
 	/** Update repository status on Connect and UpdateStatus operations */
 	void UpdateRepositoryStatus(const class FGitSourceControlCommand& InCommand);
 
-	/** Path to the root of the Git repository: can be the ProjectDir itself, or any parent directory (found by the "Connect" operation) */
+	/** Path to the root of the Unreal source control repository: usually the ProjectDir */
 	FString PathToRepositoryRoot;
+
+	/** Path to the root of the Git repository: can be the ProjectDir itself, or any parent directory (found by the "Connect" operation) */
+	FString PathToGitRoot;
 
 	/** Git config user.name (from local repository, else globally) */
 	FString UserName;
