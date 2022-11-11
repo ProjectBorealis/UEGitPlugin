@@ -133,7 +133,10 @@ bool RunCommandInternalRaw(const FString& InCommand, const FString& InPathToGitB
 	UE_LOG(LogSourceControl, Log, TEXT("RunCommand: 'git %s'"), *LogableCommand);
 #endif
 
+	// WCA EDIT - BEGIN
+	//const FString& PathToGitOrEnvBinary = InPathToGitBinary;
 	FString PathToGitOrEnvBinary = InPathToGitBinary;
+	// WCA EDIT - END
 #if PLATFORM_MAC
 	// The Cocoa application does not inherit shell environment variables, so add the path expected to have git-lfs to PATH
 	FString PathEnv = FPlatformMisc::GetEnvironmentVariable(TEXT("PATH"));
