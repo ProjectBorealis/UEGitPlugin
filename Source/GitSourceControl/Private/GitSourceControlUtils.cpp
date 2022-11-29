@@ -656,17 +656,6 @@ bool RunCommand(const FString& InCommand, const FString& InPathToGitBinary, cons
 bool RunLFSCommand(const FString& InCommand, const FString& InRepositoryRoot, const TArray<FString>& InParameters, const TArray<FString>& InFiles,
 				   TArray<FString>& OutResults, TArray<FString>& OutErrorMessages)
 {
-	FString BaseDir = IPluginManager::Get().FindPlugin("GitSourceControl")->GetBaseDir();
-#if PLATFORM_WINDOWS
-	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs.exe"), *BaseDir);
-#elif PLATFORM_MAC
-	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs-mac"), *BaseDir);
-#elif PLATFORM_LINUX
-	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs"), *BaseDir);
-#else
-	checkf(false, TEXT("Unhandled platform for LFS binary!"));
-#endif
-
 	return GitSourceControlUtils::RunCommand(TEXT("lfs ") + InCommand, GitSourceControlUtils::FindGitBinaryPath(), InRepositoryRoot, InParameters, InFiles, OutResults, OutErrorMessages);
 }
 
