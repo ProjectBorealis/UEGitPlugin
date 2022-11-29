@@ -667,7 +667,7 @@ bool RunLFSCommand(const FString& InCommand, const FString& InRepositoryRoot, co
 	checkf(false, TEXT("Unhandled platform for LFS binary!"));
 #endif
 
-	return GitSourceControlUtils::RunCommand(InCommand, LFSLockBinary, InRepositoryRoot, InParameters, InFiles, OutResults, OutErrorMessages);
+	return GitSourceControlUtils::RunCommand(TEXT("lfs ") + InCommand, GitSourceControlUtils::FindGitBinaryPath(), InRepositoryRoot, InParameters, InFiles, OutResults, OutErrorMessages);
 }
 
 // Run a Git "commit" command by batches
