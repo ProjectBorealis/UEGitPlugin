@@ -676,6 +676,8 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
 {
 	bool bResult = true;
 
+	TArray<FString> AddParameters{TEXT("-A")};
+
 	if (InFiles.Num() > GitSourceControlConstants::MaxFilesPerBatch)
 	{
 		// Batch files up so we dont exceed command-line limits
@@ -686,6 +688,7 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
 			{
 				FilesInBatch.Add(InFiles[FileCount]);
 			}
+			bResult &= RunCommandInternal(TEXT("add"), InPathToGitBinary, InRepositoryRoot, AddParameters, FilesInBatch, OutResults, OutErrorMessages);
 			// First batch is a simple "git commit" command with only the first files
 			bResult &= RunCommandInternal(TEXT("commit"), InPathToGitBinary, InRepositoryRoot, InParameters, FilesInBatch, OutResults, OutErrorMessages);
 		}
@@ -707,6 +710,7 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
 			// Next batches "amend" the commit with some more files
 			TArray<FString> BatchResults;
 			TArray<FString> BatchErrors;
+			bResult &= RunCommandInternal(TEXT("add"), InPathToGitBinary, InRepositoryRoot, AddParameters, FilesInBatch, OutResults, OutErrorMessages);
 			bResult &= RunCommandInternal(TEXT("commit"), InPathToGitBinary, InRepositoryRoot, Parameters, FilesInBatch, BatchResults, BatchErrors);
 			OutResults += BatchResults;
 			OutErrorMessages += BatchErrors;
@@ -714,6 +718,7 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
 	}
 	else
 	{
+		bResult &= RunCommandInternal(TEXT("add"), InPathToGitBinary, InRepositoryRoot, AddParameters, InFiles, OutResults, OutErrorMessages);
 		bResult = RunCommandInternal(TEXT("commit"), InPathToGitBinary, InRepositoryRoot, InParameters, InFiles, OutResults, OutErrorMessages);
 	}
 
