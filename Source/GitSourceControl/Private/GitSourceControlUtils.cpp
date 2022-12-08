@@ -1219,9 +1219,9 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 	// We can obtain a list of files that were modified between our remote branches and HEAD. Assumes that fetch has been run to get accurate info.
 
 	// Gather valid remote branches
-	TArray<FString> ErrorMessages;
+	const TArray<FString> StatusBranches = FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames();
 
-	TSet<FString> BranchesToDiff{ FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames() };
+	TSet<FString> BranchesToDiff{ StatusBranches };
 
 	bool bDiffAgainstRemoteCurrent = false;
 
@@ -1240,10 +1240,12 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 		return;
 	}
 
+	TArray<FString> ErrorMessages;
+
 	TArray<FString> Results;
 	TMap<FString, FString> NewerFiles;
 
-	const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
+	//const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
 	// Get the full remote status of the Content folder, since it's the only lockable folder we track in editor. 
 	// This shows any new files as well.
 	// Also update the status of `.checksum` and `Binaries` since that lets us know if editor binaries got updated.
