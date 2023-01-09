@@ -89,21 +89,41 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 	// Make sure our settings our up to date
 	UpdateSettings();
 
+	// Find the path to the root Git directory (if any, else uses the ProjectDir)
+	const FString PathToProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+	PathToRepositoryRoot = PathToProjectDir;
+	if (!GitSourceControlUtils::FindRootDirectory(PathToProjectDir, PathToGitRoot))
+	{
+		UE_LOG(LogSourceControl, Error, TEXT("Failed to find valid Git root directory."));
+		bGitRepositoryFound = false;
+		return;
+	}
+	if (!GitSourceControlUtils::CheckGitAvailability(PathToGitBinary, &GitVersion))
+	{
+		UE_LOG(LogSourceControl, Error, TEXT("Failed to find valid Git executable."));
+		bGitRepositoryFound = false;
+		return;
+	}
+
 	TUniqueFunction<void()> InitFunc = [this]()
 	{
+		if (!IsInGameThread())
+		{
+			// Wait until the module interface is valid
+			IModuleInterface* GitModule;
+			do
+			{
+				GitModule = FModuleManager::Get().GetModule("GitSourceControl");
+				FPlatformProcess::Sleep(0.0f);
+			} while (!GitModule);
+		}
+
+		// Get user name & email (of the repository, else from the global Git config)
+		GitSourceControlUtils::GetUserConfig(PathToGitBinary, PathToRepositoryRoot, UserName, UserEmail);
+		
 		TMap<FString, FGitSourceControlState> States;
 		auto ConditionalRepoInit = [this, &States]()
 		{
-			// Find the path to the root Git directory (if any, else uses the ProjectDir)
-			const FString PathToProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
-			if (!GitSourceControlUtils::FindRootDirectory(PathToProjectDir, PathToRepositoryRoot))
-			{
-				return false;
-			}
-			if (!GitSourceControlUtils::CheckGitAvailability(PathToGitBinary, &GitVersion))
-			{
-				return false;
-			}
 			if (!GitSourceControlUtils::GetBranchName(PathToGitBinary, PathToRepositoryRoot, BranchName))
 			{
 				return false;
@@ -119,8 +139,6 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 					UE_LOG(LogSourceControl, Error, TEXT("%s"), *ErrorMessage);
 				}
 			}
-			// Get user name & email (of the repository, else from the global Git config)
-			GitSourceControlUtils::GetUserConfig(PathToGitBinary, PathToRepositoryRoot, UserName, UserEmail);
 			const TArray<FString> ProjectDirs{FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),
 											  FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()),
 											  FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath())};
@@ -372,7 +390,7 @@ void FGitSourceControlProvider::UnregisterSourceControlStateChanged_Handle( FDel
 }
 
 #if ENGINE_MAJOR_VERSION < 5
-ECommandResult::Type FGitSourceControlProvider::Execute( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation, const TArray<FString>& InFiles, EConcurrency::Type InConcurrency, const FSourceControlOperationComplete& InOperationCompleteDelegate )
+ECommandResult::Type FGitSourceControlProvider::Execute( const FSourceControlOperationRef& InOperation, const TArray<FString>& InFiles, EConcurrency::Type InConcurrency, const FSourceControlOperationComplete& InOperationCompleteDelegate )
 #else
 ECommandResult::Type FGitSourceControlProvider::Execute( const FSourceControlOperationRef& InOperation, FSourceControlChangelistPtr InChangelist, const TArray<FString>& InFiles, EConcurrency::Type InConcurrency, const FSourceControlOperationComplete& InOperationCompleteDelegate )
 #endif
@@ -428,7 +446,7 @@ ECommandResult::Type FGitSourceControlProvider::Execute( const FSourceControlOpe
 }
 
 #if ENGINE_MAJOR_VERSION < 5
-bool FGitSourceControlProvider::CanCancelOperation( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation ) const
+bool FGitSourceControlProvider::CanCancelOperation( const FSourceControlOperationRef& InOperation ) const
 #else
 bool FGitSourceControlProvider::CanCancelOperation( const FSourceControlOperationRef& InOperation ) const
 #endif
@@ -451,7 +469,7 @@ bool FGitSourceControlProvider::CanCancelOperation( const FSourceControlOperatio
 }
 
 #if ENGINE_MAJOR_VERSION < 5
-void FGitSourceControlProvider::CancelOperation( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation )
+void FGitSourceControlProvider::CancelOperation( const FSourceControlOperationRef& InOperation )
 #else
 void FGitSourceControlProvider::CancelOperation( const FSourceControlOperationRef& InOperation )
 #endif
@@ -482,6 +500,23 @@ bool FGitSourceControlProvider::UsesCheckout() const
 {
 	return bUsingGitLfsLocking; // Git LFS Lock uses read-only state
 }
+
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
+bool FGitSourceControlProvider::UsesFileRevisions() const
+{
+	return false;
+}
+
+TOptional<bool> FGitSourceControlProvider::IsAtLatestRevision() const
+{
+	return {};
+}
+
+TOptional<int> FGitSourceControlProvider::GetNumLocalChanges() const
+{
+	return {};
+}
+#endif
 
 TSharedPtr<IGitSourceControlWorker, ESPMode::ThreadSafe> FGitSourceControlProvider::CreateWorker(const FName& InOperationName) const
 {
@@ -633,7 +668,7 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 	{
 		TaskText = FText::GetEmpty();
 	}
-	
+
 	int i = 0;
 
 	// Display the progress dialog if a string was provided
@@ -641,7 +676,7 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 		// TODO: support cancellation?
 		//FScopedSourceControlProgress Progress(TaskText, FSimpleDelegate::CreateStatic(&Local::CancelCommand, &InCommand));
 		FScopedSourceControlProgress Progress(TaskText);
-		
+
 		// Issue the command asynchronously...
 		IssueCommand( InCommand );
 
@@ -657,7 +692,7 @@ ECommandResult::Type FGitSourceControlProvider::ExecuteSynchronousCommand(FGitSo
 			}
 			i++;
 
-			// Sleep so we don't busy-wait so much.
+			// Sleep for a bit so we don't busy-wait so much.
 			FPlatformProcess::Sleep(0.01f);
 		}
 
@@ -712,7 +747,7 @@ ECommandResult::Type FGitSourceControlProvider::IssueCommand(FGitSourceControlCo
 
 bool FGitSourceControlProvider::QueryStateBranchConfig(const FString& ConfigSrc, const FString& ConfigDest)
 {
-	// Check similar preconditions to Perforce (valid src and dest), 
+	// Check similar preconditions to Perforce (valid src and dest),
 	if (ConfigSrc.Len() == 0 || ConfigDest.Len() == 0)
 	{
 		return false;
@@ -759,7 +794,7 @@ int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& StateBranchN
 		// of the stream. i.e, promoted/stable changes are always up for consumption by this branch.
 		return INT32_MAX;
 	}
-	
+
 	// If we're not checking the current branch, then we don't need to do special handling.
 	// If it is not a status branch, there is no message
 	return StatusBranchNames.IndexOfByKey(StateBranchName);

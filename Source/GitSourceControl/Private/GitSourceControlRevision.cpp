@@ -14,7 +14,7 @@
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
 
-#if ENGINE_MAJOR_VERSION == 5
+#if ENGINE_MAJOR_VERSION >= 5
 bool FGitSourceControlRevision::Get( FString& InOutFilename, EConcurrency::Type InConcurrency ) const
 {
 	if (InConcurrency != EConcurrency::Synchronous)

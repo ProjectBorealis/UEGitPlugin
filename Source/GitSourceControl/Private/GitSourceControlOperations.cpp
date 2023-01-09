@@ -17,8 +17,13 @@
 #include "Logging/MessageLog.h"
 #include "Misc/MessageDialog.h"
 #include "HAL/PlatformProcess.h"
+#include "GenericPlatform/GenericPlatformFile.h"
+#if ENGINE_MAJOR_VERSION >= 5
+#include "HAL/PlatformFileManager.h"
+#else
+#include "HAL/PlatformFilemanager.h"
+#endif
 
-#include <chrono>
 #include <thread>
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
@@ -36,7 +41,7 @@ bool FGitConnectWorker::Execute(FGitSourceControlCommand& InCommand)
 
 	// Skip login operations, since Git does not have to login.
 	// It's not a big deal for async commands though, so let those go through.
-	// More information: this is a heuristic for cases where UE4 is trying to create
+	// More information: this is a heuristic for cases where UE is trying to create
 	// a valid Perforce connection as a side effect for the connect worker. For Git,
 	// the connect worker has no side effects. It is simply a query to retrieve information
 	// to be displayed to the user, like in the source control settings or on init.
@@ -109,7 +114,7 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 	}
 
 	// lock files: execute the LFS command on relative filenames
-	const TArray<FString>& RelativeFiles = GitSourceControlUtils::RelativeFilenames(InCommand.Files, InCommand.PathToRepositoryRoot);
+	const TArray<FString>& RelativeFiles = GitSourceControlUtils::RelativeFilenames(InCommand.Files, InCommand.PathToGitRoot);
 
 	const TArray<FString>& LockableRelativeFiles = RelativeFiles.FilterByPredicate(GitSourceControlUtils::IsFileLFSLockable);
 
@@ -119,7 +124,7 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 		return InCommand.bCommandSuccessful;
 	}
 
-	const bool bSuccess = GitSourceControlUtils::RunLFSCommand(TEXT("lock"), InCommand.PathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), LockableRelativeFiles, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
+	const bool bSuccess = GitSourceControlUtils::RunLFSCommand(TEXT("lock"), InCommand.PathToGitRoot, FGitSourceControlModule::GetEmptyStringArray(), LockableRelativeFiles, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 	InCommand.bCommandSuccessful = bSuccess;
 	const FString& LockUser = FGitSourceControlModule::Get().GetProvider().GetLockUser();
 	if (bSuccess)
@@ -127,10 +132,14 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 		TArray<FString> AbsoluteFiles;
 		for (const auto& RelativeFile : RelativeFiles)
 		{
-			FString AbsoluteFile = FPaths::Combine(InCommand.PathToRepositoryRoot, RelativeFile);
+			FString AbsoluteFile = FPaths::Combine(InCommand.PathToGitRoot, RelativeFile);
 			FGitLockedFilesCache::LockedFiles.Add(AbsoluteFile, LockUser);
 			FPaths::NormalizeFilename(AbsoluteFile);
 			AbsoluteFiles.Add(AbsoluteFile);
+		}
+		for (const auto& File : AbsoluteFiles)
+		{
+			FPlatformFileManager::Get().GetPlatformFile().SetReadOnly(*File, false);
 		}
 		GitSourceControlUtils::CollectNewStates(AbsoluteFiles, States, EFileState::Unset, ETreeState::Unset, ELockState::Locked);
 		for (auto& State : States)
@@ -324,12 +333,12 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 				GitSourceControlUtils::GetLockedFiles(FilesToCheckIn.Array(), LockedFiles);
 				if (LockedFiles.Num() > 0)
 				{
-					const TArray<FString>& FilesToUnlock = GitSourceControlUtils::RelativeFilenames(LockedFiles, InCommand.PathToRepositoryRoot);
+					const TArray<FString>& FilesToUnlock = GitSourceControlUtils::RelativeFilenames(LockedFiles, InCommand.PathToGitRoot);
 
 					if (FilesToUnlock.Num() > 0)
 					{
 						// Not strictly necessary to succeed, so don't update command success
-						const bool bUnlockSuccess = GitSourceControlUtils::RunLFSCommand(TEXT("unlock"), InCommand.PathToRepositoryRoot,
+						const bool bUnlockSuccess = GitSourceControlUtils::RunLFSCommand(TEXT("unlock"), InCommand.PathToGitRoot,
 																						 FGitSourceControlModule::GetEmptyStringArray(), FilesToUnlock,
 																						 InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 						if (bUnlockSuccess)
@@ -341,6 +350,12 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 						}
 					}
 				}
+#if 0
+				for (const FString& File : FilesToCheckIn.Array())
+				{
+					FPlatformFileManager::Get().GetPlatformFile().SetReadOnly(*File, true);
+				}
+#endif
 			}
 		}
 
@@ -562,8 +577,8 @@ bool FGitRevertWorker::Execute(FGitSourceControlCommand& InCommand)
 		GitSourceControlUtils::GetLockedFiles(OtherThanAddedExistingFiles, LockedFiles);
 		if (LockedFiles.Num() > 0)
 		{
-			const TArray<FString>& RelativeFiles = GitSourceControlUtils::RelativeFilenames(LockedFiles, InCommand.PathToRepositoryRoot);
-			InCommand.bCommandSuccessful &= GitSourceControlUtils::RunLFSCommand(TEXT("unlock"), InCommand.PathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), RelativeFiles,
+			const TArray<FString>& RelativeFiles = GitSourceControlUtils::RelativeFilenames(LockedFiles, InCommand.PathToGitRoot);
+			InCommand.bCommandSuccessful &= GitSourceControlUtils::RunLFSCommand(TEXT("unlock"), InCommand.PathToGitRoot, FGitSourceControlModule::GetEmptyStringArray(), RelativeFiles,
 																				 InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 			if (InCommand.bCommandSuccessful)
 			{

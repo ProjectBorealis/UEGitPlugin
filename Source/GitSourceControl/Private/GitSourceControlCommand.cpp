@@ -24,6 +24,7 @@ FGitSourceControlCommand::FGitSourceControlCommand(const TSharedRef<class ISourc
 	PathToGitBinary = Provider.GetGitBinaryPath();
 	bUsingGitLfsLocking = Provider.UsesCheckout();
 	PathToRepositoryRoot = Provider.GetPathToRepositoryRoot();
+	PathToGitRoot = Provider.GetPathToGitRoot();
 }
 
 bool FGitSourceControlCommand::DoWork()

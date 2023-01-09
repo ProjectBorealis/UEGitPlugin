@@ -7,11 +7,10 @@
 
 #include "GitSourceControlCommand.h"
 #include "GitSourceControlModule.h"
-#include "GitSourceControlPrivatePCH.h"
 #include "GitSourceControlProvider.h"
 #include "HAL/PlatformProcess.h"
 
-#if ( ENGINE_MAJOR_VERSION == 5 )
+#if ENGINE_MAJOR_VERSION >= 5
 #include "HAL/PlatformFileManager.h"
 #else
 #include "HAL/PlatformFilemanager.h"
@@ -85,7 +84,7 @@ TMap<FString, FString> FGitLockedFilesCache::LockedFiles = TMap<FString, FString
 namespace GitSourceControlUtils
 {
 // Launch the Git command line process and extract its results & errors
-static bool RunCommandInternalRaw(const FString& InCommand, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& InParameters, const TArray<FString>& InFiles, FString& OutResults, FString& OutErrors, const int32 ExpectedReturnCode = 0)
+bool RunCommandInternalRaw(const FString& InCommand, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& InParameters, const TArray<FString>& InFiles, FString& OutResults, FString& OutErrors, const int32 ExpectedReturnCode /* = 0 */)
 {
 	int32 ReturnCode = 0;
 	FString FullCommand;
@@ -442,8 +441,6 @@ void ParseGitVersion(const FString& InVersionString, FGitVersion* OutVersion)
 // Find the root of the Git repository, looking from the provided path and upward in its parent directories.
 bool FindRootDirectory(const FString& InPath, FString& OutRepositoryRoot)
 {
-	bool bFound = false;
-	FString PathToGitSubdirectory;
 	OutRepositoryRoot = InPath;
 
 	auto TrimTrailing = [](FString& Str, const TCHAR Char) {
@@ -458,6 +455,8 @@ bool FindRootDirectory(const FString& InPath, FString& OutRepositoryRoot)
 	TrimTrailing(OutRepositoryRoot, '\\');
 	TrimTrailing(OutRepositoryRoot, '/');
 
+	bool bFound = false;
+	FString PathToGitSubdirectory;
 	while (!bFound && !OutRepositoryRoot.IsEmpty())
 	{
 		// Look for the ".git" subdirectory (or file) present at the root of every Git repository
@@ -495,6 +494,10 @@ void GetUserConfig(const FString& InPathToGitBinary, const FString& InRepository
 	{
 		OutUserName = InfoMessages[0];
 	}
+	else
+	{
+		OutUserName = TEXT("");
+	}
 
 	Parameters.Reset(1);
 	Parameters.Add(TEXT("user.email"));
@@ -503,6 +506,10 @@ void GetUserConfig(const FString& InPathToGitBinary, const FString& InRepository
 	if (bResults && InfoMessages.Num() > 0)
 	{
 		OutUserEmail = InfoMessages[0];
+	}
+	else
+	{
+		OutUserEmail = TEXT("");
 	}
 }
 
@@ -669,6 +676,8 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
 {
 	bool bResult = true;
 
+	TArray<FString> AddParameters{TEXT("-A")};
+
 	if (InFiles.Num() > GitSourceControlConstants::MaxFilesPerBatch)
 	{
 		// Batch files up so we dont exceed command-line limits
@@ -679,6 +688,7 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
 			{
 				FilesInBatch.Add(InFiles[FileCount]);
 			}
+			bResult &= RunCommandInternal(TEXT("add"), InPathToGitBinary, InRepositoryRoot, AddParameters, FilesInBatch, OutResults, OutErrorMessages);
 			// First batch is a simple "git commit" command with only the first files
 			bResult &= RunCommandInternal(TEXT("commit"), InPathToGitBinary, InRepositoryRoot, InParameters, FilesInBatch, OutResults, OutErrorMessages);
 		}
@@ -700,6 +710,7 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
 			// Next batches "amend" the commit with some more files
 			TArray<FString> BatchResults;
 			TArray<FString> BatchErrors;
+			bResult &= RunCommandInternal(TEXT("add"), InPathToGitBinary, InRepositoryRoot, AddParameters, FilesInBatch, OutResults, OutErrorMessages);
 			bResult &= RunCommandInternal(TEXT("commit"), InPathToGitBinary, InRepositoryRoot, Parameters, FilesInBatch, BatchResults, BatchErrors);
 			OutResults += BatchResults;
 			OutErrorMessages += BatchErrors;
@@ -707,6 +718,7 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
 	}
 	else
 	{
+		bResult &= RunCommandInternal(TEXT("add"), InPathToGitBinary, InRepositoryRoot, AddParameters, InFiles, OutResults, OutErrorMessages);
 		bResult = RunCommandInternal(TEXT("commit"), InPathToGitBinary, InRepositoryRoot, InParameters, InFiles, OutResults, OutErrorMessages);
 	}
 
@@ -930,7 +942,7 @@ static void RunGetConflictStatus(const FString& InPathToGitBinary, const FString
 TArray<UPackage*> UnlinkPackages(const TArray<FString>& InPackageNames)
 {
 	TArray<UPackage*> LoadedPackages;
-	// UE4-COPY: ContentBrowserUtils::SyncPathsFromSourceControl()
+	// UE-COPY: ContentBrowserUtils::SyncPathsFromSourceControl()
 	if (InPackageNames.Num() > 0)
 	{
 		TArray<FString> PackagesToUnlink;
@@ -966,7 +978,7 @@ TArray<UPackage*> UnlinkPackages(const TArray<FString>& InPackageNames)
 
 void ReloadPackages(TArray<UPackage*>& InPackagesToReload)
 {
-	// UE4-COPY: ContentBrowserUtils::SyncPathsFromSourceControl()
+	// UE-COPY: ContentBrowserUtils::SyncPathsFromSourceControl()
 	// Syncing may have deleted some packages, so we need to unload those rather than re-load them...
 	TArray<UPackage*> PackagesToUnload;
 	InPackagesToReload.RemoveAll([&](UPackage* InPackage) -> bool {
@@ -1207,9 +1219,9 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 	// We can obtain a list of files that were modified between our remote branches and HEAD. Assumes that fetch has been run to get accurate info.
 
 	// Gather valid remote branches
-	TArray<FString> ErrorMessages;
+	const TArray<FString> StatusBranches = FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames();
 
-	TSet<FString> BranchesToDiff{ FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames() };
+	TSet<FString> BranchesToDiff{ StatusBranches };
 
 	bool bDiffAgainstRemoteCurrent = false;
 
@@ -1228,14 +1240,16 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 		return;
 	}
 
+	TArray<FString> ErrorMessages;
+
 	TArray<FString> Results;
 	TMap<FString, FString> NewerFiles;
 
-	const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
+	//const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
 	// Get the full remote status of the Content folder, since it's the only lockable folder we track in editor. 
 	// This shows any new files as well.
-	// Also update the status of `.checksum`.
-	TArray<FString> FilesToDiff{FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()), ".checksum"};
+	// Also update the status of `.checksum` and `Binaries` since that lets us know if editor binaries got updated.
+	TArray<FString> FilesToDiff{FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()), ".checksum", "Binaries"};
 
 	TArray<FString> ParametersLog{TEXT("--pretty="), TEXT("--name-only"), TEXT(""), TEXT("--")};
 	for (auto& Branch : BranchesToDiff)
@@ -1262,7 +1276,7 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 				if (!IsFileLFSLockable(NewerFileName))
 				{
 					// Check if there's newer binaries pending on this branch
-					if (bCurrentBranch && NewerFileName == TEXT(".checksum"))
+					if (bCurrentBranch && (NewerFileName == TEXT(".checksum") || NewerFileName.StartsWith("Binaries")))
 					{
 						FGitSourceControlModule::Get().GetProvider().bPendingRestart = true;
 					}
@@ -1331,7 +1345,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessa
 			FGitLockedFilesCache::LockedFiles = OutLocks;
 			return bResult;
 		}
-		// We tried to invalidate the UE4 cache, but we failed for some reason. Try updating lock state from LFS cache.
+		// We tried to invalidate the UE cache, but we failed for some reason. Try updating lock state from LFS cache.
 		// Get the last known state of remote locks
 		TArray<FString> Params;
 		Params.Add(TEXT("--cached"));
@@ -1411,7 +1425,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 
 	TArray<FString> Parameters;
 	Parameters.Add(TEXT("--porcelain"));
-	Parameters.Add(TEXT("-unormal")); // make sure we use -unormal (user can customize it)
+	Parameters.Add(TEXT("-uall")); // make sure we use -uall to list all files instead of directories
 	// We skip checking ignored since no one ignores files that Unreal would read in as source controlled (Content/{*.uasset,*.umap},Config/*.ini).
 	TArray<FString> Results;
 	// avoid locking the index when not needed (useful for status updates)

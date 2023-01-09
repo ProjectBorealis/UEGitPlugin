@@ -46,13 +46,6 @@ struct FGitVersion
 class FGitSourceControlProvider : public ISourceControlProvider
 {
 public:
-	/** Constructor */
-	FGitSourceControlProvider() 
-		: bGitAvailable(false)
-		, bGitRepositoryFound(false)
-	{
-	}
-
 	/* ISourceControlProvider implementation */
 	virtual void Init(bool bForceConnection = true) override;
 	virtual void Close() override;
@@ -65,15 +58,15 @@ public:
 	virtual int32 GetStateBranchIndex(const FString& BranchName) const override;
 	virtual ECommandResult::Type GetState( const TArray<FString>& InFiles, TArray<FSourceControlStateRef>& OutState, EStateCacheUsage::Type InStateCacheUsage ) override;
 #if ENGINE_MAJOR_VERSION >= 5
-        virtual ECommandResult::Type GetState(const TArray<FSourceControlChangelistRef>& InChangelists, TArray<FSourceControlChangelistStateRef>& OutState, EStateCacheUsage::Type InStateCacheUsage) override;
+    virtual ECommandResult::Type GetState(const TArray<FSourceControlChangelistRef>& InChangelists, TArray<FSourceControlChangelistStateRef>& OutState, EStateCacheUsage::Type InStateCacheUsage) override;
 #endif
 	virtual TArray<FSourceControlStateRef> GetCachedStateByPredicate(TFunctionRef<bool(const FSourceControlStateRef&)> Predicate) const override;
 	virtual FDelegateHandle RegisterSourceControlStateChanged_Handle(const FSourceControlStateChanged::FDelegate& SourceControlStateChanged) override;
 	virtual void UnregisterSourceControlStateChanged_Handle(FDelegateHandle Handle) override;
 #if ENGINE_MAJOR_VERSION < 5
-	virtual ECommandResult::Type Execute( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation, const TArray<FString>& InFiles, EConcurrency::Type InConcurrency = EConcurrency::Synchronous, const FSourceControlOperationComplete& InOperationCompleteDelegate = FSourceControlOperationComplete()) override;
-	virtual bool CanCancelOperation( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation ) const override;
-	virtual void CancelOperation( const TSharedRef<ISourceControlOperation, ESPMode::ThreadSafe>& InOperation ) override;
+	virtual ECommandResult::Type Execute( const FSourceControlOperationRef& InOperation, const TArray<FString>& InFiles, EConcurrency::Type InConcurrency = EConcurrency::Synchronous, const FSourceControlOperationComplete& InOperationCompleteDelegate = FSourceControlOperationComplete()) override;
+	virtual bool CanCancelOperation( const FSourceControlOperationRef& InOperation ) const override;
+	virtual void CancelOperation( const FSourceControlOperationRef& InOperation ) override;
 #else
 	virtual ECommandResult::Type Execute(const FSourceControlOperationRef& InOperation, FSourceControlChangelistPtr InChangelist, const TArray<FString>& InFiles, EConcurrency::Type InConcurrency = EConcurrency::Synchronous, const FSourceControlOperationComplete& InOperationCompleteDelegate = FSourceControlOperationComplete()) override;
 	virtual bool CanCancelOperation( const FSourceControlOperationRef& InOperation ) const override;
@@ -82,6 +75,11 @@ public:
 	virtual bool UsesLocalReadOnlyState() const override;
 	virtual bool UsesChangelists() const override;
 	virtual bool UsesCheckout() const override;
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
+	virtual bool UsesFileRevisions() const override;
+	virtual TOptional<bool> IsAtLatestRevision() const override;
+	virtual TOptional<int> GetNumLocalChanges() const override;
+#endif
 	virtual void Tick() override;
 	virtual TArray< TSharedRef<class ISourceControlLabel> > GetLabels( const FString& InMatchingSpec ) const override;
 
@@ -120,10 +118,16 @@ public:
 		return GitVersion;
 	}
 
-	/** Get the path to the root of the Git repository: can be the ProjectDir itself, or any parent directory */
+	/** Path to the root of the Unreal source control repository: usually the ProjectDir */
 	inline const FString& GetPathToRepositoryRoot() const
 	{
 		return PathToRepositoryRoot;
+	}
+
+	/** Path to the root of the Git repository: can be the ProjectDir itself, or any parent directory (found by the "Connect" operation) */
+	inline const FString& GetPathToGitRoot() const
+	{
+		return PathToGitRoot;
 	}
 
 	/** Gets the path to the Git binary */
@@ -204,10 +208,10 @@ public:
 
 private:
 	/** Is git binary found and working. */
-	bool bGitAvailable;
+	bool bGitAvailable = false;
 
 	/** Is git repository found. */
-	bool bGitRepositoryFound;
+	bool bGitRepositoryFound = false;
 
 	/** Is LFS locking enabled? */
 	bool bUsingGitLfsLocking = false;
@@ -236,8 +240,11 @@ private:
 	/** Update repository status on Connect and UpdateStatus operations */
 	void UpdateRepositoryStatus(const class FGitSourceControlCommand& InCommand);
 
-	/** Path to the root of the Git repository: can be the ProjectDir itself, or any parent directory (found by the "Connect" operation) */
+	/** Path to the root of the Unreal source control repository: usually the ProjectDir */
 	FString PathToRepositoryRoot;
+
+	/** Path to the root of the Git repository: can be the ProjectDir itself, or any parent directory (found by the "Connect" operation) */
+	FString PathToGitRoot;
 
 	/** Git config user.name (from local repository, else globally) */
 	FString UserName;
@@ -280,7 +287,7 @@ private:
 
 	/**
 		Ignore these files when forcing status updates. We add to this list when we've just updated the status already.
-		UE4's SourceControl has a habit of performing a double status update, immediately after an operation.
+		UE's SourceControl has a habit of performing a double status update, immediately after an operation.
 	*/
 	TArray<FString> IgnoreForceCache;
 

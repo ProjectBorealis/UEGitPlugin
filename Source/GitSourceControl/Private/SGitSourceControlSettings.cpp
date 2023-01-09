@@ -5,6 +5,7 @@
 
 #include "SGitSourceControlSettings.h"
 
+#include "Launch/Resources/Version.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Misc/App.h"
 #include "Misc/FileHelper.h"
@@ -23,7 +24,11 @@
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "EditorDirectories.h"
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
+#include "Styling/AppStyle.h"
+#else
 #include "EditorStyleSet.h"
+#endif
 #include "SourceControlOperations.h"
 #include "GitSourceControlModule.h"
 #include "GitSourceControlUtils.h"
@@ -443,8 +448,13 @@ void SGitSourceControlSettings::ConstructBasedOnEngineVersion( )
 			ROW_RIGHT( 10.0f )
 			[
 				SNew(SFilePathPicker)
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
+				.BrowseButtonImage(FAppStyle::GetBrush("PropertyWindow.Button_Ellipsis"))
+				.BrowseButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+#else
 				.BrowseButtonImage(FEditorStyle::GetBrush("PropertyWindow.Button_Ellipsis"))
 				.BrowseButtonStyle(FEditorStyle::Get(), "HoverHintOnly")
+#endif
 				.BrowseDirectory(FEditorDirectories::Get().GetLastDirectory(ELastDirectory::GENERIC_OPEN))
 				.BrowseTitle(LOCTEXT("BinaryPathBrowseTitle", "File picker..."))
 				.FilePath(this, &Self::GetBinaryPathString)
@@ -620,19 +630,22 @@ void SGitSourceControlSettings::OnBinaryPathPicked( const FString& PickedPath ) 
 FText SGitSourceControlSettings::GetPathToRepositoryRoot() const
 {
 	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	return FText::FromString(GitSourceControl.GetProvider().GetPathToRepositoryRoot());
+	const FString& PathToRepositoryRoot = GitSourceControl.GetProvider().GetPathToRepositoryRoot();
+	return FText::FromString(PathToRepositoryRoot);
 }
 
 FText SGitSourceControlSettings::GetUserName() const
 {
 	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	return FText::FromString(GitSourceControl.GetProvider().GetUserName());
+	const FString& UserName = GitSourceControl.GetProvider().GetUserName();
+	return FText::FromString(UserName);
 }
 
 FText SGitSourceControlSettings::GetUserEmail() const
 {
 	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	return FText::FromString(GitSourceControl.GetProvider().GetUserEmail());
+	const FString& UserEmail = GitSourceControl.GetProvider().GetUserEmail();
+	return FText::FromString(UserEmail);
 }
 
 EVisibility SGitSourceControlSettings::MustInitializeGitRepository() const
@@ -640,7 +653,11 @@ EVisibility SGitSourceControlSettings::MustInitializeGitRepository() const
 	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	const bool bGitAvailable = GitSourceControl.GetProvider().IsGitAvailable();
 	const bool bGitRepositoryFound = GitSourceControl.GetProvider().IsEnabled();
+#if 0
 	return (bGitAvailable && !bGitRepositoryFound) ? EVisibility::Visible : EVisibility::Collapsed;
+#else
+	return EVisibility::Collapsed;
+#endif
 }
 
 bool SGitSourceControlSettings::CanInitializeGitRepository() const
@@ -652,7 +669,11 @@ bool SGitSourceControlSettings::CanInitializeGitRepository() const
 	const bool bIsUsingGitLfsLocking = GitSourceControl.GetProvider().UsesCheckout();
 	const bool bGitLfsConfigOk = !bIsUsingGitLfsLocking || !LfsUserName.IsEmpty();
 	const bool bInitialCommitConfigOk = !bAutoInitialCommit || !InitialCommitMessage.IsEmpty();
+#if 0
 	return (bGitAvailable && !bGitRepositoryFound && bGitLfsConfigOk && bInitialCommitConfigOk);
+#else
+	return false;
+#endif
 }
 
 bool SGitSourceControlSettings::CanUseGitLfsLocking() const
@@ -741,6 +762,8 @@ FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
 		LaunchMarkForAddOperation(ProjectFiles);
 
 		// 4. The CheckIn will follow, at completion of the MarkForAdd operation
+		FGitSourceControlProvider& Provider = FGitSourceControlModule::Get().GetProvider();
+		Provider.CheckRepositoryStatus();
 	}
 	return FReply::Handled();
 }
@@ -750,7 +773,11 @@ void SGitSourceControlSettings::LaunchMarkForAddOperation(const TArray<FString>&
 {
 	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	TSharedRef<FMarkForAdd, ESPMode::ThreadSafe> MarkForAddOperation = ISourceControlOperation::Create<FMarkForAdd>();
+#if ENGINE_MAJOR_VERSION >= 5
+	ECommandResult::Type Result = GitSourceControl.GetProvider().Execute(MarkForAddOperation, FSourceControlChangelistPtr(), InFiles, EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateSP(this, &SGitSourceControlSettings::OnSourceControlOperationComplete));
+#else
 	ECommandResult::Type Result = GitSourceControl.GetProvider().Execute(MarkForAddOperation, InFiles, EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateSP(this, &SGitSourceControlSettings::OnSourceControlOperationComplete));
+#endif
 	if (Result == ECommandResult::Succeeded)
 	{
 		DisplayInProgressNotification(MarkForAddOperation);
@@ -767,7 +794,11 @@ void SGitSourceControlSettings::LaunchCheckInOperation()
 	TSharedRef<FCheckIn, ESPMode::ThreadSafe> CheckInOperation = ISourceControlOperation::Create<FCheckIn>();
 	CheckInOperation->SetDescription(InitialCommitMessage);
 	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
+#if ENGINE_MAJOR_VERSION >= 5
+	ECommandResult::Type Result = GitSourceControl.GetProvider().Execute(CheckInOperation, FSourceControlChangelistPtr(), FGitSourceControlModule::GetEmptyStringArray(), EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateSP(this, &SGitSourceControlSettings::OnSourceControlOperationComplete));
+#else
 	ECommandResult::Type Result = GitSourceControl.GetProvider().Execute(CheckInOperation, FGitSourceControlModule::GetEmptyStringArray(), EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateSP(this, &SGitSourceControlSettings::OnSourceControlOperationComplete));
+#endif
 	if (Result == ECommandResult::Succeeded)
 	{
 		DisplayInProgressNotification(CheckInOperation);
@@ -831,7 +862,11 @@ void SGitSourceControlSettings::DisplaySuccessNotification(const FSourceControlO
 	const FText NotificationText = FText::Format(LOCTEXT("InitialCommit_Success", "{0} operation was successfull!"), FText::FromName(InOperation->GetName()));
 	FNotificationInfo Info(NotificationText);
 	Info.bUseSuccessFailIcons = true;
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
+	Info.Image = FAppStyle::GetBrush(TEXT("NotificationList.SuccessImage"));
+#else
 	Info.Image = FEditorStyle::GetBrush(TEXT("NotificationList.SuccessImage"));
+#endif
 	FSlateNotificationManager::Get().AddNotification(Info);
 }
 
@@ -907,11 +942,11 @@ FText SGitSourceControlSettings::GetLfsUserName() const
 	const FString LFSUserName = GitSourceControl.AccessSettings().GetLfsUserName();
 	if (LFSUserName.IsEmpty())
 	{
-		const FString& UserName = GetUserName().ToString();
-		GitSourceControl.AccessSettings().SetLfsUserName(UserName);
+		const FText& UserName = GetUserName();
+		GitSourceControl.AccessSettings().SetLfsUserName(UserName.ToString());
 		GitSourceControl.AccessSettings().SaveSettings();
 		GitSourceControl.GetProvider().UpdateSettings();
-		return FText::FromString(UserName);
+		return UserName;
 	}
 	else
 	{
