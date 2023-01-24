@@ -2,3 +2,11 @@
 Binaries/
 /Intermediate
 .DS_Store
+
+### whitelisted files
+!Resources/*
+!Screenshots/*
+!git-lfs.exe
+!git-lfs
+!git-lfs-mac-amd64
+!git-lfs-mac-arm64
