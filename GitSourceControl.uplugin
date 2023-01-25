@@ -16,8 +16,13 @@
 	"Modules": [
 		{
 			"Name": "GitSourceControl",
-			"Type": "UncookedOnly",
-			"LoadingPhase": "Default"
+			"Type": "EditorNoCommandlet",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64",
+				"Mac",
+				"Linux"
+			]
 		}
 	]
 }
