@@ -135,7 +135,7 @@ void FGitSourceControlModule::CreateGitContentBrowserAssetMenu( FMenuBuilder & m
     menu_builder.AddMenuEntry(
         LOCTEXT( "GitPlugin", "Diff against origin/develop" ),
         LOCTEXT( "GitPlugin", "Diff that asset against the version on origin/develop." ),
-        FSlateIcon( FEditorStyle::GetStyleSetName(), "SourceControl.Actions.Diff" ),
+        FSlateIcon( FAppStyle::GetAppStyleSetName(), "SourceControl.Actions.Diff" ),
         FUIAction( FExecuteAction::CreateRaw( this, &FGitSourceControlModule::DiffAssetAgainstGitOriginDevelop, selected_assets ) ) );
 }
 
