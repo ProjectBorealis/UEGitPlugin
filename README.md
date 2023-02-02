@@ -37,6 +37,14 @@ See [our own `.gitattributes`](https://github.com/ProjectBorealis/PBCore/blob/ma
 
 You may also want to check out [our robust `.gitignore`](https://github.com/ProjectBorealis/PBCore/blob/main/.gitignore) too
 
+## Note about authentication
+
+We would highly recommend using HTTPS authentication for your Git repo.
+
+This allows a single credential path to be used, with the robust and fast HTTPS support in LFS.
+
+With [Git Credential Manager](https://github.com/GitCredentialManager/git-credential-manager), authenticating with HTTPS is also much easier, with a GUI available to authenticate with any Git provider.
+
 ## Status Branches - Required Code Changes (For Programmers)  
 
 Epic Games added Status Branches in 4.20, and this plugin has implemented support for them. See [Workflow on Fortnite](https://youtu.be/p4RcDpGQ_tI?t=1443) for more information. Here is an example of how you may apply it to your own game.
