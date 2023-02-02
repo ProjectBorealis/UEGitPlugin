@@ -16,6 +16,7 @@
 
 #include "GitSourceControlOperations.h"
 #include "GitSourceControlUtils.h"
+#include "ISourceControlModule.h"
 #include "SourceControlHelpers.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
