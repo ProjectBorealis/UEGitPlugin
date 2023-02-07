@@ -114,6 +114,7 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 			do
 			{
 				GitModule = FModuleManager::Get().GetModule("GitSourceControl");
+				FPlatformProcess::Sleep(0.0f);
 			} while (!GitModule);
 		}
 

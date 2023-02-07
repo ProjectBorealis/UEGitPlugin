@@ -690,7 +690,15 @@ bool RunLFSCommand(const FString& InCommand, const FString& InRepositoryRoot, co
 #if PLATFORM_WINDOWS
 	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs.exe"), *BaseDir);
 #elif PLATFORM_MAC
-	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs-mac"), *BaseDir);
+#if ENGINE_MAJOR_VERSION >= 5
+#if PLATFORM_MAC_ARM64
+	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs-mac-arm64"), *BaseDir);
+#else
+	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs-mac-amd64"), *BaseDir);
+#endif
+#else
+	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs-mac-amd64"), *BaseDir);
+#endif
 #elif PLATFORM_LINUX
 	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs"), *BaseDir);
 #else
@@ -706,6 +714,8 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
 {
 	bool bResult = true;
 
+	TArray<FString> AddParameters{TEXT("-A")};
+
 	if (InFiles.Num() > GitSourceControlConstants::MaxFilesPerBatch)
 	{
 		// Batch files up so we dont exceed command-line limits
@@ -716,6 +726,7 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
 			{
 				FilesInBatch.Add(InFiles[FileCount]);
 			}
+			bResult &= RunCommandInternal(TEXT("add"), InPathToGitBinary, InRepositoryRoot, AddParameters, FilesInBatch, OutResults, OutErrorMessages);
 			// First batch is a simple "git commit" command with only the first files
 			bResult &= RunCommandInternal(TEXT("commit"), InPathToGitBinary, InRepositoryRoot, InParameters, FilesInBatch, OutResults, OutErrorMessages);
 		}
@@ -737,6 +748,7 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
 			// Next batches "amend" the commit with some more files
 			TArray<FString> BatchResults;
 			TArray<FString> BatchErrors;
+			bResult &= RunCommandInternal(TEXT("add"), InPathToGitBinary, InRepositoryRoot, AddParameters, FilesInBatch, OutResults, OutErrorMessages);
 			bResult &= RunCommandInternal(TEXT("commit"), InPathToGitBinary, InRepositoryRoot, Parameters, FilesInBatch, BatchResults, BatchErrors);
 			OutResults += BatchResults;
 			OutErrorMessages += BatchErrors;
@@ -744,6 +756,7 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
 	}
 	else
 	{
+		bResult &= RunCommandInternal(TEXT("add"), InPathToGitBinary, InRepositoryRoot, AddParameters, InFiles, OutResults, OutErrorMessages);
 		bResult = RunCommandInternal(TEXT("commit"), InPathToGitBinary, InRepositoryRoot, InParameters, InFiles, OutResults, OutErrorMessages);
 	}
 
@@ -1244,9 +1257,9 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 	// We can obtain a list of files that were modified between our remote branches and HEAD. Assumes that fetch has been run to get accurate info.
 
 	// Gather valid remote branches
-	TArray<FString> ErrorMessages;
+	const TArray<FString> StatusBranches = FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames();
 
-	TSet<FString> BranchesToDiff{ FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames() };
+	TSet<FString> BranchesToDiff{ StatusBranches };
 
 	bool bDiffAgainstRemoteCurrent = false;
 
@@ -1265,10 +1278,12 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 		return;
 	}
 
+	TArray<FString> ErrorMessages;
+
 	TArray<FString> Results;
 	TMap<FString, FString> NewerFiles;
 
-	const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
+	//const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
 	// Get the full remote status of the Content folder, since it's the only lockable folder we track in editor. 
 	// This shows any new files as well.
 	// Also update the status of `.checksum`.
