@@ -36,6 +36,7 @@
 #include "Misc/MessageDialog.h"
 
 #include "Async/Async.h"
+#include "Serialization/JsonReader.h"
 
 #if PLATFORM_LINUX
 #include <sys/ioctl.h>
@@ -733,20 +734,35 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
 	return bResult;
 }
 
+struct FGitLfsLocksParseResult
+{
+	// Filename on disk
+	FString LocalFilename;
+	// Name of user who has file locked
+	FString LockUser;
+	// If locked by us
+	bool bLockedByUs;
+};
+
+enum class FGitLfsLockParseMode : uint8
+{
+	Standard,
+	Verify,
+	Local
+};
+
 /**
- * Parse informations on a file locked with Git LFS
- *
- * Examples output of "git lfs locks":
-Content\ThirdPersonBP\Blueprints\ThirdPersonCharacter.uasset    SRombauts       ID:891
-Content\ThirdPersonBP\Blueprints\ThirdPersonCharacter.uasset                    ID:891
-Content\ThirdPersonBP\Blueprints\ThirdPersonCharacter.uasset    ID:891
+ * Parse information from Git LFS lock JSON
  */
 class FGitLfsLocksParser
 {
 public:
-	FGitLfsLocksParser(const FString& InRepositoryRoot, const FString& InStatus, const bool bAbsolutePaths = true)
+	FGitLfsLocksParser(const FString& InRepositoryRoot, const TArray<FString>& InStatus, FGitLfsLockParseMode ParseMode)
 	{
-		TArray<FString> Informations;
+		TSharedRef<FJsonObject> Data = MakeShared<FJsonObject>();
+		TSharedRef<TJsonReader<>> JsonReader = TJsonWriterFactory<>::Create(Data);
+
+									  TArray<FString> Informations;
 		InStatus.ParseIntoArray(Informations, TEXT("\t"), true);
 		
 		if (Informations.Num() >= 2)
@@ -754,9 +770,13 @@ public:
 			Informations[0].TrimEndInline(); // Trim whitespace from the end of the filename
 			Informations[1].TrimEndInline(); // Trim whitespace from the end of the username
 			if (bAbsolutePaths)
+			{
 				LocalFilename = FPaths::ConvertRelativePathToFull(InRepositoryRoot, Informations[0]);
+			}
 			else
+			{
 				LocalFilename = Informations[0];
+			}
 			// Filename ID (or we expect it to be the username, but it's empty, or is the ID, we have to assume it's the current user)
 			if (Informations.Num() == 2 || Informations[1].IsEmpty() || Informations[1].StartsWith(TEXT("ID:")))
 			{
@@ -770,10 +790,7 @@ public:
 		}
 	}
 
-	// Filename on disk
-	FString LocalFilename;
-	// Name of user who has file locked
-	FString LockUser;
+	TArray<FGitLfsLocksParseResult> Parsed;
 };
 
 /**
@@ -1337,15 +1354,16 @@ bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessa
 		// Our cache expired, or they asked us to expire cache. Query locks directly from the remote server.
 		TArray<FString> ErrorMessages;
 		TArray<FString> Results;
+		TArray<FString> Params{TEXT("--json"), TEXT("--verify")};
 		bResult = RunLFSCommand(TEXT("locks"), InRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), FGitSourceControlModule::GetEmptyStringArray(),
 								Results, OutErrorMessages);
 		if (bResult)
 		{
-			for (const FString& Result : Results)
+			FGitLfsLocksParser LockFiles(InRepositoryRoot, Results);
+			for (const FString& LockFile : LockFiles.Files)
 			{
-				FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
 #if UE_BUILD_DEBUG && GIT_DEBUG_STATUS
-				UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
+			UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
 #endif
 				OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 			}
@@ -1355,8 +1373,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessa
 		}
 		// We tried to invalidate the UE cache, but we failed for some reason. Try updating lock state from LFS cache.
 		// Get the last known state of remote locks
-		TArray<FString> Params;
-		Params.Add(TEXT("--cached"));
+		Params[1] = TEXT("--cached");
 
 		const FString& LockUser = FGitSourceControlModule::Get().GetProvider().GetLockUser();
 
@@ -1375,8 +1392,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessa
 			}
 		}
 		// Get the latest local state of our own locks
-		Params.Reset(1);
-		Params.Add(TEXT("--local"));
+		Params[1] = TEXT("--local");
 
 		Results.Reset();
 		bResult &= RunLFSCommand(TEXT("locks"), InRepositoryRoot, Params, FGitSourceControlModule::GetEmptyStringArray(), Results, OutErrorMessages);
