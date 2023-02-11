@@ -653,9 +653,14 @@ bool RunCommand(const FString& InCommand, const FString& InPathToGitBinary, cons
 	return bResult;
 }
 
+#ifndef GIT_USE_CUSTOM_LFS
+#define GIT_USE_CUSTOM_LFS 1
+#endif
+
 bool RunLFSCommand(const FString& InCommand, const FString& InRepositoryRoot, const TArray<FString>& InParameters, const TArray<FString>& InFiles,
 				   TArray<FString>& OutResults, TArray<FString>& OutErrorMessages)
 {
+#if GIT_USE_CUSTOM_LFS
 	FString BaseDir = IPluginManager::Get().FindPlugin("GitSourceControl")->GetBaseDir();
 #if PLATFORM_WINDOWS
 	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs.exe"), *BaseDir);
@@ -672,7 +677,8 @@ bool RunLFSCommand(const FString& InCommand, const FString& InRepositoryRoot, co
 #elif PLATFORM_LINUX
 	FString LFSLockBinary = FString::Printf(TEXT("%s/git-lfs"), *BaseDir);
 #else
-	checkf(false, TEXT("Unhandled platform for LFS binary!"));
+	ensureMsgf(false, TEXT("Unhandled platform for LFS binary!"));
+#endif
 #endif
 
 	return GitSourceControlUtils::RunCommand(InCommand, LFSLockBinary, InRepositoryRoot, InParameters, InFiles, OutResults, OutErrorMessages);
