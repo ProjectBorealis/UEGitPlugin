@@ -11,6 +11,7 @@
 	"MarketplaceURL": "",
 	"SupportURL": "https://github.com/ProjectBorealis/UEGitPlugin/issues",
 	"EngineVersion": "5.1.0",
+	"EnabledByDefault": true,
 	"CanContainContent": false,
 	"Installed": true,
 	"Modules": [
