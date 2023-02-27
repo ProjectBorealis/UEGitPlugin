@@ -8,11 +8,11 @@
 	"CreatedBy": "Project Borealis",
 	"CreatedByURL": "https://projectborealis.com",
 	"DocsURL": "https://github.com/ProjectBorealis/UEGitPlugin/blob/release/README.md",
+	"MarketplaceURL": "",
 	"SupportURL": "https://github.com/ProjectBorealis/UEGitPlugin/issues",
-	"EnabledByDefault": true,
+	"EngineVersion": "5.1.0",
 	"CanContainContent": false,
-	"IsBetaVersion": false,
-	"Installed": false,
+	"Installed": true,
 	"Modules": [
 		{
 			"Name": "GitSourceControl",
