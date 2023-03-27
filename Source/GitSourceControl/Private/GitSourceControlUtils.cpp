@@ -2163,13 +2163,13 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 	return bSuccess;
 }
 
-TSharedPtr<ISourceControlRevision, ESPMode::ThreadSafe> GetOriginDevelopRevision( const FString & InPathToGitBinary, const FString & InRepositoryRoot, const FString & InRelativeFileName, TArray<FString> & OutErrorMessages )
+TSharedPtr<ISourceControlRevision, ESPMode::ThreadSafe> GetOriginRevisionOnBranch( const FString & InPathToGitBinary, const FString & InRepositoryRoot, const FString & InRelativeFileName, TArray<FString> & OutErrorMessages, const FString & BranchName )
 {
     TGitSourceControlHistory OutHistory;
 
     TArray< FString > Results;
     TArray< FString > Parameters;
-    Parameters.Add( TEXT( "origin/develop" ) );
+    Parameters.Add( BranchName );
     Parameters.Add( TEXT( "--date=raw" ) );
     Parameters.Add( TEXT( "--pretty=medium" ) ); // make sure format matches expected in ParseLogResults
 

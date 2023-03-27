@@ -124,10 +124,10 @@ public:
 	static void SetLastErrors(const TArray<FText>& InErrors);
 
 private:
-    TSharedRef< FExtender > OnExtendContentBrowserAssetSelectionMenu( const TArray< FAssetData > & selected_assets );
-    void CreateGitContentBrowserAssetMenu( FMenuBuilder & menu_builder, const TArray< FAssetData > selected_assets );
-    void DiffAssetAgainstGitOriginDevelop( const TArray< FAssetData > selected_assets ) const;
-    void DiffAgainstOriginDevelop( UObject * InObject, const FString & InPackagePath, const FString & InPackageName ) const;
+    TSharedRef< FExtender > OnExtendContentBrowserAssetSelectionMenu( const TArray< FAssetData > & SelectedAssets );
+    void CreateGitContentBrowserAssetMenu( FMenuBuilder & MenuBuilder, const TArray< FAssetData > SelectedAssets );
+    void DiffAssetAgainstGitOriginBranch( const TArray< FAssetData > SelectedAssets, FString BranchName ) const;
+    void DiffAgainstOriginBranch( UObject * InObject, const FString & InPackagePath, const FString & InPackageName, const FString & BranchName ) const;
 
 	/** The one and only Git source control provider */
 	FGitSourceControlProvider GitSourceControlProvider;

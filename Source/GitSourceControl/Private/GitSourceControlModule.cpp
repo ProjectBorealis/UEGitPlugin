@@ -118,7 +118,7 @@ void FGitSourceControlModule::SetLastErrors(const TArray<FText>& InErrors)
 	}
 }
 
-TSharedRef<FExtender> FGitSourceControlModule::OnExtendContentBrowserAssetSelectionMenu( const TArray<FAssetData> & selected_assets )
+TSharedRef<FExtender> FGitSourceControlModule::OnExtendContentBrowserAssetSelectionMenu( const TArray<FAssetData> & SelectedAssets )
 {
     TSharedRef< FExtender > extender( new FExtender() );
 
@@ -126,37 +126,41 @@ TSharedRef<FExtender> FGitSourceControlModule::OnExtendContentBrowserAssetSelect
         "AssetSourceControlActions",
         EExtensionHook::After,
         nullptr,
-        FMenuExtensionDelegate::CreateRaw( this, &FGitSourceControlModule::CreateGitContentBrowserAssetMenu, selected_assets ) );
+        FMenuExtensionDelegate::CreateRaw( this, &FGitSourceControlModule::CreateGitContentBrowserAssetMenu, SelectedAssets ) );
 
     return extender;
 }
 
-void FGitSourceControlModule::CreateGitContentBrowserAssetMenu( FMenuBuilder & menu_builder, const TArray<FAssetData> selected_assets )
+void FGitSourceControlModule::CreateGitContentBrowserAssetMenu( FMenuBuilder & MenuBuilder, const TArray< FAssetData > SelectedAssets )
 {
-    menu_builder.AddMenuEntry(
-        LOCTEXT( "GitPlugin", "Diff against origin/develop" ),
-        LOCTEXT( "GitPlugin", "Diff that asset against the version on origin/develop." ),
-        FSlateIcon( FAppStyle::GetAppStyleSetName(), "SourceControl.Actions.Diff" ),
-        FUIAction( FExecuteAction::CreateRaw( this, &FGitSourceControlModule::DiffAssetAgainstGitOriginDevelop, selected_assets ) ) );
+    for ( const auto & BranchName : FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames() )
+    {
+        MenuBuilder.AddMenuEntry(
+            // Directly call FInternationalization instead of using LOCTEXT as the macro requires literal strings and as such does not accept runtime constructed strings
+            FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText( *FString::Printf( TEXT( "Diff against %s" ), *BranchName ), TEXT( LOCTEXT_NAMESPACE ), TEXT( "GitPlugin" ) ),
+            FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText( *FString::Printf( TEXT( "Diff that asset against the version on %s" ), *BranchName ), TEXT( LOCTEXT_NAMESPACE ), TEXT( "GitPlugin" ) ),
+            FSlateIcon( FAppStyle::GetAppStyleSetName(), "SourceControl.Actions.Diff" ),
+            FUIAction( FExecuteAction::CreateRaw( this, &FGitSourceControlModule::DiffAssetAgainstGitOriginBranch, SelectedAssets, BranchName ) ) );
+    }
 }
 
-void FGitSourceControlModule::DiffAssetAgainstGitOriginDevelop( const TArray<FAssetData> selected_assets ) const
+void FGitSourceControlModule::DiffAssetAgainstGitOriginBranch( const TArray< FAssetData > SelectedAssets, FString BranchName ) const
 {
-    for ( int32 AssetIdx = 0; AssetIdx < selected_assets.Num(); AssetIdx++ )
+    for ( int32 AssetIdx = 0; AssetIdx < SelectedAssets.Num(); AssetIdx++ )
     {
         // Get the actual asset (will load it)
-        const FAssetData & AssetData = selected_assets[ AssetIdx ];
+        const FAssetData & AssetData = SelectedAssets[ AssetIdx ];
 
         if ( UObject * CurrentObject = AssetData.GetAsset() )
         {
             const FString PackagePath = AssetData.PackageName.ToString();
             const FString PackageName = AssetData.AssetName.ToString();
-            DiffAgainstOriginDevelop( CurrentObject, PackagePath, PackageName );
+            DiffAgainstOriginBranch( CurrentObject, PackagePath, PackageName, BranchName );
         }
     }
 }
 
-void FGitSourceControlModule::DiffAgainstOriginDevelop( UObject * InObject, const FString & InPackagePath, const FString & InPackageName ) const
+void FGitSourceControlModule::DiffAgainstOriginBranch( UObject * InObject, const FString & InPackagePath, const FString & InPackageName, const FString & BranchName ) const
 {
     check( InObject );
 
@@ -178,10 +182,10 @@ void FGitSourceControlModule::DiffAgainstOriginDevelop( UObject * InObject, cons
         FString RelativeFileName;
         if ( FPackageName::DoesPackageExist( InPackagePath, &RelativeFileName ) )
         {
-            //if(SourceControlState->GetHistorySize() > 0)
+            // if(SourceControlState->GetHistorySize() > 0)
             {
                 TArray< FString > Errors;
-                const auto Revision = GitSourceControlUtils::GetOriginDevelopRevision( PathToGitBinary, PathToRepositoryRoot, RelativeFileName, Errors );
+                const auto Revision = GitSourceControlUtils::GetOriginRevisionOnBranch( PathToGitBinary, PathToRepositoryRoot, RelativeFileName, Errors, BranchName );
 
                 check( Revision.IsValid() );
 
