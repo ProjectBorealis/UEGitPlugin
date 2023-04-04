@@ -504,7 +504,7 @@ bool FGitSourceControlProvider::UsesCheckout() const
 #if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
 bool FGitSourceControlProvider::UsesFileRevisions() const
 {
-	return false;
+	return true;
 }
 
 TOptional<bool> FGitSourceControlProvider::IsAtLatestRevision() const
