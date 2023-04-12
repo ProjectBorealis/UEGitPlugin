@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2020 Sebastien Rombauts (sebastien.rombauts@gmail.com)
+// Copyright (c) 2014-2023 Sebastien Rombauts (sebastien.rombauts@gmail.com)
 //
 // Distributed under the MIT License (MIT) (See accompanying file LICENSE.txt
 // or copy at http://opensource.org/licenses/MIT)
@@ -35,6 +35,12 @@ class FGitSourceControlCommand : public IQueuedWork
 public:
 
 	FGitSourceControlCommand(const TSharedRef<class ISourceControlOperation, ESPMode::ThreadSafe>& InOperation, const TSharedRef<class IGitSourceControlWorker, ESPMode::ThreadSafe>& InWorker, const FSourceControlOperationComplete& InOperationCompleteDelegate = FSourceControlOperationComplete());
+
+	/**
+	 *  Modify the repo root if all selected files are in a plugin subfolder, and the plugin subfolder is a git repo
+	 *  This supports the case where each plugin is a sub module
+	 */
+	void UpdateRepositoryRootIfSubmodule(const TArray<FString>& AbsoluteFilePaths);
 
 	/**
 	 * This is where the real thread work is done. All work that is done for
