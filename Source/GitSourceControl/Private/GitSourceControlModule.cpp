@@ -133,14 +133,19 @@ TSharedRef<FExtender> FGitSourceControlModule::OnExtendContentBrowserAssetSelect
 
 void FGitSourceControlModule::CreateGitContentBrowserAssetMenu( FMenuBuilder & MenuBuilder, const TArray< FAssetData > SelectedAssets )
 {
-    for ( const auto & BranchName : FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames() )
+   if (!FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames().Num())
+   {
+	   return;
+   }
+	
+    const FString& BranchName = FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames()[0];
     {
-        MenuBuilder.AddMenuEntry(
-            // Directly call FInternationalization instead of using LOCTEXT as the macro requires literal strings and as such does not accept runtime constructed strings
-            FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText( *FString::Printf( TEXT( "Diff against %s" ), *BranchName ), TEXT( LOCTEXT_NAMESPACE ), TEXT( "GitPlugin" ) ),
-            FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText( *FString::Printf( TEXT( "Diff that asset against the version on %s" ), *BranchName ), TEXT( LOCTEXT_NAMESPACE ), TEXT( "GitPlugin" ) ),
-            FSlateIcon( FAppStyle::GetAppStyleSetName(), "SourceControl.Actions.Diff" ),
-            FUIAction( FExecuteAction::CreateRaw( this, &FGitSourceControlModule::DiffAssetAgainstGitOriginBranch, SelectedAssets, BranchName ) ) );
+	MenuBuilder.AddMenuEntry(
+	    // Directly call FInternationalization instead of using LOCTEXT as the macro requires literal strings and as such does not accept runtime constructed strings
+	    FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText( *FString::Printf( TEXT( "Diff against %s" ), *BranchName ), TEXT( LOCTEXT_NAMESPACE ), TEXT( "GitPlugin" ) ),
+	    FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText( *FString::Printf( TEXT( "Diff that asset against the version on %s" ), *BranchName ), TEXT( LOCTEXT_NAMESPACE ), TEXT( "GitPlugin" ) ),
+	    FSlateIcon( FAppStyle::GetAppStyleSetName(), "SourceControl.Actions.Diff" ),
+	    FUIAction( FExecuteAction::CreateRaw( this, &FGitSourceControlModule::DiffAssetAgainstGitOriginBranch, SelectedAssets, BranchName ) ) );
     }
 }
 
