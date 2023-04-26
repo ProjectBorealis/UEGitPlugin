@@ -45,9 +45,9 @@ This allows a single credential path to be used, with the robust and fast HTTPS 
 
 With [Git Credential Manager](https://github.com/GitCredentialManager/git-credential-manager), authenticating with HTTPS is also much easier, with a GUI available to authenticate with any Git provider.
 
-## Note about Unreal configuration
+### Note about Unreal configuration
 
-### Required
+#### Required
 
 * The plugin makes the assumption that files are always explicitly added. We made this decision because it is beneficial for performance and our workflows. In `Config/DefaultEditorPerProjectUserSettings.ini`
 
@@ -56,7 +56,7 @@ With [Git Credential Manager](https://github.com/GitCredentialManager/git-creden
 bSCCAutoAddNewFiles=False
 ```
 
-### Recommended
+#### Recommended
 
 * As a general source control usability improvement, you can enable new checkout features in `Config/DefaultEditorPerProjectUserSettings.ini`. To enable auto-checkout on modification, which is great for OFPA and other workflows (but requires user attention to excessive locking of content):
 
