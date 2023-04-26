@@ -510,12 +510,47 @@ bool FGitSourceControlProvider::UsesFileRevisions() const
 
 TOptional<bool> FGitSourceControlProvider::IsAtLatestRevision() const
 {
-	return {};
+	return TOptional<bool>();
 }
 
 TOptional<int> FGitSourceControlProvider::GetNumLocalChanges() const
 {
-	return {};
+	return TOptional<int>();
+}
+#endif
+
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 2
+bool FGitSourceControlProvider::CanExecuteOperation( const FSourceControlOperationRef& InOperation ) const
+{
+	return WorkersMap.Find(InOperation->GetName()) != nullptr;
+}
+
+bool FGitSourceControlProvider::AllowsDiffAgainstDepot() const
+{
+	return true;
+}
+
+bool FGitSourceControlProvider::UsesUncontrolledChangelists() const
+{
+	return true;
+}
+
+bool FGitSourceControlProvider::UsesSnapshots() const
+{
+	return false;
+}
+
+TMap<ISourceControlProvider::EStatus, FString> FGitSourceControlProvider::GetStatus() const
+{
+	TMap<EStatus, FString> Result;
+	Result.Add(EStatus::Enabled, IsEnabled() ? TEXT("Yes") : TEXT("No") );
+	Result.Add(EStatus::Connected, (IsEnabled() && IsAvailable()) ? TEXT("Yes") : TEXT("No") );
+	Result.Add(EStatus::User, UserName);
+	Result.Add(EStatus::Repository, PathToRepositoryRoot);
+	Result.Add(EStatus::Remote, RemoteUrl);
+	Result.Add(EStatus::Branch, BranchName);
+	Result.Add(EStatus::Email, UserEmail);
+	return Result;
 }
 #endif
 

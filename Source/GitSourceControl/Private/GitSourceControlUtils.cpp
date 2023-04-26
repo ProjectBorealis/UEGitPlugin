@@ -1597,8 +1597,12 @@ bool RunDumpToFile(const FString& InPathToGitBinary, const FString& InRepository
             FullCommand = FString::Printf(TEXT("PATH=\"%s%s%s\" \"%s\" %s"), *GitInstallPath, FPlatformMisc::GetPathVarDelimiter(), *PathEnv, *InPathToGitBinary, *FullCommand);
         }
     #endif
-    
+
+#if ENGINE_MAJOR_VERSION == 5
+	FProcHandle ProcessHandle = FPlatformProcess::CreateProc(*PathToGitOrEnvBinary, *FullCommand, bLaunchDetached, bLaunchHidden, bLaunchReallyHidden, nullptr, 0, *InRepositoryRoot, PipeWrite, nullptr, nullptr);
+#else
 	FProcHandle ProcessHandle = FPlatformProcess::CreateProc(*PathToGitOrEnvBinary, *FullCommand, bLaunchDetached, bLaunchHidden, bLaunchReallyHidden, nullptr, 0, *InRepositoryRoot, PipeWrite);
+#endif
 	if(ProcessHandle.IsValid())
 	{
 		FPlatformProcess::Sleep(0.01f);
