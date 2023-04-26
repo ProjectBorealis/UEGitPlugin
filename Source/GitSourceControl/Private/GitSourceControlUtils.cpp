@@ -92,26 +92,22 @@ namespace GitSourceControlUtils
 
 		for (auto& FilePath : AbsoluteFilePaths)
 		{
-			if (FilePath.Contains(PluginsRoot))
+			if (!FilePath.Contains(PluginsRoot))
 			{
-				NumPluginFiles++;
+				return PathToRepositoryRoot;
 			}
-		}
-		// if all plugins?
-		// modify Source control base path
-		if ((NumPluginFiles == AbsoluteFilePaths.Num()) && (AbsoluteFilePaths.Num() > 0))
-		{
-			FString FullPath = AbsoluteFilePaths[0];
 
-			FString PluginPart = FullPath.Replace(*PluginsRoot, *FString(""));
+			FString PluginPart = FilePath.Replace(*PluginsRoot, *FString(""));
 			PluginPart = PluginPart.Left(PluginPart.Find("/"));
-
-
 			FString CandidateRepoRoot = PluginsRoot + PluginPart;
-
 			FString IsItUsingGitPath = CandidateRepoRoot + "/.git";
 			if (FPaths::FileExists(IsItUsingGitPath) || FPaths::DirectoryExists(IsItUsingGitPath))
 			{
+				if (Ret != PathToRepositoryRoot && Ret != CandidateRepoRoot)
+				{
+					UE_LOG(LogSourceControl, Error, TEXT("Selected files belong to different submodules"));
+					return PathToRepositoryRoot;
+				}
 				Ret = CandidateRepoRoot;
 			}
 		}
