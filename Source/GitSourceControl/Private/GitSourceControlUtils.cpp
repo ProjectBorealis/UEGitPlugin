@@ -556,7 +556,12 @@ void GetUserConfig(const FString& InPathToGitBinary, const FString& InRepository
 
 bool GetBranchName(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutBranchName)
 {
-	const FGitSourceControlProvider& Provider = FGitSourceControlModule::Get().GetProvider();
+	const FGitSourceControlModule* GitSourceControl = FGitSourceControlModule::GetThreadSafe();
+	if (!GitSourceControl)
+	{
+		return false;
+	}
+	const FGitSourceControlProvider& Provider = GitSourceControl->GetProvider();
 	if (!Provider.GetBranchName().IsEmpty())
 	{
 		OutBranchName = Provider.GetBranchName();
@@ -597,7 +602,12 @@ bool GetBranchName(const FString& InPathToGitBinary, const FString& InRepository
 
 bool GetRemoteBranchName(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutBranchName)
 {
-	const FGitSourceControlProvider& Provider = FGitSourceControlModule::Get().GetProvider();
+	const FGitSourceControlModule* GitSourceControl = FGitSourceControlModule::GetThreadSafe();
+	if (!GitSourceControl)
+	{
+		return false;
+	}
+	const FGitSourceControlProvider& Provider = GitSourceControl->GetProvider();
 	if (!Provider.GetRemoteBranchName().IsEmpty())
 	{
 		OutBranchName = Provider.GetRemoteBranchName();
@@ -813,6 +823,7 @@ public:
 			// Filename ID (or we expect it to be the username, but it's empty, or is the ID, we have to assume it's the current user)
 			if (Informations.Num() == 2 || Informations[1].IsEmpty() || Informations[1].StartsWith(TEXT("ID:")))
 			{
+				// TODO: thread safety
 				LockUser = FGitSourceControlModule::Get().GetProvider().GetLockUser();
 			}
 			// Filename Username ID
@@ -1123,8 +1134,13 @@ R  Content/Textures/T_Perlin_Noise_M.uasset -> Content/Textures/T_Perlin_Noise_M
 static void ParseFileStatusResult(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TSet<FString>& InFiles,
 								  const TMap<FString, FString>& InResults, TMap<FString, FGitSourceControlState>& OutStates)
 {
-	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	const FString& LfsUserName = GitSourceControl.GetProvider().GetLockUser();
+	FGitSourceControlModule* GitSourceControl = FGitSourceControlModule::GetThreadSafe();
+	if (!GitSourceControl)
+	{
+		return;
+	}
+	FGitSourceControlProvider& Provider = GitSourceControl->GetProvider();
+	const FString& LfsUserName = Provider.GetLockUser();
 
 	TMap<FString, FString> LockedFiles;
 	TMap<FString, FString> Results = InResults;
@@ -1280,7 +1296,13 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 	// We can obtain a list of files that were modified between our remote branches and HEAD. Assumes that fetch has been run to get accurate info.
 
 	// Gather valid remote branches
-	const TArray<FString> StatusBranches = FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames();
+	FGitSourceControlModule* GitSourceControl = FGitSourceControlModule::GetThreadSafe();
+	if (!GitSourceControl)
+	{
+		return;
+	}
+	FGitSourceControlProvider& Provider = GitSourceControl->GetProvider();
+	const TArray<FString> StatusBranches = Provider.GetStatusBranchNames();
 
 	TSet<FString> BranchesToDiff{ StatusBranches };
 
@@ -1339,7 +1361,7 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 					// Check if there's newer binaries pending on this branch
 					if (bCurrentBranch && (NewerFileName == TEXT(".checksum") || NewerFileName.StartsWith("Binaries")))
 					{
-						FGitSourceControlModule::Get().GetProvider().bPendingRestart = true;
+						Provider.bPendingRestart = true;
 					}
 					continue;
 				}
@@ -1384,7 +1406,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, const FString& GitBinaryFallba
 		const FTimespan CacheTimeElapsed = CurrentTime - FGitLockedFilesCache::LastUpdated;
 		bCacheExpired = CacheTimeElapsed > CacheLimit;
 	}
-	bool bResult;
+	bool bResult = false;
 	if (bCacheExpired)
 	{
 		// Our cache expired, or they asked us to expire cache. Query locks directly from the remote server.
@@ -1411,42 +1433,51 @@ bool GetAllLocks(const FString& InRepositoryRoot, const FString& GitBinaryFallba
 		TArray<FString> Params;
 		Params.Add(TEXT("--cached"));
 
-		const FString& LockUser = FGitSourceControlModule::Get().GetProvider().GetLockUser();
-
-		Results.Reset();
-		bResult = RunLFSCommand(TEXT("locks"), InRepositoryRoot, GitBinaryFallback, Params, FGitSourceControlModule::GetEmptyStringArray(), Results, OutErrorMessages);
-		for (const FString& Result : Results)
+		FGitSourceControlModule* GitSourceControl = FGitSourceControlModule::GetThreadSafe();
+		if (!GitSourceControl)
 		{
-			FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
-#if UE_BUILD_DEBUG && GIT_DEBUG_STATUS
-			UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
-#endif
-			// Only update remote locks
-			if (LockFile.LockUser != LockUser)
-			{
-				OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
-			}
+			bResult = false;
 		}
-		// Get the latest local state of our own locks
-		Params.Reset(1);
-		Params.Add(TEXT("--local"));
-
-		Results.Reset();
-		bResult &= RunLFSCommand(TEXT("locks"), InRepositoryRoot, GitBinaryFallback, Params, FGitSourceControlModule::GetEmptyStringArray(), Results, OutErrorMessages);
-		for (const FString& Result : Results)
+		else
 		{
-			FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
-#if UE_BUILD_DEBUG && GIT_DEBUG_STATUS
-			UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
-#endif
-			// Only update local locks
-			if (LockFile.LockUser == LockUser)
+			FGitSourceControlProvider& Provider = GitSourceControl->GetProvider();
+			const FString& LockUser = Provider.GetLockUser();
+
+			Results.Reset();
+			bResult = RunLFSCommand(TEXT("locks"), InRepositoryRoot, GitBinaryFallback, Params, FGitSourceControlModule::GetEmptyStringArray(), Results, OutErrorMessages);
+			for (const FString& Result : Results)
 			{
-				OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+				FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
+	#if UE_BUILD_DEBUG && GIT_DEBUG_STATUS
+				UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
+	#endif
+				// Only update remote locks
+				if (LockFile.LockUser != LockUser)
+				{
+					OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+				}
+			}
+			// Get the latest local state of our own locks
+			Params.Reset(1);
+			Params.Add(TEXT("--local"));
+
+			Results.Reset();
+			bResult &= RunLFSCommand(TEXT("locks"), InRepositoryRoot, GitBinaryFallback, Params, FGitSourceControlModule::GetEmptyStringArray(), Results, OutErrorMessages);
+			for (const FString& Result : Results)
+			{
+				FGitLfsLocksParser LockFile(InRepositoryRoot, Result);
+	#if UE_BUILD_DEBUG && GIT_DEBUG_STATUS
+				UE_LOG(LogSourceControl, Log, TEXT("LockedFile(%s, %s)"), *LockFile.LocalFilename, *LockFile.LockUser);
+	#endif
+				// Only update local locks
+				if (LockFile.LockUser == LockUser)
+				{
+					OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
+				}
 			}
 		}
 	}
-	else
+	if (!bResult)
 	{
 		// We can use our internally tracked local lock cache (an effective combination of --cached and --local)
 		OutLocks = FGitLockedFilesCache::LockedFiles;
@@ -1917,9 +1948,13 @@ bool UpdateCachedStates(const TMap<const FString, FGitState>& InResults)
 	{
 		return false;
 	}
-
-	FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+	
+	FGitSourceControlModule* GitSourceControl = FGitSourceControlModule::GetThreadSafe();
+	if (!GitSourceControl)
+	{
+		return false;
+	}
+	FGitSourceControlProvider& Provider = GitSourceControl->GetProvider();
 	const bool bUsingGitLfsLocking = Provider.UsesCheckout();
 
 	// TODO without LFS : Workaround a bug with the Source Control Module not updating file state after a simple "Save" with no "Checkout" (when not using File Lock)

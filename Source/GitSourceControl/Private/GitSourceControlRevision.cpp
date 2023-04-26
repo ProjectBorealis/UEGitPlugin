@@ -25,8 +25,12 @@ bool FGitSourceControlRevision::Get( FString& InOutFilename, EConcurrency::Type 
 bool FGitSourceControlRevision::Get( FString& InOutFilename ) const
 {
 #endif
-	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-	const FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+	const FGitSourceControlModule* GitSourceControl = FGitSourceControlModule::GetThreadSafe();
+	if (!GitSourceControl)
+	{
+		return false;
+	}
+	const FGitSourceControlProvider& Provider = GitSourceControl->GetProvider();
 	const FString PathToGitBinary = Provider.GetGitBinaryPath();
 	FString PathToRepositoryRoot = Provider.GetPathToRepositoryRoot();
 	// the repo root can be customised if in a plugin that has it's own repo
