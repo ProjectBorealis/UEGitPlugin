@@ -520,11 +520,6 @@ TOptional<int> FGitSourceControlProvider::GetNumLocalChanges() const
 #endif
 
 #if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 2
-bool FGitSourceControlProvider::CanExecuteOperation( const FSourceControlOperationRef& InOperation ) const
-{
-	return WorkersMap.Find(InOperation->GetName()) != nullptr;
-}
-
 bool FGitSourceControlProvider::AllowsDiffAgainstDepot() const
 {
 	return true;
@@ -538,6 +533,12 @@ bool FGitSourceControlProvider::UsesUncontrolledChangelists() const
 bool FGitSourceControlProvider::UsesSnapshots() const
 {
 	return false;
+}
+#endif
+
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3
+bool FGitSourceControlProvider::CanExecuteOperation(const FSourceControlOperationRef& InOperation) const {
+	return WorkersMap.Find(InOperation->GetName()) != nullptr;
 }
 
 TMap<ISourceControlProvider::EStatus, FString> FGitSourceControlProvider::GetStatus() const
