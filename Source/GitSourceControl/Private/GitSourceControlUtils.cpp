@@ -86,33 +86,26 @@ namespace GitSourceControlUtils
 	FString ChangeRepositoryRootIfSubmodule(const TArray<FString>& AbsoluteFilePaths, const FString& PathToRepositoryRoot)
 	{
 		FString Ret = PathToRepositoryRoot;
-		FString PluginsRoot = FPaths::ConvertRelativePathToFull(FPaths::ProjectPluginsDir());
-		// note this is not going to support operations where selected files are both in the root repo and the submodule/plugin's repo
-		int NumPluginFiles = 0;
+		// note this is not going to support operations where selected files are in different repositories
 
 		for (auto& FilePath : AbsoluteFilePaths)
 		{
-			if (FilePath.Contains(PluginsRoot))
+			FString TestPath = FilePath;
+			while (!FPaths::IsSamePath(TestPath, PathToRepositoryRoot))
 			{
-				NumPluginFiles++;
-			}
-		}
-		// if all plugins?
-		// modify Source control base path
-		if ((NumPluginFiles == AbsoluteFilePaths.Num()) && (AbsoluteFilePaths.Num() > 0))
-		{
-			FString FullPath = AbsoluteFilePaths[0];
-
-			FString PluginPart = FullPath.Replace(*PluginsRoot, *FString(""));
-			PluginPart = PluginPart.Left(PluginPart.Find("/"));
-
-
-			FString CandidateRepoRoot = PluginsRoot + PluginPart;
-
-			FString IsItUsingGitPath = CandidateRepoRoot + "/.git";
-			if (FPaths::FileExists(IsItUsingGitPath) || FPaths::DirectoryExists(IsItUsingGitPath))
-			{
-				Ret = CandidateRepoRoot;
+				// Iterating over path directories, looking for .git
+				TestPath = FPaths::GetPath(TestPath);
+				FString GitTestPath = TestPath + "/.git";
+				if (FPaths::FileExists(GitTestPath) || FPaths::DirectoryExists(GitTestPath))
+				{
+					if (Ret != PathToRepositoryRoot && Ret != GitTestPath)
+					{
+						UE_LOG(LogSourceControl, Error, TEXT("Selected files belong to different submodules"));
+						return PathToRepositoryRoot;
+					}
+					Ret = TestPath;
+					break;
+				}
 			}
 		}
 		return Ret;
