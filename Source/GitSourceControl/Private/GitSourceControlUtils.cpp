@@ -95,6 +95,14 @@ namespace GitSourceControlUtils
 			{
 				// Iterating over path directories, looking for .git
 				TestPath = FPaths::GetPath(TestPath);
+
+				if (TestPath.IsEmpty())
+				{
+					// early out if empty directory string to prevent infinite loop
+					UE_LOG(LogSourceControl, Error, TEXT("Can't find directory path for file :%s"), *FilePath);
+					break;
+				}
+				
 				FString GitTestPath = TestPath + "/.git";
 				if (FPaths::FileExists(GitTestPath) || FPaths::DirectoryExists(GitTestPath))
 				{
