@@ -81,6 +81,52 @@ const FString& FGitScopedTempFile::GetFilename() const
 FDateTime FGitLockedFilesCache::LastUpdated = FDateTime::MinValue();
 TMap<FString, FString> FGitLockedFilesCache::LockedFiles = TMap<FString, FString>();
 
+// WCA EDIT - BEGIN
+void FGitLockedFilesCache::SetLockedFiles(const TMap<FString, FString>& newLocks)
+{	
+	for (auto lock : LockedFiles)
+	{
+		if (!newLocks.Contains(lock.Key))
+		{
+			OnFileLockChanged(lock.Key, lock.Value, false);
+		}
+	}
+	
+	for (auto lock : newLocks)
+	{		
+		if (!LockedFiles.Contains(lock.Key))
+		{
+			OnFileLockChanged(lock.Key, lock.Value, true);
+		}		
+	}
+
+	LockedFiles = newLocks;
+}
+
+void FGitLockedFilesCache::AddLockedFile(const FString& filePath, const FString& lockUser)
+{
+	LockedFiles.Add(filePath, lockUser);
+	OnFileLockChanged(filePath, lockUser, true);
+}
+
+void FGitLockedFilesCache::RemoveLockedFile(const FString& filePath)
+{
+	FString user;
+	LockedFiles.RemoveAndCopyValue(filePath, user);
+	OnFileLockChanged(filePath, user, false);
+}
+
+void FGitLockedFilesCache::OnFileLockChanged(const FString& filePath, const FString& lockUser, bool locked)
+{
+	const FString& LfsUserName = FGitSourceControlModule::Get().GetProvider().GetLockUser();
+	if (LfsUserName == lockUser)
+	{
+		FPlatformFileManager::Get().GetPlatformFile().SetReadOnly(*filePath, !locked);		
+	}
+}
+
+// WCA EDIT - END
+
 namespace GitSourceControlUtils
 {
 // Launch the Git command line process and extract its results & errors
@@ -1384,7 +1430,9 @@ bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessa
 				OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 			}
 			FGitLockedFilesCache::LastUpdated = CurrentTime;
-			FGitLockedFilesCache::LockedFiles = OutLocks;
+			// WCA EDIT - BEGIN
+			FGitLockedFilesCache::SetLockedFiles(OutLocks);
+			// WCA EDIT - END
 			return bResult;
 		}
 		// We tried to invalidate the UE cache, but we failed for some reason. Try updating lock state from LFS cache.
@@ -1430,7 +1478,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessa
 	else
 	{
 		// We can use our internally tracked local lock cache (an effective combination of --cached and --local)
-		OutLocks = FGitLockedFilesCache::LockedFiles;
+		OutLocks = FGitLockedFilesCache::GetLockedFiles();
 		bResult = true;
 	}
 	return bResult;

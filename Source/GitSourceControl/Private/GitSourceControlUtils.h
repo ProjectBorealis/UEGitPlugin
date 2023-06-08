@@ -38,7 +38,18 @@ class FGitLockedFilesCache
 {
 public:
 	static FDateTime LastUpdated;
+
+ // WCA EDIT - BEGIN
+ static const TMap<FString, FString>& GetLockedFiles() { return LockedFiles; }
+ static void SetLockedFiles(const TMap<FString, FString>& newLocks);
+ static void AddLockedFile(const FString& filePath, const FString& lockUser);
+ static void RemoveLockedFile(const FString& filePath);
+
+private:
+ static void OnFileLockChanged(const FString& filePath, const FString& lockUser, bool locked);
+ // update local read/write state when our own lock statuses change
 	static TMap<FString, FString> LockedFiles;
+ // WCA EDIT - END
 };
 
 namespace GitSourceControlUtils
