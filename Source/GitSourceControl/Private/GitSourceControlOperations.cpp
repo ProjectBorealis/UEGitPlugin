@@ -133,16 +133,11 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 		for (const auto& RelativeFile : RelativeFiles)
 		{
 			FString AbsoluteFile = FPaths::Combine(InCommand.PathToGitRoot, RelativeFile);
-		// WCA EDIT - BEGIN
 			FGitLockedFilesCache::AddLockedFile(AbsoluteFile, LockUser);
 			FPaths::NormalizeFilename(AbsoluteFile);
 			AbsoluteFiles.Add(AbsoluteFile);
 		}
-		/*for (const auto& File : AbsoluteFiles)
-		{
-			FPlatformFileManager::Get().GetPlatformFile().SetReadOnly(*File, false);
-		}*/
-		// WCA EDIT - END
+
 		GitSourceControlUtils::CollectNewStates(AbsoluteFiles, States, EFileState::Unset, ETreeState::Unset, ELockState::Locked);
 		for (auto& State : States)
 		{
@@ -347,9 +342,7 @@ bool FGitCheckInWorker::Execute(FGitSourceControlCommand& InCommand)
 						{
 							for (const auto& File : LockedFiles)
 							{
-								// WCA EDIT - BEGIN
 								FGitLockedFilesCache::RemoveLockedFile(File);
-								// WCA EDIT - END
 							}
 						}
 					}
@@ -588,9 +581,7 @@ bool FGitRevertWorker::Execute(FGitSourceControlCommand& InCommand)
 			{
 				for (const auto& File : LockedFiles)
 				{
-					// WCA EDIT - BEGIN
 					FGitLockedFilesCache::RemoveLockedFile(File);
-					// WCA EDIT - END
 				}
 			}
 		}

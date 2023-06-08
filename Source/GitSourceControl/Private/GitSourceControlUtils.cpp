@@ -81,7 +81,6 @@ const FString& FGitScopedTempFile::GetFilename() const
 FDateTime FGitLockedFilesCache::LastUpdated = FDateTime::MinValue();
 TMap<FString, FString> FGitLockedFilesCache::LockedFiles = TMap<FString, FString>();
 
-// WCA EDIT - BEGIN
 void FGitLockedFilesCache::SetLockedFiles(const TMap<FString, FString>& newLocks)
 {	
 	for (auto lock : LockedFiles)
@@ -124,8 +123,6 @@ void FGitLockedFilesCache::OnFileLockChanged(const FString& filePath, const FStr
 		FPlatformFileManager::Get().GetPlatformFile().SetReadOnly(*filePath, !locked);		
 	}
 }
-
-// WCA EDIT - END
 
 namespace GitSourceControlUtils
 {
@@ -221,10 +218,7 @@ bool RunCommandInternalRaw(const FString& InCommand, const FString& InPathToGitB
 	UE_LOG(LogSourceControl, Log, TEXT("RunCommand: 'git %s'"), *LogableCommand);
 #endif
 
-	// WCA EDIT - BEGIN
-	//const FString& PathToGitOrEnvBinary = InPathToGitBinary;
 	FString PathToGitOrEnvBinary = InPathToGitBinary;
-	// WCA EDIT - END
 #if PLATFORM_MAC
 	// The Cocoa application does not inherit shell environment variables, so add the path expected to have git-lfs to PATH
 	FString PathEnv = FPlatformMisc::GetEnvironmentVariable(TEXT("PATH"));
@@ -688,7 +682,6 @@ bool GetRemoteBranchName(const FString& InPathToGitBinary, const FString& InRepo
 	return bResults;
 }
 
-// WCA EDIT - BEGIN
 bool GetRemoteBranchesWildcard(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const FString& PatternMatch, TArray<FString>& OutBranchNames)
 {
 	TArray<FString> InfoMessages;
@@ -713,7 +706,6 @@ bool GetRemoteBranchesWildcard(const FString& InPathToGitBinary, const FString& 
 	}
 	return bResults;	
 }
-// WCA EDIT - END
 	
 bool GetCommitInfo(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutCommitId, FString& OutCommitSummary)
 {
@@ -1409,9 +1401,7 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 	// Get the full remote status of the Content folder, since it's the only lockable folder we track in editor. 
 	// This shows any new files as well.
 	// Also update the status of `.checksum`.
-	// WCA EDIT - BEGIN - also include binaries and plugins
 	TArray<FString> FilesToDiff{FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()), ".checksum", "Binaries/", "Plugins/"};
-	// WCA EDIT - END
 	TArray<FString> ParametersLog{TEXT("--pretty="), TEXT("--name-only"), TEXT(""), TEXT("--")};
 	for (auto& Branch : BranchesToDiff)
 	{
@@ -1436,14 +1426,12 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 				// Don't care about mergeable files (.collection, .ini, .uproject, etc)
 				if (!IsFileLFSLockable(NewerFileName))
 				{
-					// WCA EDIT - BEGIN - also include binaries and plugins
 					// Check if there's newer binaries pending on this branch
 					if (bCurrentBranch && (NewerFileName == TEXT(".checksum") || NewerFileName.StartsWith("Binaries/", ESearchCase::IgnoreCase) ||
 						NewerFileName.StartsWith("Plugins/", ESearchCase::IgnoreCase)))
 					{
 						Provider.bPendingRestart = true;
 					}
-					// WCA EDIT - END
 					continue;
 				}
 				const FString& NewerFilePath = FPaths::ConvertRelativePathToFull(InRepositoryRoot, NewerFileName);
@@ -1506,9 +1494,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, const FString& GitBinaryFallba
 				OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 			}
 			FGitLockedFilesCache::LastUpdated = CurrentTime;
-			// WCA EDIT - BEGIN
 			FGitLockedFilesCache::SetLockedFiles(OutLocks);
-			// WCA EDIT - END
 			return bResult;
 		}
 		// We tried to invalidate the UE cache, but we failed for some reason. Try updating lock state from LFS cache.
@@ -2237,12 +2223,9 @@ bool FetchRemote(const FString& InPathToGitBinary, const FString& InPathToReposi
 	// fetch latest repo
 	// TODO specify branches?
 
-	// WCA EDIT - BEGIN
 	Params.Add(TEXT("--prune"));
 	return RunCommand(TEXT("fetch"), InPathToGitBinary, InPathToRepositoryRoot, Params,
 					  FGitSourceControlModule::GetEmptyStringArray(), OutResults, OutErrorMessages);
-	// WCA EDIT - END
-
 }
 
 bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToRepositoryRoot, const TArray<FString>& InFiles, TArray<FString>& OutFiles,

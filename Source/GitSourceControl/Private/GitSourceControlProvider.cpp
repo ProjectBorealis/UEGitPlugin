@@ -838,7 +838,6 @@ int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& StateBranchN
 	return StatusBranchNames.IndexOfByKey(StateBranchName);
 }
 
-// WCA EDIT - BEGIN
 TArray<FString> FGitSourceControlProvider::GetStatusBranchNames() const
 {
 	TArray<FString> StatusBranches;
@@ -860,6 +859,5 @@ TArray<FString> FGitSourceControlProvider::GetStatusBranchNames() const
 	
 	return StatusBranches;
 }
-// WCA EDIT - END
 
 #undef LOCTEXT_NAMESPACE

@@ -39,7 +39,6 @@ class FGitLockedFilesCache
 public:
 	static FDateTime LastUpdated;
 
- // WCA EDIT - BEGIN
  static const TMap<FString, FString>& GetLockedFiles() { return LockedFiles; }
  static void SetLockedFiles(const TMap<FString, FString>& newLocks);
  static void AddLockedFile(const FString& filePath, const FString& lockUser);
@@ -49,7 +48,6 @@ private:
  static void OnFileLockChanged(const FString& filePath, const FString& lockUser, bool locked);
  // update local read/write state when our own lock statuses change
 	static TMap<FString, FString> LockedFiles;
- // WCA EDIT - END
 };
 
 namespace GitSourceControlUtils
@@ -139,13 +137,11 @@ bool GetBranchName(const FString& InPathToGitBinary, const FString& InRepository
  */
 bool GetRemoteBranchName(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutBranchName);
 
- // WCA EDIT - BEGIN
  /**
  * Get Git remote tracking branches that match wildcard
  * @returns false if no matching branches
  */
  bool GetRemoteBranchesWildcard(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const FString& PatternMatch, TArray<FString>& OutBranchNames);
- // WCA EDIT - END
  
 /**
  * Get Git current commit details
