@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2020 Sebastien Rombauts (sebastien.rombauts@gmail.com)
+// Copyright (c) 2014-2023 Sebastien Rombauts (sebastien.rombauts@gmail.com)
 //
 // Distributed under the MIT License (MIT) (See accompanying file LICENSE.txt
 // or copy at http://opensource.org/licenses/MIT)
@@ -7,6 +7,7 @@
 
 #include "Modules/ModuleManager.h"
 #include "GitSourceControlModule.h"
+#include "GitSourceControlUtils.h"
 
 FGitSourceControlCommand::FGitSourceControlCommand(const TSharedRef<class ISourceControlOperation, ESPMode::ThreadSafe>& InOperation, const TSharedRef<class IGitSourceControlWorker, ESPMode::ThreadSafe>& InWorker, const FSourceControlOperationComplete& InOperationCompleteDelegate)
 	: Operation(InOperation)
@@ -25,6 +26,11 @@ FGitSourceControlCommand::FGitSourceControlCommand(const TSharedRef<class ISourc
 	bUsingGitLfsLocking = Provider.UsesCheckout();
 	PathToRepositoryRoot = Provider.GetPathToRepositoryRoot();
 	PathToGitRoot = Provider.GetPathToGitRoot();
+}
+
+void FGitSourceControlCommand::UpdateRepositoryRootIfSubmodule(const TArray<FString>& AbsoluteFilePaths)
+{
+	PathToRepositoryRoot = GitSourceControlUtils::ChangeRepositoryRootIfSubmodule(AbsoluteFilePaths, PathToRepositoryRoot);
 }
 
 bool FGitSourceControlCommand::DoWork()

@@ -46,13 +46,13 @@ uint32 FGitSourceControlRunner::Run()
 			// Flag that we're running the task already
 			bRefreshSpawned = true;
 			const auto ExecuteResult = Async(EAsyncExecution::TaskGraphMainThread, [=] {
+				FGitSourceControlModule* GitSourceControl = FGitSourceControlModule::GetThreadSafe();
 				// Module not loaded, bail. Usually happens when editor is shutting down, and this prevents a crash from bad timing.
-				if (!FModuleManager::Get().GetModule("GitSourceControl"))
+				if (!GitSourceControl)
 				{
 					return ECommandResult::Failed;
 				}
-				FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
-				FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+				FGitSourceControlProvider& Provider = GitSourceControl->GetProvider();
 				TSharedRef<FGitFetch, ESPMode::ThreadSafe> RefreshOperation = ISourceControlOperation::Create<FGitFetch>();
 				RefreshOperation->bUpdateStatus = true;
 #if ENGINE_MAJOR_VERSION >= 5

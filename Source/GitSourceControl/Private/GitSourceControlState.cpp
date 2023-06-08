@@ -62,6 +62,13 @@ TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlS
 	return nullptr;
 }
 
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 2
+TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlState::GetCurrentRevision() const
+{
+	return nullptr;
+}
+#endif
+
 // @todo add Slate icons for git specific states (NotAtHead vs Conflicted...)
 
 #if ENGINE_MAJOR_VERSION < 5

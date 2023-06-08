@@ -118,6 +118,18 @@ public:
 		return FModuleManager::Get().LoadModuleChecked< FGitSourceControlModule >("GitSourceControl");
 	}
 
+	static inline FGitSourceControlModule* GetThreadSafe()
+	{
+		IModuleInterface* ModulePtr = FModuleManager::Get().GetModule("GitSourceControl");
+		if (!ModulePtr)
+		{
+			// Main thread should never have this unloaded.
+			check(!IsInGameThread());
+			return nullptr;
+		}
+		return static_cast<FGitSourceControlModule*>(ModulePtr);
+	}
+
 	/** Set list of error messages that occurred after last git command */
 	static void SetLastErrors(const TArray<FText>& InErrors);
 

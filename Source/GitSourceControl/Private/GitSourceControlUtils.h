@@ -54,6 +54,23 @@ private:
 
 namespace GitSourceControlUtils
 {
+	/**
+		*  Returns an updated repo root if all selected files are in a plugin subfolder, and the plugin subfolder is a git repo
+		*  This supports the case where each plugin is a sub module
+		*
+		* @param AbsoluteFilePaths		The list of files in the SC operation
+		* @param PathToRepositoryRoot	The original path to the repository root (used by default)
+		*/
+	FString ChangeRepositoryRootIfSubmodule(const TArray<FString>& AbsoluteFilePaths, const FString& PathToRepositoryRoot);
+
+	/**
+		*  Returns an updated repo root if all selected file is in a plugin subfolder, and the plugin subfolder is a git repo
+		*  This supports the case where each plugin is a sub module
+		*
+		* @param AbsoluteFilePath		The file in the SC operation
+		* @param PathToRepositoryRoot	The original path to the repository root (used by default)
+		*/
+	FString ChangeRepositoryRootIfSubmodule(const FString& AbsoluteFilePath, const FString& PathToRepositoryRoot);
 
 /**
  * Find the path to the Git binary, looking into a few places (standalone Git install, and other common tools embedding Git)
@@ -76,19 +93,19 @@ bool CheckGitAvailability(const FString& InPathToGitBinary, FGitVersion* OutVers
  */
  void ParseGitVersion(const FString& InVersionString, FGitVersion* OutVersion);
 
-/**
- * Check git for various optional capabilities by various means.
- * @param InPathToGitBinary		The path to the Git binary
- * @param OutGitVersion			If provided, populate with the git version parsed from "version" command
- */
-void FindGitCapabilities(const FString& InPathToGitBinary, FGitVersion *OutVersion);
+	/**
+		* Check git for various optional capabilities by various means.
+		* @param InPathToGitBinary		The path to the Git binary
+		* @param OutGitVersion			If provided, populate with the git version parsed from "version" command
+		*/
+	void FindGitCapabilities(const FString& InPathToGitBinary, FGitVersion* OutVersion);
 
-/**
- * Run a Git "lfs" command to check the availability of the "Large File System" extension.
- * @param InPathToGitBinary		The path to the Git binary
- * @param OutGitVersion			If provided, populate with the git version parsed from "version" command
- */
- void FindGitLfsCapabilities(const FString& InPathToGitBinary, FGitVersion *OutVersion);
+	/**
+		* Run a Git "lfs" command to check the availability of the "Large File System" extension.
+		* @param InPathToGitBinary		The path to the Git binary
+		* @param OutGitVersion			If provided, populate with the git version parsed from "version" command
+		*/
+	void FindGitLfsCapabilities(const FString& InPathToGitBinary, FGitVersion* OutVersion);
 
 /**
  * Find the root of the Git repository, looking from the provided path and upward in its parent directories
@@ -262,7 +279,7 @@ TArray<FString> AbsoluteFilenames(const TArray<FString>& InFileNames, const FStr
  */
 void RemoveRedundantErrors(FGitSourceControlCommand& InCommand, const FString& InFilter);
 
-bool RunLFSCommand(const FString& InCommand, const FString& InRepositoryRoot, const TArray<FString>& InParameters, const TArray<FString>& InFiles, TArray<FString>& OutResults, TArray<FString>& OutErrorMessages);
+	bool RunLFSCommand(const FString& InCommand, const FString& InRepositoryRoot, const FString& GitBinaryFallback, const TArray<FString>& InParameters, const TArray<FString>& InFiles, TArray<FString>& OutResults, TArray<FString>& OutErrorMessages);
 
 /**
  * Helper function for various commands to update cached states.
@@ -282,15 +299,16 @@ bool CollectNewStates(const TMap<FString, FGitSourceControlState>& InStates, TMa
  */
 bool CollectNewStates(const TArray<FString>& InFiles, TMap<const FString, FGitState>& OutResults, EFileState::Type FileState, ETreeState::Type TreeState = ETreeState::Unset, ELockState::Type LockState = ELockState::Unset, ERemoteState::Type RemoteState = ERemoteState::Unset);
 
-/**
- * Run 'git lfs locks" to extract all lock information for all files in the repository
- *
- * @param	InRepositoryRoot	The Git repository from where to run the command - usually the Game directory
- * @param	OutErrorMessages    Any errors (from StdErr) as an array per-line
- * @param	OutLocks		    The lock results (file, username)
- * @returns true if the command succeeded and returned no errors
- */
-bool GetAllLocks(const FString& InRepositoryRoot, TArray<FString>& OutErrorMessages, TMap<FString, FString>& OutLocks, bool bInvalidateCache = false);
+	/**
+		 * Run 'git lfs locks" to extract all lock information for all files in the repository
+		 *
+		 * @param	InRepositoryRoot	The Git repository from where to run the command - usually the Game directory
+		 * @param   GitBinaryFallBack   The Git binary fallback path
+		 * @param	OutErrorMessages    Any errors (from StdErr) as an array per-line
+		 * @param	OutLocks		    The lock results (file, username)
+		 * @returns true if the command succeeded and returned no errors
+		 */
+	bool GetAllLocks(const FString& InRepositoryRoot, const FString& GitBinaryFallBack, TArray<FString>& OutErrorMessages, TMap<FString, FString>& OutLocks, bool bInvalidateCache = false);
 
 /**
  * Gets locks from state cache

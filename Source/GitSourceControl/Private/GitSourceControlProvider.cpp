@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2020 Sebastien Rombauts (sebastien.rombauts@gmail.com)
+// Copyright (c) 2014-2023 Sebastien Rombauts (sebastien.rombauts@gmail.com)
 //
 // Distributed under the MIT License (MIT) (See accompanying file LICENSE.txt
 // or copy at http://opensource.org/licenses/MIT)
@@ -422,6 +422,7 @@ ECommandResult::Type FGitSourceControlProvider::Execute( const FSourceControlOpe
 
 	FGitSourceControlCommand* Command = new FGitSourceControlCommand(InOperation, Worker.ToSharedRef());
 	Command->Files = AbsoluteFiles;
+	Command->UpdateRepositoryRootIfSubmodule(AbsoluteFiles);
 	Command->OperationCompleteDelegate = InOperationCompleteDelegate;
 
 	// fire off operation
@@ -504,17 +505,53 @@ bool FGitSourceControlProvider::UsesCheckout() const
 #if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
 bool FGitSourceControlProvider::UsesFileRevisions() const
 {
-	return false;
+	return true;
 }
 
 TOptional<bool> FGitSourceControlProvider::IsAtLatestRevision() const
 {
-	return {};
+	return TOptional<bool>();
 }
 
 TOptional<int> FGitSourceControlProvider::GetNumLocalChanges() const
 {
-	return {};
+	return TOptional<int>();
+}
+#endif
+
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 2
+bool FGitSourceControlProvider::AllowsDiffAgainstDepot() const
+{
+	return true;
+}
+
+bool FGitSourceControlProvider::UsesUncontrolledChangelists() const
+{
+	return true;
+}
+
+bool FGitSourceControlProvider::UsesSnapshots() const
+{
+	return false;
+}
+#endif
+
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3
+bool FGitSourceControlProvider::CanExecuteOperation(const FSourceControlOperationRef& InOperation) const {
+	return WorkersMap.Find(InOperation->GetName()) != nullptr;
+}
+
+TMap<ISourceControlProvider::EStatus, FString> FGitSourceControlProvider::GetStatus() const
+{
+	TMap<EStatus, FString> Result;
+	Result.Add(EStatus::Enabled, IsEnabled() ? TEXT("Yes") : TEXT("No") );
+	Result.Add(EStatus::Connected, (IsEnabled() && IsAvailable()) ? TEXT("Yes") : TEXT("No") );
+	Result.Add(EStatus::User, UserName);
+	Result.Add(EStatus::Repository, PathToRepositoryRoot);
+	Result.Add(EStatus::Remote, RemoteUrl);
+	Result.Add(EStatus::Branch, BranchName);
+	Result.Add(EStatus::Email, UserEmail);
+	return Result;
 }
 #endif
 

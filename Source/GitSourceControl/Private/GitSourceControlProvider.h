@@ -80,6 +80,15 @@ public:
 	virtual TOptional<bool> IsAtLatestRevision() const override;
 	virtual TOptional<int> GetNumLocalChanges() const override;
 #endif
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 2
+	virtual bool AllowsDiffAgainstDepot() const override;
+	virtual bool UsesUncontrolledChangelists() const override;
+	virtual bool UsesSnapshots() const override;
+#endif
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3
+	virtual bool CanExecuteOperation( const FSourceControlOperationRef& InOperation ) const override;
+	virtual TMap<EStatus, FString> GetStatus() const override;
+#endif
 	virtual void Tick() override;
 	virtual TArray< TSharedRef<class ISourceControlLabel> > GetLabels( const FString& InMatchingSpec ) const override;
 
