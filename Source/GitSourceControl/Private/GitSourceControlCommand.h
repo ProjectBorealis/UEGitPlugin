@@ -5,11 +5,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "ISourceControlProvider.h"
 #include "Misc/IQueuedWork.h"
 
-/** Accumulated error and info messages for a source control operation.  */
+/** Accumulated error and info messages for a revision control operation.  */
 struct FGitSourceControlResultInfo
 {
 	/** Append any messages from another FSourceControlResultInfo, ensuring to keep any already accumulated info. */
@@ -75,7 +74,7 @@ public:
 	/** Path to the Git binary */
 	FString PathToGitBinary;
 
-	/** Path to the root of the Unreal source control repository: usually the ProjectDir */
+	/** Path to the root of the Unreal revision control repository: usually the ProjectDir */
 	FString PathToRepositoryRoot;
 
 	/** Path to the root of the Git repository: can be the ProjectDir itself, or any parent directory (found by the "Connect" operation) */
@@ -93,13 +92,13 @@ public:
 	/** Delegate to notify when this operation completes */
 	FSourceControlOperationComplete OperationCompleteDelegate;
 
-	/**If true, this command has been processed by the source control thread*/
+	/**If true, this command has been processed by the revision control thread*/
 	volatile int32 bExecuteProcessed;
 
 	/**If true, this command has been cancelled*/
 	volatile int32 bCancelled;
 
-	/**If true, the source control command succeeded*/
+	/**If true, the revision control command succeeded*/
 	bool bCommandSuccessful;
 
 	/** Current Commit full SHA1 */

@@ -12,7 +12,7 @@
 struct FToolMenuSection;
 class FMenuBuilder;
 
-/** Git extension of the Source Control toolbar menu */
+/** Git extension of the Revision Control toolbar menu */
 class FGitSourceControlMenu
 {
 public:
@@ -61,9 +61,9 @@ private:
 	/** Loaded packages to reload after a Sync or Revert operation */
 	TArray<UPackage*> PackagesToReload;
 
-	/** Current source control operation from extended menu if any */
+	/** Current revision control operation from extended menu if any */
 	static TWeakPtr<class SNotificationItem> OperationInProgressNotification;
 
-	/** Delegate called when a source control operation has completed */
+	/** Delegate called when a revision control operation has completed */
 	void OnSourceControlOperationComplete(const FSourceControlOperationRef& InOperation, ECommandResult::Type InResult);
 };

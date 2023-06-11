@@ -5,9 +5,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-
-#include "GitSourceControlState.h"
+#include "Templates/SharedPointer.h"
 
 class IGitSourceControlWorker
 {

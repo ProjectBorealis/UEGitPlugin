@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "ISourceControlRevision.h"
 #include "Runtime/Launch/Resources/Version.h"
+#include "Misc/DateTime.h"
 
 /** Revision of a file, linked to a specific commit */
 class FGitSourceControlRevision : public ISourceControlRevision

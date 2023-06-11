@@ -5,27 +5,26 @@
 
 #include "GitSourceControlUtils.h"
 
+#include "GitMessageLog.h"
 #include "GitSourceControlCommand.h"
 #include "GitSourceControlModule.h"
 #include "GitSourceControlProvider.h"
 #include "HAL/PlatformProcess.h"
 
+#include "HAL/PlatformFile.h"
 #if ENGINE_MAJOR_VERSION >= 5
 #include "HAL/PlatformFileManager.h"
 #else
 #include "HAL/PlatformFilemanager.h"
 #endif
 
-#include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
 #include "Interfaces/IPluginManager.h"
 #include "ISourceControlModule.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
-#include "Modules/ModuleManager.h"
 #include "ISourceControlModule.h"
 #include "GitSourceControlModule.h"
-#include "GitSourceControlProvider.h"
 #include "Logging/MessageLog.h"
 #include "Misc/DateTime.h"
 #include "Misc/ScopeLock.h"
@@ -36,10 +35,6 @@
 #include "Misc/MessageDialog.h"
 
 #include "Async/Async.h"
-
-#if PLATFORM_LINUX
-#include <sys/ioctl.h>
-#endif
 
 #ifndef GIT_DEBUG_STATUS
 #define GIT_DEBUG_STATUS 0
@@ -1151,7 +1146,7 @@ void AbsoluteFilenames(const FString& InRepositoryRoot, TArray<FString>& InFileN
 
 /** Run a 'git ls-files' command to get all files tracked by Git recursively in a directory.
  *
- * Called in case of a "directory status" (no file listed in the command) when using the "Submit to Source Control" menu.
+ * Called in case of a "directory status" (no file listed in the command) when using the "Submit to Revision Control" menu.
  */
 bool ListFilesInDirectoryRecurse(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const FString& InDirectory, TArray<FString>& OutFiles)
 {
@@ -1276,7 +1271,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 					bCheckedLockedFiles = true;
 					TArray<FString> ErrorMessages;
 					GetAllLocks(InRepositoryRoot, InPathToGitBinary, ErrorMessages, LockedFiles);
-					FMessageLog SourceControlLog("SourceControl");
+					FTSMessageLog SourceControlLog("SourceControl");
 					for (int32 ErrorIndex = 0; ErrorIndex < ErrorMessages.Num(); ++ErrorIndex)
 					{
 						SourceControlLog.Error(FText::FromString(ErrorMessages[ErrorIndex]));
@@ -1323,7 +1318,7 @@ static void ParseFileStatusResult(const FString& InPathToGitBinary, const FStrin
 /**
  * @brief Detects how to parse the result of a "status" command to get workspace file states
  *
- *  It is either a command for a whole directory (ie. "Content/", in case of "Submit to Source Control" menu),
+ *  It is either a command for a whole directory (ie. "Content/", in case of "Submit to Revision Control" menu),
  * or for one or more files all on a same directory (by design, since we group files by directory in RunUpdateStatus())
  *
  * @param[in]	InPathToGitBinary	The path to the Git binary
@@ -1587,7 +1582,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	TArray<FString> Parameters;
 	Parameters.Add(TEXT("--porcelain"));
 	Parameters.Add(TEXT("-uall")); // make sure we use -uall to list all files instead of directories
-	// We skip checking ignored since no one ignores files that Unreal would read in as source controlled (Content/{*.uasset,*.umap},Config/*.ini).
+	// We skip checking ignored since no one ignores files that Unreal would read in as revision controlled (Content/{*.uasset,*.umap},Config/*.ini).
 	TArray<FString> Results;
 	// avoid locking the index when not needed (useful for status updates)
 	const bool bResult = RunCommand(TEXT("--no-optional-locks status"), InPathToGitBinary, InRepositoryRoot, Parameters, RepoFiles, Results, OutErrorMessages);

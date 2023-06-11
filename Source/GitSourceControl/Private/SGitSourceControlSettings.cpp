@@ -11,21 +11,17 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
-#include "Styling/SlateTypes.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SButton.h"
-#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SFilePathPicker.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
-#include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "EditorDirectories.h"
 #if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
-#include "Styling/AppStyle.h"
 #else
 #include "EditorStyleSet.h"
 #endif
@@ -707,7 +703,7 @@ FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
 	GitSourceControl.GetProvider().CheckGitAvailability();
 	if(GitSourceControl.GetProvider().IsAvailable())
 	{
-		// List of files to add to Source Control (.uproject, Config/, Content/, Source/ files and .gitignore/.gitattributes if any)
+		// List of files to add to Revision Control (.uproject, Config/, Content/, Source/ files and .gitignore/.gitattributes if any)
 		TArray<FString> ProjectFiles;
 		ProjectFiles.Add(FPaths::ProjectContentDir());
 		ProjectFiles.Add(FPaths::ProjectConfigDir());
@@ -758,7 +754,7 @@ FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
 			}
 		}
 
-		// 3. Add files to Source Control: launch an asynchronous MarkForAdd operation
+		// 3. Add files to Revision Control: launch an asynchronous MarkForAdd operation
 		LaunchMarkForAddOperation(ProjectFiles);
 
 		// 4. The CheckIn will follow, at completion of the MarkForAdd operation
@@ -809,7 +805,7 @@ void SGitSourceControlSettings::LaunchCheckInOperation()
 	}
 }
 
-/// Delegate called when a source control operation has completed: launch the next one and manage notifications
+/// Delegate called when a Revision control operation has completed: launch the next one and manage notifications
 void SGitSourceControlSettings::OnSourceControlOperationComplete(const FSourceControlOperationRef& InOperation, ECommandResult::Type InResult)
 {
 	RemoveInProgressNotification();

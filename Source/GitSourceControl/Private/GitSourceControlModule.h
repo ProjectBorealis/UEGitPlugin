@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 
@@ -17,7 +15,7 @@ struct FAssetData;
 
 /**
 
-UEGitPlugin is a simple Git Source Control Plugin for Unreal Engine
+UEGitPlugin is a simple Git Revision Control Plugin for Unreal Engine
 
 Written and contributed by Sebastien Rombauts (sebastien.rombauts@gmail.com)
 
@@ -51,7 +49,7 @@ Known issues:
 
 Use "TODO LFS" in the code to track things left to do/improve/refactor:
 2. Implement FGitSourceControlProvider::bWorkingOffline like the SubversionSourceControl plugin
-3. Trying to deactivate Git LFS 2 file locking afterward on the "Login to Source Control" (Connect/Configure) screen
+3. Trying to deactivate Git LFS 2 file locking afterward on the "Login to Revision Control" (Connect/Configure) screen
    is not working after Git LFS 2 has switched "read-only" flag on files (which needs the Checkout operation to be editable)!
    - temporarily deactivating locks may be required if we want to be able to work while not connected (do we really need this ???)
    - does Git LFS have a command to do this deactivation ?
@@ -79,7 +77,7 @@ public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 
-	/** Access the Git source control settings */
+	/** Access the Git revision control settings */
 	FGitSourceControlSettings& AccessSettings()
 	{
 		return GitSourceControlSettings;
@@ -90,10 +88,10 @@ public:
 		return GitSourceControlSettings;
 	}
 
-	/** Save the Git source control settings */
+	/** Save the Git revision control settings */
 	void SaveSettings();
 
-	/** Access the Git source control provider */
+	/** Access the Git revision control provider */
 	FGitSourceControlProvider& GetProvider()
 	{
 		return GitSourceControlProvider;
@@ -141,10 +139,10 @@ private:
 	void DiffAssetAgainstGitOriginBranch(const TArray<FAssetData> SelectedAssets, FString BranchName) const;
 	void DiffAgainstOriginBranch(UObject* InObject, const FString& InPackagePath, const FString& InPackageName, const FString& BranchName) const;
 
-	/** The one and only Git source control provider */
+	/** The one and only Git revision control provider */
 	FGitSourceControlProvider GitSourceControlProvider;
 
-	/** The settings for Git source control */
+	/** The settings for Git revision control */
 	FGitSourceControlSettings GitSourceControlSettings;
 
 	static TArray<FString> EmptyStringArray;

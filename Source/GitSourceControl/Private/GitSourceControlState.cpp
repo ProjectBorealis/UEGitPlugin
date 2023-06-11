@@ -6,7 +6,10 @@
 #include "GitSourceControlState.h"
 
 #if ENGINE_MAJOR_VERSION >= 5
-#include "Styling/AppStyle.h"
+include "Textures/SlateIcon.h"
+#if ENGINE_MINOR_VERSION >= 2
+#include "RevisionControlStyle/RevisionControlStyle.h"
+#endif
 #endif
 
 #define LOCTEXT_NAMESPACE "GitSourceControl.State"
@@ -76,36 +79,76 @@ TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlS
 FName FGitSourceControlState::GetIconName() const
 {
 #else
+#if ENGINE_MINOR_VERSION >= 2
+#define GET_ICON_RETURN( NAME ) FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), NAME )
+#else
 #define GET_ICON_RETURN( NAME ) FSlateIcon(FAppStyle::GetAppStyleSetName(), NAME )
+#endif
 FSlateIcon FGitSourceControlState::GetIcon() const
 {
 #endif
 	switch (GetGitState())
 	{
 	case EGitState::NotAtHead:
+#if ENGINE_MINOR_VERSION >= 2
+		return GET_ICON_RETURN("RevisionControl.NotAtHeadRevision");
+#else
 		return GET_ICON_RETURN("Perforce.NotAtHeadRevision");
+#endif
 	case EGitState::LockedOther:
+#if ENGINE_MINOR_VERSION >= 2
+		return GET_ICON_RETURN("RevisionControl.CheckedOutByOtherUser", NAME_None, "RevisionControl.CheckedOutByOtherUserBadge");
+#else
 		return GET_ICON_RETURN("Perforce.CheckedOutByOtherUser");
+#endif
 	case EGitState::NotLatest:
+#if ENGINE_MINOR_VERSION >= 2
+		return GET_ICON_RETURN("RevisionControl.ModifiedOtherBranch", NAME_None, "RevisionControl.ModifiedBadge");
+#else
 		return GET_ICON_RETURN("Perforce.ModifiedOtherBranch");
+#endif
 	case EGitState::Unmerged:
+#if ENGINE_MINOR_VERSION >= 2
+		return GET_ICON_RETURN("RevisionControl.Conflicted");
+#else
 		return GET_ICON_RETURN("Perforce.Branched");
+#endif
 	case EGitState::Added:
+#if ENGINE_MINOR_VERSION >= 2
+		return GET_ICON_RETURN("RevisionControl.OpenForAdd");
+#else
 		return GET_ICON_RETURN("Perforce.OpenForAdd");
+#endif
 	case EGitState::Untracked:
+#if ENGINE_MINOR_VERSION >= 2
+		return GET_ICON_RETURN("RevisionControl.NotInDepot");
+#else
 		return GET_ICON_RETURN("Perforce.NotInDepot");
+#endif
 	case EGitState::Deleted:
+#if ENGINE_MINOR_VERSION >= 2
+		return GET_ICON_RETURN("RevisionControl.MarkedForDelete");
+#else
 		return GET_ICON_RETURN("Perforce.MarkedForDelete");
+#endif
 	case EGitState::Modified:
 	case EGitState::CheckedOut:
+#if ENGINE_MINOR_VERSION >= 2
+		return GET_ICON_RETURN("RevisionControl.CheckedOut");
+#else
 		return GET_ICON_RETURN("Perforce.CheckedOut");
+#endif
 	case EGitState::Ignored:
+#if ENGINE_MINOR_VERSION >= 2
+		return GET_ICON_RETURN("RevisionControl.NotInDepot");
+#else
 		return GET_ICON_RETURN("Perforce.NotInDepot");
+#endif
 	default:
 #if ENGINE_MAJOR_VERSION < 5
 	  return NAME_None;
 #else
-	  return {};
+	  return FSlateIcon();
 #endif
 	}
 }
@@ -154,7 +197,7 @@ FText FGitSourceControlState::GetDisplayName() const
 	case EGitState::Added:
 		return LOCTEXT("OpenedForAdd", "Opened for add");
 	case EGitState::Untracked:
-		return LOCTEXT("NotInDepot", "Not in depot");
+		return LOCTEXT("NotControlled", "Not Under Revision Control");
 	case EGitState::Deleted:
 		return LOCTEXT("MarkedForDelete", "Marked for delete");
 	case EGitState::Modified:
@@ -186,7 +229,7 @@ FText FGitSourceControlState::GetDisplayTooltip() const
 	case EGitState::Added:
 		return LOCTEXT("OpenedForAdd_Tooltip", "The file(s) are opened for add");
 	case EGitState::Untracked:
-		return LOCTEXT("NotControlled_Tooltip", "Item is not under version control.");
+		return LOCTEXT("NotControlled_Tooltip", "Item is not under revision control.");
 	case EGitState::Deleted:
 		return LOCTEXT("MarkedForDelete_Tooltip", "The file(s) are marked for delete");
 	case EGitState::Modified:
@@ -197,7 +240,7 @@ FText FGitSourceControlState::GetDisplayTooltip() const
 	case EGitState::Lockable:
 		return LOCTEXT("ReadOnly_Tooltip", "The file(s) are marked locally as read-only");
 	case EGitState::None:
-		return LOCTEXT("Unknown_Tooltip", "The file(s) status is unknown");
+		return LOCTEXT("Unknown_Tooltip", "Unknown revision control state");
 	default:
 		return FText();
 	}
@@ -213,7 +256,7 @@ const FDateTime& FGitSourceControlState::GetTimeStamp() const
 	return TimeStamp;
 }
 
-// Deleted and Missing assets cannot appear in the Content Browser, but they do in the Submit files to Source Control window!
+// Deleted and Missing assets cannot appear in the Content Browser, but they do in the Submit files to Revision Control window!
 bool FGitSourceControlState::CanCheckIn() const
 {
 	// We can check in if this is new content
@@ -349,7 +392,7 @@ bool FGitSourceControlState::CanDelete() const
 	{
 		return false;
 	}
-	// If someone else hasn't checked it out, we can delete source controlled files.
+	// If someone else hasn't checked it out, we can delete revision controlled files.
 	return !IsCheckedOutOther() && IsSourceControlled();
 }
 

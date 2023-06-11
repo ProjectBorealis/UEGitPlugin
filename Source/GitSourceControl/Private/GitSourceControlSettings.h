@@ -5,7 +5,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/UnrealString.h"
+#include "HAL/CriticalSection.h"
 
 class FGitSourceControlSettings
 {

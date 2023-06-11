@@ -5,11 +5,10 @@
 
 #include "GitSourceControlProvider.h"
 
-#include "HAL/PlatformProcess.h"
+#include "GitMessageLog.h"
+#include "GitSourceControlState.h"
 #include "Misc/Paths.h"
 #include "Misc/QueuedThreadPool.h"
-#include "Modules/ModuleManager.h"
-#include "Widgets/DeclarativeSyntaxSupport.h"
 #include "GitSourceControlCommand.h"
 #include "ISourceControlModule.h"
 #include "GitSourceControlModule.h"
@@ -222,7 +221,7 @@ void FGitSourceControlProvider::Close()
 {
 	// clear the cache
 	StateCache.Empty();
-	// Remove all extensions to the "Source Control" menu in the Editor Toolbar
+	// Remove all extensions to the "Revision Control" menu in the Editor Toolbar
 	GitSourceControlMenu.Unregister();
 
 	bGitAvailable = false;
@@ -280,13 +279,13 @@ FText FGitSourceControlProvider::GetStatusText() const
 	return FText::Format( NSLOCTEXT("GitStatusText", "{ErrorText}Enabled: {IsAvailable}", "Local repository: {RepositoryName}\nRemote: {RemoteUrl}\nUser: {UserName}\nE-mail: {UserEmail}\n[{BranchName} {CommitId}] {CommitSummary}"), Args );
 }
 
-/** Quick check if source control is enabled */
+/** Quick check if revision control is enabled */
 bool FGitSourceControlProvider::IsEnabled() const
 {
 	return bGitRepositoryFound;
 }
 
-/** Quick check if source control is available for use (useful for server-based providers) */
+/** Quick check if revision control is available for use (useful for server-based providers) */
 bool FGitSourceControlProvider::IsAvailable() const
 {
 	return bGitRepositoryFound;
@@ -407,13 +406,13 @@ ECommandResult::Type FGitSourceControlProvider::Execute( const FSourceControlOpe
 	TSharedPtr<IGitSourceControlWorker, ESPMode::ThreadSafe> Worker = CreateWorker(InOperation->GetName());
 	if(!Worker.IsValid())
 	{
-		// this operation is unsupported by this source control provider
+		// this operation is unsupported by this revision control provider
 		FFormatNamedArguments Arguments;
 		Arguments.Add( TEXT("OperationName"), FText::FromName(InOperation->GetName()) );
 		Arguments.Add( TEXT("ProviderName"), FText::FromName(GetName()) );
-		FText Message(FText::Format(LOCTEXT("UnsupportedOperation", "Operation '{OperationName}' not supported by source control provider '{ProviderName}'"), Arguments));
+		FText Message(FText::Format(LOCTEXT("UnsupportedOperation", "Operation '{OperationName}' not supported by revision control provider '{ProviderName}'"), Arguments));
 
-		FMessageLog("SourceControl").Error(Message);
+		FTSMessageLog("SourceControl").Error(Message);
 		InOperation->AddErrorMessge(Message);
 
 		InOperationCompleteDelegate.ExecuteIfBound(InOperation, ECommandResult::Failed);
@@ -573,7 +572,7 @@ void FGitSourceControlProvider::RegisterWorker( const FName& InName, const FGetG
 
 void FGitSourceControlProvider::OutputCommandMessages(const FGitSourceControlCommand& InCommand) const
 {
-	FMessageLog SourceControlLog("SourceControl");
+	FTSMessageLog SourceControlLog("SourceControl");
 
 	for (int32 ErrorIndex = 0; ErrorIndex < InCommand.ResultInfo.ErrorMessages.Num(); ++ErrorIndex)
 	{
@@ -769,7 +768,7 @@ ECommandResult::Type FGitSourceControlProvider::IssueCommand(FGitSourceControlCo
 	}
 	else
 	{
-		UE_LOG(LogSourceControl, Log, TEXT("There are no threads available to process the source control command '%s'. Running synchronously."), *InCommand.Operation->GetName().ToString());
+		UE_LOG(LogSourceControl, Log, TEXT("There are no threads available to process the revision control command '%s'. Running synchronously."), *InCommand.Operation->GetName().ToString());
 
 		InCommand.bCommandSuccessful = InCommand.DoWork();
 
@@ -792,7 +791,7 @@ bool FGitSourceControlProvider::QueryStateBranchConfig(const FString& ConfigSrc,
 
 	if (!bGitAvailable || !bGitRepositoryFound)
 	{
-		FMessageLog("SourceControl").Error(LOCTEXT("StatusBranchConfigNoConnection", "Unable to retrieve status branch configuration from repo, no connection"));
+		FTSMessageLog("SourceControl").Error(LOCTEXT("StatusBranchConfigNoConnection", "Unable to retrieve status branch configuration from repo, no connection"));
 		return false;
 	}
 

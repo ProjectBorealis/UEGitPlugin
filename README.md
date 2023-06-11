@@ -58,7 +58,7 @@ bSCCAutoAddNewFiles=False
 
 #### Recommended
 
-* As a general source control usability improvement, you can enable new checkout features in `Config/DefaultEditorPerProjectUserSettings.ini`. To enable auto-checkout on modification, which is great for OFPA and other workflows (but requires user attention to excessive locking of content):
+* As a general revision control usability improvement, you can enable new checkout features in `Config/DefaultEditorPerProjectUserSettings.ini`. To enable auto-checkout on modification, which is great for OFPA and other workflows (but requires user attention to excessive locking of content):
 
 ```ini
 [/Script/UnrealEd.EditorLoadingSavingSettings]
@@ -165,12 +165,12 @@ Additionally, if you're switching back and forth between two or more branches lo
 
 ## General In-Editor Usage
 
-### Connecting to source control:
+### Connecting to revision control:
 
 Generally speaking, the field next to `Uses Git LFS 2 File Locking workflow` should match your Git server's `User Name`, like so:
 (If you find that the checkmark turns blue shortly after checking out a file, then the LFS name is incorrect, update it to the name it says checked out the file)
 
-![Connecting to Source Control](https://iili.io/1HzKep.webp)
+![Connecting to Revision Control](https://iili.io/1HzKep.webp)
   
 ### Checking out (locking) one or more assets:
 
@@ -204,10 +204,10 @@ You can pull the latest changes from your currently checked-out branch within th
   
 ### Submitting changes up-stream:
 
-`Submit to source control` will create a local commit, push it, and release your file lock. 
+`Submit to revision control` will create a local commit, push it, and release your file lock. 
 (While you cannot check out branches within the plugin, it is fully branch-aware! In this scenario, the user has checked out the `develop` branch, so their change is pushed to `origin/develop`.)
    
-![Submitting to source control](https://iili.io/1HhI7R.webp)
+![Submitting to revision control](https://iili.io/1HhI7R.webp)
   
 ## Additional Resources
 

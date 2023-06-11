@@ -53,15 +53,15 @@ void FGitSourceControlModule::StartupModule()
 	// load our settings
 	GitSourceControlSettings.LoadSettings();
 
-	// Bind our source control provider to the editor
+	// Bind our revision control provider to the editor
 	IModularFeatures::Get().RegisterModularFeature( "SourceControl", &GitSourceControlProvider );
 
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 
 #if ENGINE_MAJOR_VERSION >= 5
 	// Register ContentBrowserDelegate Handles for UE5 EA
-	// At the time of writing this UE5 is in Early Access and has no support for source control yet. So instead we hook into the contentbrowser..
-	// .. and force a state update on the next tick for source control. Usually the contentbrowser assets will request this themselves, but that's not working
+	// At the time of writing this UE5 is in Early Access and has no support for revision control yet. So instead we hook into the content browser..
+	// .. and force a state update on the next tick for revision control. Usually the contentbrowser assets will request this themselves, but that's not working
 	// Values here are 1 or 2 based on whether the change can be done immediately or needs to be delayed as unreal needs to work through its internal delegates first
 	// >> Technically you wouldn't need to use `GetOnAssetSelectionChanged` -- but it's there as a safety mechanism. States aren't forceupdated for the first path that loads
 	// >> Making sure we force an update on selection change that acts like a just in case other measures fail

@@ -5,9 +5,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "ISourceControlState.h"
-#include "ISourceControlRevision.h"
 #include "GitSourceControlRevision.h"
 #include "Runtime/Launch/Resources/Version.h"
 

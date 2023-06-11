@@ -5,7 +5,6 @@
 
 #include "GitSourceControlOperations.h"
 
-#include "CoreMinimal.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "SourceControlOperations.h"
@@ -44,7 +43,7 @@ bool FGitConnectWorker::Execute(FGitSourceControlCommand& InCommand)
 	// More information: this is a heuristic for cases where UE is trying to create
 	// a valid Perforce connection as a side effect for the connect worker. For Git,
 	// the connect worker has no side effects. It is simply a query to retrieve information
-	// to be displayed to the user, like in the source control settings or on init.
+	// to be displayed to the user, like in the revision control settings or on init.
 	// Therefore, there is no need for synchronously establishing a connection if not there.
 	if (InCommand.Concurrency == EConcurrency::Synchronous)
 	{
@@ -56,7 +55,7 @@ bool FGitConnectWorker::Execute(FGitSourceControlCommand& InCommand)
 	// We already know that Git is available if PathToGitBinary is not empty, since it is validated then.
 	if (InCommand.PathToGitBinary.IsEmpty())
 	{
-		const FText& NotFound = LOCTEXT("GitNotFound", "Failed to enable Git source control. You need to install Git and ensure the plugin has a valid path to the git executable.");
+		const FText& NotFound = LOCTEXT("GitNotFound", "Failed to enable Git revision control. You need to install Git and ensure the plugin has a valid path to the git executable.");
 		InCommand.ResultInfo.ErrorMessages.Add(NotFound.ToString());
 		Operation->SetErrorText(NotFound);
 		InCommand.bCommandSuccessful = false;
@@ -537,7 +536,7 @@ bool FGitRevertWorker::Execute(FGitSourceControlCommand& InCommand)
 	{
 		if (MissingFiles.Num() > 0)
 		{
-			// "Added" files that have been deleted needs to be removed from source control
+			// "Added" files that have been deleted needs to be removed from revision control
 			InCommand.bCommandSuccessful &= GitSourceControlUtils::RunCommand(TEXT("rm"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), MissingFiles, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 		}
 		if (AllExistingFiles.Num() > 0)
