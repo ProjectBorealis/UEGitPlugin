@@ -30,7 +30,7 @@
 
 #include "Logging/MessageLog.h"
 #include "SourceControlHelpers.h"
-#include "SourceControlWindows/Public/SourceControlWindows.h"
+#include "SourceControlWindows.h"
 
 #if ENGINE_MAJOR_VERSION == 5
 #include "ToolMenus.h"
