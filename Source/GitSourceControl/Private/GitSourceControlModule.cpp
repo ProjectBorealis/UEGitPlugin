@@ -84,7 +84,7 @@ void FGitSourceControlModule::ShutdownModule()
 	// unbind provider from editor
 	IModularFeatures::Get().UnregisterModularFeature("SourceControl", &GitSourceControlProvider);
 
-	
+
 	// Unregister ContentBrowserDelegate Handles
     FContentBrowserModule & ContentBrowserModule = FModuleManager::Get().LoadModuleChecked< FContentBrowserModule >( "ContentBrowser" );
 #if ENGINE_MAJOR_VERSION >= 5
