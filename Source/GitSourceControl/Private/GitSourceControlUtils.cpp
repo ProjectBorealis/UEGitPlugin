@@ -81,6 +81,49 @@ const FString& FGitScopedTempFile::GetFilename() const
 FDateTime FGitLockedFilesCache::LastUpdated = FDateTime::MinValue();
 TMap<FString, FString> FGitLockedFilesCache::LockedFiles = TMap<FString, FString>();
 
+void FGitLockedFilesCache::SetLockedFiles(const TMap<FString, FString>& newLocks)
+{	
+	for (auto lock : LockedFiles)
+	{
+		if (!newLocks.Contains(lock.Key))
+		{
+			OnFileLockChanged(lock.Key, lock.Value, false);
+		}
+	}
+	
+	for (auto lock : newLocks)
+	{		
+		if (!LockedFiles.Contains(lock.Key))
+		{
+			OnFileLockChanged(lock.Key, lock.Value, true);
+		}		
+	}
+
+	LockedFiles = newLocks;
+}
+
+void FGitLockedFilesCache::AddLockedFile(const FString& filePath, const FString& lockUser)
+{
+	LockedFiles.Add(filePath, lockUser);
+	OnFileLockChanged(filePath, lockUser, true);
+}
+
+void FGitLockedFilesCache::RemoveLockedFile(const FString& filePath)
+{
+	FString user;
+	LockedFiles.RemoveAndCopyValue(filePath, user);
+	OnFileLockChanged(filePath, user, false);
+}
+
+void FGitLockedFilesCache::OnFileLockChanged(const FString& filePath, const FString& lockUser, bool locked)
+{
+	const FString& LfsUserName = FGitSourceControlModule::Get().GetProvider().GetLockUser();
+	if (LfsUserName == lockUser)
+	{
+		FPlatformFileManager::Get().GetPlatformFile().SetReadOnly(*filePath, !locked);		
+	}
+}
+
 namespace GitSourceControlUtils
 {
 	FString ChangeRepositoryRootIfSubmodule(const TArray<FString>& AbsoluteFilePaths, const FString& PathToRepositoryRoot)
@@ -639,6 +682,31 @@ bool GetRemoteBranchName(const FString& InPathToGitBinary, const FString& InRepo
 	return bResults;
 }
 
+bool GetRemoteBranchesWildcard(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const FString& PatternMatch, TArray<FString>& OutBranchNames)
+{
+	TArray<FString> InfoMessages;
+	TArray<FString> ErrorMessages;
+	TArray<FString> Parameters;
+	Parameters.Add(TEXT("--remotes"));
+	Parameters.Add(TEXT("--list"));
+	bool bResults = RunCommand(TEXT("branch"), InPathToGitBinary, InRepositoryRoot, Parameters, { PatternMatch },
+								InfoMessages, ErrorMessages);
+	if (bResults && InfoMessages.Num() > 0)
+	{
+		OutBranchNames = InfoMessages;
+	}
+	if (!bResults)
+	{
+		static bool bRunOnce = true;
+		if (bRunOnce)
+		{
+			UE_LOG(LogSourceControl, Warning, TEXT("No remote branches matching pattern \"%s\" were found."), *PatternMatch);
+			bRunOnce = false;
+		}
+	}
+	return bResults;	
+}
+	
 bool GetCommitInfo(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutCommitId, FString& OutCommitSummary)
 {
 	bool bResults;
@@ -1332,9 +1400,8 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 	//const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
 	// Get the full remote status of the Content folder, since it's the only lockable folder we track in editor. 
 	// This shows any new files as well.
-	// Also update the status of `.checksum` and `Binaries` since that lets us know if editor binaries got updated.
-	TArray<FString> FilesToDiff{FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()), ".checksum", "Binaries"};
-
+	// Also update the status of `.checksum`.
+	TArray<FString> FilesToDiff{FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()), ".checksum", "Binaries/", "Plugins/"};
 	TArray<FString> ParametersLog{TEXT("--pretty="), TEXT("--name-only"), TEXT(""), TEXT("--")};
 	for (auto& Branch : BranchesToDiff)
 	{
@@ -1360,7 +1427,8 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 				if (!IsFileLFSLockable(NewerFileName))
 				{
 					// Check if there's newer binaries pending on this branch
-					if (bCurrentBranch && (NewerFileName == TEXT(".checksum") || NewerFileName.StartsWith("Binaries")))
+					if (bCurrentBranch && (NewerFileName == TEXT(".checksum") || NewerFileName.StartsWith("Binaries/", ESearchCase::IgnoreCase) ||
+						NewerFileName.StartsWith("Plugins/", ESearchCase::IgnoreCase)))
 					{
 						Provider.bPendingRestart = true;
 					}
@@ -1426,7 +1494,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, const FString& GitBinaryFallba
 				OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 			}
 			FGitLockedFilesCache::LastUpdated = CurrentTime;
-			FGitLockedFilesCache::LockedFiles = OutLocks;
+			FGitLockedFilesCache::SetLockedFiles(OutLocks);
 			return bResult;
 		}
 		// We tried to invalidate the UE cache, but we failed for some reason. Try updating lock state from LFS cache.
@@ -1481,7 +1549,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, const FString& GitBinaryFallba
 	if (!bResult)
 	{
 		// We can use our internally tracked local lock cache (an effective combination of --cached and --local)
-		OutLocks = FGitLockedFilesCache::LockedFiles;
+		OutLocks = FGitLockedFilesCache::GetLockedFiles();
 		bResult = true;
 	}
 	return bResult;
@@ -2154,7 +2222,9 @@ bool FetchRemote(const FString& InPathToGitBinary, const FString& InPathToReposi
 	TArray<FString> Params{"--no-tags"};
 	// fetch latest repo
 	// TODO specify branches?
-	return RunCommand(TEXT("fetch"), InPathToGitBinary, InPathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(),
+
+	Params.Add(TEXT("--prune"));
+	return RunCommand(TEXT("fetch"), InPathToGitBinary, InPathToRepositoryRoot, Params,
 					  FGitSourceControlModule::GetEmptyStringArray(), OutResults, OutErrorMessages);
 }
 

@@ -804,7 +804,7 @@ bool FGitSourceControlProvider::QueryStateBranchConfig(const FString& ConfigSrc,
 
 void FGitSourceControlProvider::RegisterStateBranches(const TArray<FString>& BranchNames, const FString& ContentRootIn)
 {
-	StatusBranchNames = BranchNames;
+	StatusBranchNamePatternsInternal = BranchNames;
 }
 
 int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& StateBranchName) const
@@ -815,6 +815,7 @@ int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& StateBranchN
 
 	// Check if we are checking the index of the current branch
 	// UE uses FEngineVersion for the current branch name because of UEGames setup, but we want to handle otherwise for Git repos.
+	auto StatusBranchNames = GetStatusBranchNames();
 	if (StateBranchName == FEngineVersion::Current().GetBranch())
 	{
 		const int32 CurrentBranchStatusIndex = StatusBranchNames.IndexOfByKey(BranchName);
@@ -835,6 +836,28 @@ int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& StateBranchN
 	// If we're not checking the current branch, then we don't need to do special handling.
 	// If it is not a status branch, there is no message
 	return StatusBranchNames.IndexOfByKey(StateBranchName);
+}
+
+TArray<FString> FGitSourceControlProvider::GetStatusBranchNames() const
+{
+	TArray<FString> StatusBranches;
+	if(PathToGitBinary.IsEmpty() || PathToRepositoryRoot.IsEmpty())
+		return StatusBranches;
+	
+	for (int i = 0; i < StatusBranchNamePatternsInternal.Num(); i++)
+	{
+		TArray<FString> Matches;
+		bool bResult = GitSourceControlUtils::GetRemoteBranchesWildcard(PathToGitBinary, PathToRepositoryRoot, StatusBranchNamePatternsInternal[i], Matches);
+		if (bResult && Matches.Num() > 0)
+		{
+			for (int j = 0; j < Matches.Num(); j++)
+			{
+				StatusBranches.Add(Matches[j].TrimStartAndEnd());	
+			}
+		}
+	}
+	
+	return StatusBranches;
 }
 
 #undef LOCTEXT_NAMESPACE
