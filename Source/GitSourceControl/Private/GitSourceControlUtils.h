@@ -326,4 +326,7 @@ bool FetchRemote(const FString& InPathToGitBinary, const FString& InPathToReposi
 bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToRepositoryRoot, const TArray<FString>& InFiles, TArray<FString>& OutFiles,
 				TArray<FString>& OutResults, TArray<FString>& OutErrorMessages);
 
+	
+TSharedPtr< class ISourceControlRevision, ESPMode::ThreadSafe > GetOriginRevisionOnBranch( const FString & InPathToGitBinary, const FString & InRepositoryRoot, const FString & InRelativeFileName, TArray< FString > & OutErrorMessages, const FString & BranchName );
+
 }

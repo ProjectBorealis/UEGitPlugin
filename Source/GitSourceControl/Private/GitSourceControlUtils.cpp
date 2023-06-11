@@ -2321,6 +2321,43 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 	return bSuccess;
 }
 
+TSharedPtr<ISourceControlRevision, ESPMode::ThreadSafe> GetOriginRevisionOnBranch( const FString & InPathToGitBinary, const FString & InRepositoryRoot, const FString & InRelativeFileName, TArray<FString> & OutErrorMessages, const FString & BranchName )
+{
+    TGitSourceControlHistory OutHistory;
+
+    TArray< FString > Results;
+    TArray< FString > Parameters;
+    Parameters.Add( BranchName );
+    Parameters.Add( TEXT( "--date=raw" ) );
+    Parameters.Add( TEXT( "--pretty=medium" ) ); // make sure format matches expected in ParseLogResults
+
+    TArray< FString > Files;
+    const auto bResults = RunCommand( TEXT( "show" ), InPathToGitBinary, InRepositoryRoot, Parameters, Files, Results, OutErrorMessages );
+
+    if ( bResults )
+    {
+        ParseLogResults( Results, OutHistory );
+    }
+
+    if ( OutHistory.Num() > 0 )
+    {
+        auto AbsoluteFileName = FPaths::ConvertRelativePathToFull( InRelativeFileName );
+
+        AbsoluteFileName.RemoveFromStart( InRepositoryRoot );
+
+		if ( AbsoluteFileName[ 0 ] == '/' )
+		{
+            AbsoluteFileName.RemoveAt( 0 );    
+		}
+        
+
+        OutHistory[ 0 ]->Filename = AbsoluteFileName;
+
+        return OutHistory[ 0 ];
+    }
+
+    return nullptr;
+}
 } // namespace GitSourceControlUtils
 
 #undef LOCTEXT_NAMESPACE
