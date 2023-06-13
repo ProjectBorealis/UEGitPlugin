@@ -6,6 +6,7 @@
 #pragma once
 
 #include "GitSourceControlRevision.h"
+#include "GitSourceControlState.h"
 
 class FGitSourceControlState;
 

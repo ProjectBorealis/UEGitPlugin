@@ -35,6 +35,7 @@
 #include "Misc/MessageDialog.h"
 
 #include "Async/Async.h"
+#include "UObject/Linker.h"
 
 #ifndef GIT_DEBUG_STATUS
 #define GIT_DEBUG_STATUS 0

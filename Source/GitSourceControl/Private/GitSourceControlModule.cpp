@@ -23,6 +23,8 @@
 #include "ISourceControlModule.h"
 #include "SourceControlHelpers.h"
 #include "Framework/Commands/UIAction.h"
+#include "Framework/MultiBox/MultiBoxExtender.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
 

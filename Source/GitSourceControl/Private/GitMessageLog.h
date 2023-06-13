@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ISourceControlModule.h"
 #include "Internationalization/Text.h"
 #include "Logging/MessageLog.h"
 #include "Logging/TokenizedMessage.h"
