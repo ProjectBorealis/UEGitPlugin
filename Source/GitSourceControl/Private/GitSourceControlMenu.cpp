@@ -38,6 +38,8 @@
 #include "ToolMenuMisc.h"
 #endif
 
+#include "UObject/Linker.h"
+
 static const FName GitSourceControlMenuTabName(TEXT("GitSourceControlMenu"));
 
 #define LOCTEXT_NAMESPACE "GitSourceControl"
