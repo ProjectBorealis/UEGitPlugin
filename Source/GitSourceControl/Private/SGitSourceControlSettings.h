@@ -9,7 +9,11 @@
 #include "ISourceControlProvider.h"
 
 class SNotificationItem;
+#if ENGINE_MAJOR_VERSION >= 5 && ENGINE_MINOR_VERSION >= 2
 namespace ETextCommit { enum Type : int; }
+#else
+namespace ETextCommit { enum Type; }
+#endif
 
 enum class ECheckBoxState : uint8;
 

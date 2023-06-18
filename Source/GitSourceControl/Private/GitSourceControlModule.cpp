@@ -142,7 +142,8 @@ void FGitSourceControlModule::CreateGitContentBrowserAssetMenu(FMenuBuilder& Men
 		return;
 	}
 	
-	const FString& BranchName = FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames()[0];
+	const TArray<FString>& StatusBranchNames = FGitSourceControlModule::Get().GetProvider().GetStatusBranchNames();
+	const FString& BranchName = StatusBranchNames[0];
 	MenuBuilder.AddMenuEntry(
 		FText::Format(LOCTEXT("StatusBranchDiff", "Diff against status branch"), FText::FromString(BranchName)),
 		FText::Format(LOCTEXT("StatusBranchDiffDesc", "Compare this asset to the latest status branch version"), FText::FromString(BranchName)),
