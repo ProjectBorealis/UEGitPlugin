@@ -145,7 +145,11 @@ namespace GitSourceControlUtils
 				FString GitTestPath = TestPath + "/.git";
 				if (FPaths::FileExists(GitTestPath) || FPaths::DirectoryExists(GitTestPath))
 				{
-					if (Ret != PathToRepositoryRoot && Ret != GitTestPath)
+					FString RetNormalized = Ret;
+					FPaths::NormalizeDirectoryName(RetNormalized);
+					FString PathToRepositoryRootNormalized = PathToRepositoryRoot;
+					FPaths::NormalizeDirectoryName(PathToRepositoryRootNormalized);
+					if (!FPaths::IsSamePath(RetNormalized, PathToRepositoryRootNormalized) && Ret != GitTestPath)
 					{
 						UE_LOG(LogSourceControl, Error, TEXT("Selected files belong to different submodules"));
 						return PathToRepositoryRoot;
