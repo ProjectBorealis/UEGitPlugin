@@ -62,8 +62,8 @@ bSCCAutoAddNewFiles=False
 
 ```ini
 [/Script/UnrealEd.EditorLoadingSavingSettings]
-bAutomaticallyCheckoutOnAssetModification=False
-bPromptForCheckoutOnAssetModification=True
+bAutomaticallyCheckoutOnAssetModification=True
+bPromptForCheckoutOnAssetModification=False
 ```
 
 * OR, to enable auto-prompt on modification, which is a bit more upfront/intrusive in user flows, but more conservative with locking, flip the settings:
