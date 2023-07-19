@@ -192,7 +192,11 @@ void FGitSourceControlModule::DiffAgainstOriginBranch( UObject * InObject, const
 	{
 		// Get the file name of package
 		FString RelativeFileName;
+#if ENGINE_MAJOR_VERSION >= 5
 		if (FPackageName::DoesPackageExist(InPackagePath, &RelativeFileName))
+#else
+		if (FPackageName::DoesPackageExist(InPackagePath, nullptr, &RelativeFileName))
+#endif
 		{
 			// if(SourceControlState->GetHistorySize() > 0)
 			{
