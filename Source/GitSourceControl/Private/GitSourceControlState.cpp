@@ -75,14 +75,14 @@ TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlS
 // @todo add Slate icons for git specific states (NotAtHead vs Conflicted...)
 
 #if ENGINE_MAJOR_VERSION < 5
-#define GET_ICON_RETURN( NAME ) FName( NAME )
+#define GET_ICON_RETURN( NAME ) FName( "ContentBrowser.SCC_" #NAME )
 FName FGitSourceControlState::GetIconName() const
 {
 #else
 #if ENGINE_MINOR_VERSION >= 2
-#define GET_ICON_RETURN( NAME ) FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), NAME )
+#define GET_ICON_RETURN( NAME ) FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), "RevisionControl." #NAME )
 #else
-#define GET_ICON_RETURN( NAME ) FSlateIcon(FAppStyle::GetAppStyleSetName(), NAME )
+#define GET_ICON_RETURN( NAME ) FSlateIcon(FAppStyle::GetAppStyleSetName(), "ContentBrowser.SCC_" #NAME )
 #endif
 FSlateIcon FGitSourceControlState::GetIcon() const
 {
@@ -90,60 +90,24 @@ FSlateIcon FGitSourceControlState::GetIcon() const
 	switch (GetGitState())
 	{
 	case EGitState::NotAtHead:
-#if ENGINE_MINOR_VERSION >= 2
-		return GET_ICON_RETURN("RevisionControl.NotAtHeadRevision");
-#else
-		return GET_ICON_RETURN("Perforce.NotAtHeadRevision");
-#endif
+		return GET_ICON_RETURN(NotAtHeadRevision);
 	case EGitState::LockedOther:
-#if ENGINE_MINOR_VERSION >= 2
-		return GET_ICON_RETURN("RevisionControl.CheckedOutByOtherUser");
-#else
-		return GET_ICON_RETURN("Perforce.CheckedOutByOtherUser");
-#endif
+		return GET_ICON_RETURN(CheckedOutByOtherUser);
 	case EGitState::NotLatest:
-#if ENGINE_MINOR_VERSION >= 2
-		return GET_ICON_RETURN("RevisionControl.ModifiedOtherBranch");
-#else
-		return GET_ICON_RETURN("Perforce.ModifiedOtherBranch");
-#endif
+		return GET_ICON_RETURN(ModifiedOtherBranch);
 	case EGitState::Unmerged:
-#if ENGINE_MINOR_VERSION >= 2
-		return GET_ICON_RETURN("RevisionControl.Conflicted");
-#else
-		return GET_ICON_RETURN("Perforce.Branched");
-#endif
+		return GET_ICON_RETURN(Branched);
 	case EGitState::Added:
-#if ENGINE_MINOR_VERSION >= 2
-		return GET_ICON_RETURN("RevisionControl.OpenForAdd");
-#else
-		return GET_ICON_RETURN("Perforce.OpenForAdd");
-#endif
+		return GET_ICON_RETURN(OpenForAdd);
 	case EGitState::Untracked:
-#if ENGINE_MINOR_VERSION >= 2
-		return GET_ICON_RETURN("RevisionControl.NotInDepot");
-#else
-		return GET_ICON_RETURN("Perforce.NotInDepot");
-#endif
+		return GET_ICON_RETURN(NotInDepot);
 	case EGitState::Deleted:
-#if ENGINE_MINOR_VERSION >= 2
-		return GET_ICON_RETURN("RevisionControl.MarkedForDelete");
-#else
-		return GET_ICON_RETURN("Perforce.MarkedForDelete");
-#endif
+		return GET_ICON_RETURN(MarkedForDelete);
 	case EGitState::Modified:
 	case EGitState::CheckedOut:
-#if ENGINE_MINOR_VERSION >= 2
-		return GET_ICON_RETURN("RevisionControl.CheckedOut");
-#else
-		return GET_ICON_RETURN("Perforce.CheckedOut");
-#endif
+		return GET_ICON_RETURN(CheckedOut);
 	case EGitState::Ignored:
-#if ENGINE_MINOR_VERSION >= 2
-		return GET_ICON_RETURN("RevisionControl.NotInDepot");
-#else
-		return GET_ICON_RETURN("Perforce.NotInDepot");
-#endif
+		return GET_ICON_RETURN(NotInDepot);
 	default:
 #if ENGINE_MAJOR_VERSION < 5
 	  return NAME_None;
@@ -158,24 +122,24 @@ FName FGitSourceControlState::GetSmallIconName() const
 {
 	switch (GetGitState()) {
 	case EGitState::NotAtHead:
-	  return FName("Perforce.NotAtHeadRevision_Small");
+	  return FName("ContentBrowser.SCC_NotAtHeadRevision_Small");
 	case EGitState::LockedOther:
-	  return FName("Perforce.CheckedOutByOtherUser_Small");
+	  return FName("ContentBrowser.SCC_CheckedOutByOtherUser_Small");
 	case EGitState::NotLatest:
-	  return FName("Perforce.ModifiedOtherBranch_Small");
+	  return FName("ContentBrowser.SCC_ModifiedOtherBranch_Small");
 	case EGitState::Unmerged:
-	  return FName("Perforce.Branched_Small");
+	  return FName("ContentBrowser.SCC_Branched_Small");
 	case EGitState::Added:
-	  return FName("Perforce.OpenForAdd_Small");
+	  return FName("ContentBrowser.SCC_OpenForAdd_Small");
 	case EGitState::Untracked:
-	  return FName("Perforce.NotInDepot_Small");
+	  return FName("ContentBrowser.SCC_NotInDepot_Small");
 	case EGitState::Deleted:
-	  return FName("Perforce.MarkedForDelete_Small");
+	  return FName("ContentBrowser.SCC_MarkedForDelete_Small");
 	case EGitState::Modified:
         case EGitState::CheckedOut:
-                return FName("Perforce.CheckedOut_Small");
+                return FName("ContentBrowser.SCC_CheckedOut_Small");
 	case EGitState::Ignored:
-	  return FName("Perforce.NotInDepot_Small");
+	  return FName("ContentBrowser.SCC_NotInDepot_Small");
 	default:
 	  return NAME_None;
 	}
