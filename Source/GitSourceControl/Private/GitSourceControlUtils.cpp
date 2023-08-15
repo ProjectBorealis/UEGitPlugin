@@ -356,6 +356,30 @@ FString FindGitBinaryPath()
 		bFound = CheckGitAvailability(GitBinaryPath);
 	}
 
+	// 6) Else, look for the PortableGit provided by Fork
+	if (!bFound)
+	{
+		// The latest Fork adds its binaries into the local appdata directory:
+		// C:\Users\UserName\AppData\Local\Fork\gitInstance\2.39.1\cmd
+		const FString AppDataLocalPath = FPlatformMisc::GetEnvironmentVariable(TEXT("LOCALAPPDATA"));
+		const FString SearchPath = FString::Printf(TEXT("%s/Fork/gitInstance/*"), *AppDataLocalPath);
+		TArray<FString> PortableGitFolders;
+		IFileManager::Get().FindFiles(PortableGitFolders, *SearchPath, false, true);
+		if (PortableGitFolders.Num() > 0)
+		{
+			// FindFiles just returns directory names, so we need to prepend the root path to get the full path.
+			GitBinaryPath = FString::Printf(TEXT("%s/Fork/gitInstance/%s/cmd/git.exe"), *AppDataLocalPath, *(PortableGitFolders.Last())); // keep only the last PortableGit found
+			bFound = CheckGitAvailability(GitBinaryPath);
+			if (!bFound)
+			{
+				// If Portable git is not found in "cmd/" subdirectory, try the "bin/" path that was in use before
+				GitBinaryPath = FString::Printf(TEXT("%s/Fork/gitInstance/%s/bin/git.exe"), *AppDataLocalPath, *(PortableGitFolders.Last())); // keep only the last
+																																	// PortableGit found
+				bFound = CheckGitAvailability(GitBinaryPath);
+			}
+		}
+	}
+
 #elif PLATFORM_MAC
 	// 1) First of all, look for the version of git provided by official git
 	FString GitBinaryPath = TEXT("/usr/local/git/bin/git");
