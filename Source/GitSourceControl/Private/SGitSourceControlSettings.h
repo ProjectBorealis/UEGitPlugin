@@ -7,6 +7,7 @@
 
 #include "Widgets/SCompoundWidget.h"
 #include "ISourceControlProvider.h"
+#include "Launch/Resources/Version.h"
 
 class SNotificationItem;
 #if ENGINE_MAJOR_VERSION >= 5 && ENGINE_MINOR_VERSION >= 2
