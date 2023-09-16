@@ -1080,7 +1080,7 @@ public:
 	FGitConflictStatusParser(const TArray<FString>& InResults)
 	{
 		const FString& CommonAncestor = InResults[0]; // 1: The common ancestor of merged branches
-		CommonAncestorFileId = FirstResult.Mid(7, 40);
+		CommonAncestorFileId = CommonAncestor.Mid(7, 40);
 #if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3
 		CommonAncestorFileId = CommonAncestor.Mid(7, 40);
 		CommonAncestorFilename = CommonAncestor.Right(50);
@@ -2286,7 +2286,11 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 																	"differences.\n\n"
 																	"Please exit the editor, and update the project."));
 		FText PullFailTitle(LOCTEXT("Git_NeedBinariesUpdate_Title", "Binaries Update Required"));
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3
+		FMessageDialog::Open(EAppMsgType::Ok, PullFailMessage, PullFailTitle);
+#else		
 		FMessageDialog::Open(EAppMsgType::Ok, PullFailMessage, &PullFailTitle);
+#endif
 		UE_LOG(LogSourceControl, Log, TEXT("Pull failed because we need a binaries update"));
 		return false;
 	}
