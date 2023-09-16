@@ -1079,11 +1079,28 @@ public:
 	/** Parse the unmerge status: extract the base SHA1 identifier of the file */
 	FGitConflictStatusParser(const TArray<FString>& InResults)
 	{
-		const FString& FirstResult = InResults[0]; // 1: The common ancestor of merged branches
+		const FString& CommonAncestor = InResults[0]; // 1: The common ancestor of merged branches
 		CommonAncestorFileId = FirstResult.Mid(7, 40);
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3
+		CommonAncestorFileId = CommonAncestor.Mid(7, 40);
+		CommonAncestorFilename = CommonAncestor.Right(50);
+
+		if (ensure(InResults.IsValidIndex(2)))
+		{
+			const FString& RemoteBranch = InResults[2]; // 1: The common ancestor of merged branches
+			RemoteFileId = RemoteBranch.Mid(7, 40);
+			RemoteFilename = RemoteBranch.Right(50);
+		}
+#endif
 	}
 
 	FString CommonAncestorFileId; ///< SHA1 Id of the file (warning: not the commit Id)
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3
+	FString RemoteFileId;		///< SHA1 Id of the file (warning: not the commit Id)
+
+	FString CommonAncestorFilename;
+	FString RemoteFilename;
+#endif
 };
 
 /** Execute a command to get the details of a conflict */
@@ -1100,7 +1117,14 @@ static void RunGetConflictStatus(const FString& InPathToGitBinary, const FString
 	{
 		// Parse the unmerge status: extract the base revision (or the other branch?)
 		FGitConflictStatusParser ConflictStatus(Results);
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3
+		InOutFileState.PendingResolveInfo.BaseFile = ConflictStatus.CommonAncestorFilename;
+		InOutFileState.PendingResolveInfo.BaseRevision = ConflictStatus.CommonAncestorFileId;
+		InOutFileState.PendingResolveInfo.RemoteFile = ConflictStatus.RemoteFilename;
+		InOutFileState.PendingResolveInfo.RemoteRevision = ConflictStatus.RemoteFileId;
+#else
 		InOutFileState.PendingMergeBaseFileHash = ConflictStatus.CommonAncestorFileId;
+#endif
 	}
 }
 

@@ -40,9 +40,18 @@ TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlS
 
 TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlState::FindHistoryRevision(const FString& InRevision) const
 {
+	// short hash must be >= 7 characters to have a reasonable probability of finding the correct revision
+	if (!ensure(InRevision.Len() < 7))
+	{
+		return nullptr;
+	}
+
 	for (const auto& Revision : History)
 	{
-		if (Revision->GetRevision() == InRevision)
+		// support for short hashes
+		const int32 Len = FMath::Min(Revision->FileHash.Len(), InRevision.Len());
+
+		if (Revision->FileHash.Left(Len) == InRevision.Left(Len))
 		{
 			return Revision;
 		}
@@ -51,12 +60,13 @@ TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlS
 	return nullptr;
 }
 
+#if ENGINE_MAJOR_VERSION < 5 || ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 3
 TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlState::GetBaseRevForMerge() const
 {
 	for(const auto& Revision : History)
 	{
 		// look for the the SHA1 id of the file, not the commit id (revision)
-		if(Revision->FileHash == PendingMergeBaseFileHash)
+		if (Revision->FileHash == PendingMergeBaseFileHash)
 		{
 			return Revision;
 		}
@@ -64,11 +74,19 @@ TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlS
 
 	return nullptr;
 }
+#endif
 
 #if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 2
 TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlState::GetCurrentRevision() const
 {
 	return nullptr;
+}
+#endif
+
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3
+ISourceControlState::FResolveInfo FGitSourceControlState::GetResolveInfo() const
+{
+	return PendingResolveInfo;
 }
 #endif
 
@@ -82,7 +100,7 @@ FName FGitSourceControlState::GetIconName() const
 #if ENGINE_MINOR_VERSION >= 2
 #define GET_ICON_RETURN( NAME ) FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), "RevisionControl." #NAME )
 #else
-#define GET_ICON_RETURN( NAME ) FSlateIcon(FAppStyle::GetAppStyleSetName(), "ContentBrowser.SCC_" #NAME )
+#define GET_ICON_RETURN( NAME ) FSlateIcon(FAppStyle::GetAppStyleSetName(), "Perforce." #NAME )
 #endif
 FSlateIcon FGitSourceControlState::GetIcon() const
 {

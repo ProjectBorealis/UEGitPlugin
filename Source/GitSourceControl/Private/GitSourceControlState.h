@@ -140,7 +140,9 @@ public:
 	virtual TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> GetHistoryItem(int32 HistoryIndex) const override;
 	virtual TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FindHistoryRevision(int32 RevisionNumber) const override;
 	virtual TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FindHistoryRevision(const FString& InRevision) const override;
+#if ENGINE_MAJOR_VERSION < 5 || ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 3
 	virtual TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> GetBaseRevForMerge() const override;
+#endif
 #if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 2
 	virtual TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> GetCurrentRevision() const override;
 #endif
@@ -187,6 +189,12 @@ public:
 	/** Filename on disk */
 	FString LocalFilename;
 
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3
+	/** Pending rev info with which a file must be resolved, invalid if no resolve pending */
+	FResolveInfo PendingResolveInfo;
+
+	UE_DEPRECATED(5.3, "Use PendingResolveInfo.BaseRevision instead")
+#endif
 	/** File Id with which our local revision diverged from the remote revision */
 	FString PendingMergeBaseFileHash;
 

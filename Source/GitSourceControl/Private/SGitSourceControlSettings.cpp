@@ -5,7 +5,7 @@
 
 #include "SGitSourceControlSettings.h"
 
-#include "Launch/Resources/Version.h"
+#include "Runtime/Launch/Resources/Version.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Misc/App.h"
 #include "Misc/FileHelper.h"
@@ -28,7 +28,6 @@
 #include "SourceControlOperations.h"
 #include "GitSourceControlModule.h"
 #include "GitSourceControlUtils.h"
-#include "Runtime/Launch/Resources/Version.h"
 
 
 #define LOCTEXT_NAMESPACE "SGitSourceControlSettings"
