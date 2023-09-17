@@ -45,7 +45,7 @@ uint32 FGitSourceControlRunner::Run()
 		{
 			// Flag that we're running the task already
 			bRefreshSpawned = true;
-			const auto ExecuteResult = Async(EAsyncExecution::TaskGraphMainThread, [=] {
+			const auto ExecuteResult = Async(EAsyncExecution::TaskGraphMainThread, [this] {
 				FGitSourceControlModule* GitSourceControl = FGitSourceControlModule::GetThreadSafe();
 				// Module not loaded, bail. Usually happens when editor is shutting down, and this prevents a crash from bad timing.
 				if (!GitSourceControl)
