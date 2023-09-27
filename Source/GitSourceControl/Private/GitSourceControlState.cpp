@@ -40,18 +40,9 @@ TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlS
 
 TSharedPtr<class ISourceControlRevision, ESPMode::ThreadSafe> FGitSourceControlState::FindHistoryRevision(const FString& InRevision) const
 {
-	// short hash must be >= 7 characters to have a reasonable probability of finding the correct revision
-	if (!ensure(InRevision.Len() < 7))
-	{
-		return nullptr;
-	}
-
 	for (const auto& Revision : History)
 	{
-		// support for short hashes
-		const int32 Len = FMath::Min(Revision->FileHash.Len(), InRevision.Len());
-
-		if (Revision->FileHash.Left(Len) == InRevision.Left(Len))
+		if (Revision->GetRevision() == InRevision)
 		{
 			return Revision;
 		}
