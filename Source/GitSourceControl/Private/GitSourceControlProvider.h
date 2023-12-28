@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "GitSourceControlChangelist.h"
 #include "ISourceControlProvider.h"
 #include "IGitSourceControlWorker.h"
 #include "GitSourceControlMenu.h"
@@ -273,6 +274,7 @@ private:
 
 	/** State cache */
 	TMap<FString, TSharedRef<class FGitSourceControlState, ESPMode::ThreadSafe> > StateCache;
+	TMap<FGitSourceControlChangelist, TSharedRef<class FGitSourceControlChangelistState, ESPMode::ThreadSafe> > ChangelistsStateCache;
 
 	/** The currently registered revision control operations */
 	TMap<FName, FGetGitSourceControlWorker> WorkersMap;
