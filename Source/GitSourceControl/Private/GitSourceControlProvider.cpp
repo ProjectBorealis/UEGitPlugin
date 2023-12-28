@@ -424,6 +424,9 @@ ECommandResult::Type FGitSourceControlProvider::Execute( const FSourceControlOpe
 	Command->UpdateRepositoryRootIfSubmodule(AbsoluteFiles);
 	Command->OperationCompleteDelegate = InOperationCompleteDelegate;
 
+	TSharedPtr<FGitSourceControlChangelist, ESPMode::ThreadSafe> ChangelistPtr = StaticCastSharedPtr<FGitSourceControlChangelist>(InChangelist);
+	Command->Changelist = ChangelistPtr ? ChangelistPtr.ToSharedRef().Get() : FGitSourceControlChangelist();
+	
 	// fire off operation
 	if(InConcurrency == EConcurrency::Synchronous)
 	{
