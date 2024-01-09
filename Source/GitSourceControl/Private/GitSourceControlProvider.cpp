@@ -252,6 +252,23 @@ TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> FGitSourceControlProvide
 	}
 }
 
+TSharedRef<FGitSourceControlChangelistState, ESPMode::ThreadSafe> FGitSourceControlProvider::GetStateInternal(const FGitSourceControlChangelist& InChangelist)
+{
+	TSharedRef<FGitSourceControlChangelistState, ESPMode::ThreadSafe>* State = ChangelistsStateCache.Find(InChangelist);
+	if (State != NULL)
+	{
+		// found cached item
+		return (*State);
+	}
+	else
+	{
+		// cache an unknown state for this item
+		TSharedRef<FGitSourceControlChangelistState, ESPMode::ThreadSafe> NewState = MakeShared<FGitSourceControlChangelistState>(InChangelist);
+		ChangelistsStateCache.Add(InChangelist, NewState);
+		return NewState;
+	}
+}
+
 FText FGitSourceControlProvider::GetStatusText() const
 {
 	FFormatNamedArguments Args;
@@ -334,7 +351,17 @@ ECommandResult::Type FGitSourceControlProvider::GetState( const TArray<FString>&
 #if ENGINE_MAJOR_VERSION >= 5
 ECommandResult::Type FGitSourceControlProvider::GetState(const TArray<FSourceControlChangelistRef>& InChangelists, TArray<FSourceControlChangelistStateRef>& OutState, EStateCacheUsage::Type InStateCacheUsage)
 {
-    return ECommandResult::Failed;
+	if (!IsEnabled())
+	{
+		return ECommandResult::Failed;
+	}
+
+	for (FSourceControlChangelistRef Changelist : InChangelists)
+	{
+		FGitSourceControlChangelistRef GitChangelist = StaticCastSharedRef<FGitSourceControlChangelist>(Changelist);
+		OutState.Add(GetStateInternal(GitChangelist.Get()));
+	}
+	return ECommandResult::Succeeded;
 }
 #endif
 
