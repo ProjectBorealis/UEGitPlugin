@@ -709,14 +709,6 @@ TArray<FSourceControlChangelistRef> FGitSourceControlProvider::GetChangelists( E
 	{
 		return TArray<FSourceControlChangelistRef>();
 	}
-
-	if (InStateCacheUsage == EStateCacheUsage::ForceUpdate)
-	{
-		TSharedRef<class FUpdatePendingChangelistsStatus, ESPMode::ThreadSafe> UpdatePendingChangelistsOperation = ISourceControlOperation::Create<FUpdatePendingChangelistsStatus>();
-		UpdatePendingChangelistsOperation->SetUpdateAllChangelists(true);
-		
-		ISourceControlProvider::Execute(UpdatePendingChangelistsOperation, EConcurrency::Synchronous);
-	}
 	
 	TArray<FSourceControlChangelistRef> Changelists;
 	Algo::Transform(ChangelistsStateCache, Changelists, [](const auto& Pair) { return MakeShared<FGitSourceControlChangelist, ESPMode::ThreadSafe>(Pair.Key); });
