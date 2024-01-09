@@ -57,6 +57,8 @@ public:
 	virtual const FDateTime& GetTimeStamp() const override;
 
 	virtual const TArray<FSourceControlStateRef>& GetFilesStates() const override;
+	
+	virtual const TArray<FSourceControlStateRef>& GetShelvedFilesStates() const override;
 
 	virtual FSourceControlChangelistRef GetChangelist() const override;
 
@@ -66,6 +68,8 @@ public:
 	FString Description;
 
 	TArray<FSourceControlStateRef> Files;
+	
+	TArray<FSourceControlStateRef> ShelvedFiles;
 
 	/** The timestamp of the last update */
 	FDateTime TimeStamp;

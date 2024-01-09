@@ -38,6 +38,11 @@ const TArray<FSourceControlStateRef>& FGitSourceControlChangelistState::GetFiles
 	return Files;
 }
 
+const TArray<FSourceControlStateRef>& FGitSourceControlChangelistState::GetShelvedFilesStates() const
+{
+	return ShelvedFiles;
+}
+
 FSourceControlChangelistRef FGitSourceControlChangelistState::GetChangelist() const
 {
 	FGitSourceControlChangelistRef ChangelistCopy = MakeShareable( new FGitSourceControlChangelist(Changelist));
