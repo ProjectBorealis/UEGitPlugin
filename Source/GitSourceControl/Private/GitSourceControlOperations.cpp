@@ -862,7 +862,7 @@ FName FGitMoveToChangelistWorker::GetName() const
 
 bool FGitMoveToChangelistWorker::UpdateStates() const
 {
-	
+	return false;
 }
 
 bool FGitMoveToChangelistWorker::Execute(FGitSourceControlCommand& InCommand)
@@ -878,6 +878,7 @@ bool FGitMoveToChangelistWorker::Execute(FGitSourceControlCommand& InCommand)
 	{
 		// git reset HEAD
 	}
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE
