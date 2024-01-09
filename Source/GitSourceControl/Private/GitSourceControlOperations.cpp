@@ -855,4 +855,29 @@ bool FGitResolveWorker::UpdateStates() const
 	return GitSourceControlUtils::UpdateCachedStates(States);
 }
 
+FName FGitMoveToChangelistWorker::GetName() const
+{
+	return "MoveToChangelist";
+}
+
+bool FGitMoveToChangelistWorker::UpdateStates() const
+{
+	
+}
+
+bool FGitMoveToChangelistWorker::Execute(FGitSourceControlCommand& InCommand)
+{
+	check(InCommand.Operation->GetName() == GetName());
+
+	FGitSourceControlChangelist DestChangelist = InCommand.Changelist;
+	if(DestChangelist.GetName().Equals(TEXT("Staged")))
+	{
+		// git add
+	}
+	else if(DestChangelist.GetName().Equals(TEXT("Working")))
+	{
+		// git reset HEAD
+	}
+}
+
 #undef LOCTEXT_NAMESPACE
