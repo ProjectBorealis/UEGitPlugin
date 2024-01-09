@@ -14,7 +14,7 @@ public:
 
 	virtual bool CanDelete() const override
 	{
-		return !IsDefault();
+		return false;
 	}
 
 	bool operator==(const FGitSourceControlChangelist& InOther) const
@@ -29,7 +29,7 @@ public:
 
 	virtual bool IsDefault() const override
 	{
-		return ChangelistName == DefaultChangelist.ChangelistName;
+		return ChangelistName == WorkingChangelist.ChangelistName;
 	}
 
 	void SetInitialized()
@@ -64,7 +64,8 @@ public:
 	}
 
 public:
-	static const FGitSourceControlChangelist DefaultChangelist;
+	static const FGitSourceControlChangelist WorkingChangelist;
+	static const FGitSourceControlChangelist StagedChangelist;
 
 private:
 	FString ChangelistName;
@@ -72,4 +73,3 @@ private:
 };
 
 typedef TSharedRef<class FGitSourceControlChangelist, ESPMode::ThreadSafe> FGitSourceControlChangelistRef;
-};

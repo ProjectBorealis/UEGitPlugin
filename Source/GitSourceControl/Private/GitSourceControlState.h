@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "GitSourceControlChangelist.h"
 #include "GitSourceControlRevision.h"
 #include "Runtime/Launch/Resources/Version.h"
 
@@ -202,6 +203,8 @@ public:
 
 	/** Status of the file */
 	FGitState State;
+
+	FGitSourceControlChangelist Changelist;
 
 	/** The timestamp of the last update */
 	FDateTime TimeStamp;
