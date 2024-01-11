@@ -15,6 +15,7 @@
 #include "GitSourceControlUtils.h"
 #include "SGitSourceControlSettings.h"
 #include "GitSourceControlRunner.h"
+#include "GitSourceControlChangelistState.h"
 #include "Logging/MessageLog.h"
 #include "ScopedSourceControlProgress.h"
 #include "SourceControlHelpers.h"
