@@ -870,15 +870,24 @@ bool FGitMoveToChangelistWorker::Execute(FGitSourceControlCommand& InCommand)
 	check(InCommand.Operation->GetName() == GetName());
 
 	FGitSourceControlChangelist DestChangelist = InCommand.Changelist;
+	bool bResult = false;
 	if(DestChangelist.GetName().Equals(TEXT("Staged")))
 	{
-		// git add
+		bResult = GitSourceControlUtils::RunCommand(TEXT("add"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), InCommand.Files, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 	}
 	else if(DestChangelist.GetName().Equals(TEXT("Working")))
 	{
-		// git reset HEAD
+		TArray<FString> Parameter;
+		Parameter.Add(TEXT("--staged"));
+		bResult = GitSourceControlUtils::RunCommand(TEXT("restore"), InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, Parameter, InCommand.Files, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
 	}
-	return false;
+	
+	if (bResult)
+	{
+		TMap<FString, FGitSourceControlState> DummyStates;
+		GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.InfoMessages, DummyStates);
+	}
+	return bResult;
 }
 
 #undef LOCTEXT_NAMESPACE
