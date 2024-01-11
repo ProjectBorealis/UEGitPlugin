@@ -1646,18 +1646,19 @@ static bool UpdateChangelistState(const TArray<FString>& Results)
 		if (!TChar<TCHAR>::IsWhitespace(Result[0]))
 		{
 			WorkingChangelist->Files.Remove(State);
+			State->Changelist = FGitSourceControlChangelist::StagedChangelist;
 			StagedChangelist->Files.AddUnique(State);
 		}
 		// Working check
 		if (!TChar<TCHAR>::IsWhitespace(Result[1]))
 		{
 			StagedChangelist->Files.Remove(State);
+			State->Changelist = FGitSourceControlChangelist::WorkingChangelist;
 			WorkingChangelist->Files.AddUnique(State);
 		}
 	}
 	return true;
 }
-	
 	
 // Run a batch of Git "status" command to update status of given files and/or directories.
 bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles,
