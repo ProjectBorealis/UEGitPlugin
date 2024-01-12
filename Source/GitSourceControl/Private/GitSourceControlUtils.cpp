@@ -1713,12 +1713,18 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 
 void UpdateFileStagingOnSaved(const FString& Filename, UPackage* Pkg, FObjectPostSaveContext ObjectSaveContext)
 {
+	UpdateFileStagingOnSavedInternal(Filename);
+}
+	
+bool UpdateFileStagingOnSavedInternal(const FString& Filename)
+{
+	bool bResult = false;
 	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-   	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
-   	if (!Provider.IsGitAvailable())
-   	{
-   		return ;
-   	}
+	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+	if (!Provider.IsGitAvailable())
+	{
+		return bResult;
+	}
 	TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(Filename);
 
 	if (State->Changelist.GetName().Equals(TEXT("Staged")))
@@ -1727,8 +1733,23 @@ void UpdateFileStagingOnSaved(const FString& Filename, UPackage* Pkg, FObjectPos
 		File.Add(Filename);
 		TArray<FString> DummyResults;
 		TArray<FString> DummyMsgs;
-		const bool bResult = RunCommand(TEXT("add"), Provider.GetGitBinaryPath(), Provider.GetPathToRepositoryRoot(), FGitSourceControlModule::GetEmptyStringArray(), File, DummyResults, DummyMsgs);
+		bResult = RunCommand(TEXT("add"), Provider.GetGitBinaryPath(), Provider.GetPathToRepositoryRoot(), FGitSourceControlModule::GetEmptyStringArray(), File, DummyResults, DummyMsgs);
 	}
+	
+	return bResult;
+}
+	
+void UpdateStateOnAssetRename(const FAssetData& InAssetData, const FString& InOldName)
+{
+	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+	if (!Provider.IsGitAvailable())
+	{
+		return ;
+	}
+	TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(InOldName);	
+	
+	State->LocalFilename = InAssetData.GetObjectPathString();
 }
 
 // Run a Git `cat-file --filters` command to dump the binary content of a revision into a file.

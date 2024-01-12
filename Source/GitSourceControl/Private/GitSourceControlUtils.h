@@ -230,8 +230,9 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
  */
 bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles,
 					 TArray<FString>& OutErrorMessages, TMap<FString, FGitSourceControlState>& OutStates);
+	
 /**
- * 
+ * Keep Consistency of being file staged
  *
  * @param	Filename			Saved filename
  * @param	Pkg					Package (for adapting delegate)
@@ -239,7 +240,12 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
  */
 void UpdateFileStagingOnSaved(const FString& Filename, UPackage* Pkg, FObjectPostSaveContext ObjectSaveContext);
 	
-void UpdateFileStagingOnSavedInternal(const FString& Filename);
+/**
+ * Keep Consistency of being file staged with simple argument
+ *
+ * @param	Filename			Saved filename
+ */
+bool UpdateFileStagingOnSavedInternal(const FString& Filename);
 	
 /**
  * 
