@@ -239,6 +239,26 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
  */
 void UpdateFileStagingOnSaved(const FString& Filename, UPackage* Pkg, FObjectPostSaveContext ObjectSaveContext);
 	
+void UpdateFileStagingOnSavedInternal(const FString& Filename);
+	
+/**
+ * 
+ *
+ * @param	Filename			Saved filename
+ * @param	Pkg					Package (for adapting delegate)
+ * @param   ObjectSaveContext	Context for save (for adapting delegate)
+ */    
+void UpdateStateOnAssetRename(const FAssetData& InAssetData, const FString& InOldName);
+	
+/**
+ * 
+ *
+ * @param	Filename			Saved filename
+ * @param	Pkg					Package (for adapting delegate)
+ * @param   ObjectSaveContext	Context for save (for adapting delegate)
+ */
+bool UpdateChangelistStateByCommand();
+	
 /**
  * Run a Git "cat-file" command to dump the binary content of a revision into a file.
  *

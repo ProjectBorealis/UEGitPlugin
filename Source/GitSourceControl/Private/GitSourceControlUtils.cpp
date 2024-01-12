@@ -1629,7 +1629,7 @@ FString GetFullPathFromGitStatus(const FString& Result, const FString& InReposit
 	return File;
 }
 
-static bool UpdateChangelistState(const TArray<FString>& Results)
+bool UpdateChangelistStateByCommand()
 {
 	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
 	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
@@ -1639,6 +1639,16 @@ static bool UpdateChangelistState(const TArray<FString>& Results)
 	}
 	TSharedRef<FGitSourceControlChangelistState, ESPMode::ThreadSafe> StagedChangelist = Provider.GetStateInternal(FGitSourceControlChangelist::StagedChangelist);
 	TSharedRef<FGitSourceControlChangelistState, ESPMode::ThreadSafe> WorkingChangelist = Provider.GetStateInternal(FGitSourceControlChangelist::WorkingChangelist);
+	StagedChangelist->Files.RemoveAll([](const FSourceControlStateRef& InState){ return true; });
+	WorkingChangelist->Files.RemoveAll([](const FSourceControlStateRef& InState){ return true; });
+
+	TArray<FString> Files;
+	Files.Add(TEXT("Content/"));
+	TArray<FString> Parameters;
+	Parameters.Add(TEXT("--porcelain"));
+	TArray<FString> Results;
+	TArray<FString> ErrorMsg;
+	const bool bResult = RunCommand(TEXT("--no-optional-locks status"), Provider.GetGitBinaryPath(), Provider.GetPathToRepositoryRoot(), Parameters, Files, Results, ErrorMsg);
 	for (const auto& Result : Results)
 	{
 		FString File = GetFullPathFromGitStatus(Result, Provider.GetPathToRepositoryRoot());
@@ -1647,8 +1657,10 @@ static bool UpdateChangelistState(const TArray<FString>& Results)
 		if (!TChar<TCHAR>::IsWhitespace(Result[0]))
 		{
 			WorkingChangelist->Files.Remove(State);
+			UpdateFileStagingOnSavedInternal(Result);
 			State->Changelist = FGitSourceControlChangelist::StagedChangelist;
 			StagedChangelist->Files.AddUnique(State);
+			continue;
 		}
 		// Working check
 		if (!TChar<TCHAR>::IsWhitespace(Result[1]))
@@ -1692,7 +1704,7 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 		ParseStatusResults(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, RepoFiles, ResultsMap, OutStates);
 	}
 	
-	UpdateChangelistState(Results);
+	UpdateChangelistStateByCommand();
 
 	CheckRemote(InPathToGitBinary, InRepositoryRoot, RepoFiles, OutErrorMessages, OutStates);
 
