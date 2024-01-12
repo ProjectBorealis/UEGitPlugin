@@ -195,3 +195,16 @@ public:
 	/** Temporary states for results */
 	TMap<const FString, FGitState> States;
 };
+
+class FGitUpdateStagingWorker: public IGitSourceControlWorker
+{
+public:
+	virtual ~FGitUpdateStagingWorker() {}
+	// IGitSourceControlWorker interface
+	virtual FName GetName() const override;
+	virtual bool Execute(class FGitSourceControlCommand& InCommand) override;
+	virtual bool UpdateStates() const override;
+	
+	/** Temporary states for results */
+	TMap<const FString, FGitState> States;
+};

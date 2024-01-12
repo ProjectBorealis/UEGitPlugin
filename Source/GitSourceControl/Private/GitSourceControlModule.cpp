@@ -52,6 +52,7 @@ void FGitSourceControlModule::StartupModule()
 	GitSourceControlProvider.RegisterWorker( "Copy", FGetGitSourceControlWorker::CreateStatic( &CreateWorker<FGitCopyWorker> ) );
 	GitSourceControlProvider.RegisterWorker( "Resolve", FGetGitSourceControlWorker::CreateStatic( &CreateWorker<FGitResolveWorker> ) );
 	GitSourceControlProvider.RegisterWorker( "MoveToChangelist", FGetGitSourceControlWorker::CreateStatic( &CreateWorker<FGitMoveToChangelistWorker> ) );
+	GitSourceControlProvider.RegisterWorker( "UpdateChangelistsStatus", FGetGitSourceControlWorker::CreateStatic( &CreateWorker<FGitUpdateStagingWorker> ) );
 
 	// load our settings
 	GitSourceControlSettings.LoadSettings();

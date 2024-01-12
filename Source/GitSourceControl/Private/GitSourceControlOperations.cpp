@@ -862,7 +862,7 @@ FName FGitMoveToChangelistWorker::GetName() const
 
 bool FGitMoveToChangelistWorker::UpdateStates() const
 {
-	return false;
+	return true;
 }
 
 bool FGitMoveToChangelistWorker::Execute(FGitSourceControlCommand& InCommand)
@@ -888,6 +888,21 @@ bool FGitMoveToChangelistWorker::Execute(FGitSourceControlCommand& InCommand)
 		GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, InCommand.Files, InCommand.ResultInfo.InfoMessages, DummyStates);
 	}
 	return bResult;
+}
+
+FName FGitUpdateStagingWorker::GetName() const
+{
+	return "UpdateChangelistsStatus";
+}
+
+bool FGitUpdateStagingWorker::Execute(FGitSourceControlCommand& InCommand)
+{
+	return GitSourceControlUtils::UpdateChangelistStateByCommand();
+}
+
+bool FGitUpdateStagingWorker::UpdateStates() const
+{
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE
