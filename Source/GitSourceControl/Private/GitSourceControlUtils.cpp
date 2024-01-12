@@ -34,6 +34,7 @@
 #include "PackageTools.h"
 #include "FileHelpers.h"
 #include "Misc/MessageDialog.h"
+#include "UObject/ObjectSaveContext.h"
 
 #include "Async/Async.h"
 #include "UObject/Linker.h"
@@ -1696,6 +1697,26 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	CheckRemote(InPathToGitBinary, InRepositoryRoot, RepoFiles, OutErrorMessages, OutStates);
 
 	return bResult;
+}
+
+void UpdateFileStagingOnSaved(const FString& Filename, UPackage* Pkg, FObjectPostSaveContext ObjectSaveContext)
+{
+	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+   	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+   	if (!Provider.IsGitAvailable())
+   	{
+   		return ;
+   	}
+	TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(Filename);
+
+	if (State->Changelist.GetName().Equals(TEXT("Staged")))
+	{
+		TArray<FString> File;
+		File.Add(Filename);
+		TArray<FString> DummyResults;
+		TArray<FString> DummyMsgs;
+		const bool bResult = RunCommand(TEXT("add"), Provider.GetGitBinaryPath(), Provider.GetPathToRepositoryRoot(), FGitSourceControlModule::GetEmptyStringArray(), File, DummyResults, DummyMsgs);
+	}
 }
 
 // Run a Git `cat-file --filters` command to dump the binary content of a revision into a file.

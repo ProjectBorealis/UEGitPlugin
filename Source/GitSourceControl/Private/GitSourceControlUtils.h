@@ -230,7 +230,15 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
  */
 bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles,
 					 TArray<FString>& OutErrorMessages, TMap<FString, FGitSourceControlState>& OutStates);
-
+/**
+ * 
+ *
+ * @param	Filename			Saved filename
+ * @param	Pkg					Package (for adapting delegate)
+ * @param   ObjectSaveContext	Context for save (for adapting delegate)
+ */
+void UpdateFileStagingOnSaved(const FString& Filename, UPackage* Pkg, FObjectPostSaveContext ObjectSaveContext);
+	
 /**
  * Run a Git "cat-file" command to dump the binary content of a revision into a file.
  *
