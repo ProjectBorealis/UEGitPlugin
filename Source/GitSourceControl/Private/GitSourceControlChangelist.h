@@ -64,8 +64,8 @@ public:
 	}
 
 public:
-	static const FGitSourceControlChangelist WorkingChangelist;
-	static const FGitSourceControlChangelist StagedChangelist;
+	static FGitSourceControlChangelist WorkingChangelist;
+	static FGitSourceControlChangelist StagedChangelist;
 
 private:
 	FString ChangelistName;
