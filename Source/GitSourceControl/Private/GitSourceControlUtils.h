@@ -230,7 +230,41 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
  */
 bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles,
 					 TArray<FString>& OutErrorMessages, TMap<FString, FGitSourceControlState>& OutStates);
-
+	
+/**
+ * Keep Consistency of being file staged
+ *
+ * @param	Filename			Saved filename
+ * @param	Pkg					Package (for adapting delegate)
+ * @param   ObjectSaveContext	Context for save (for adapting delegate)
+ */
+void UpdateFileStagingOnSaved(const FString& Filename, UPackage* Pkg, FObjectPostSaveContext ObjectSaveContext);
+	
+/**
+ * Keep Consistency of being file staged with simple argument
+ *
+ * @param	Filename			Saved filename
+ */
+bool UpdateFileStagingOnSavedInternal(const FString& Filename);
+	
+/**
+ * 
+ *
+ * @param	Filename			Saved filename
+ * @param	Pkg					Package (for adapting delegate)
+ * @param   ObjectSaveContext	Context for save (for adapting delegate)
+ */    
+void UpdateStateOnAssetRename(const FAssetData& InAssetData, const FString& InOldName);
+	
+/**
+ * 
+ *
+ * @param	Filename			Saved filename
+ * @param	Pkg					Package (for adapting delegate)
+ * @param   ObjectSaveContext	Context for save (for adapting delegate)
+ */
+bool UpdateChangelistStateByCommand();
+	
 /**
  * Run a Git "cat-file" command to dump the binary content of a revision into a file.
  *

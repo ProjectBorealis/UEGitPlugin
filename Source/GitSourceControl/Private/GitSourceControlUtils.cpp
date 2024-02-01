@@ -25,6 +25,7 @@
 #include "Misc/Paths.h"
 #include "ISourceControlModule.h"
 #include "GitSourceControlModule.h"
+#include "GitSourceControlChangelistState.h"
 #include "Logging/MessageLog.h"
 #include "Misc/DateTime.h"
 #include "Misc/ScopeLock.h"
@@ -33,6 +34,7 @@
 #include "PackageTools.h"
 #include "FileHelpers.h"
 #include "Misc/MessageDialog.h"
+#include "UObject/ObjectSaveContext.h"
 
 #include "Async/Async.h"
 #include "UObject/Linker.h"
@@ -1620,6 +1622,57 @@ void GetLockedFiles(const TArray<FString>& InFiles, TArray<FString>& OutFiles)
 	}
 }
 
+FString GetFullPathFromGitStatus(const FString& Result, const FString& InRepositoryRoot)
+{
+	const FString& RelativeFilename = FilenameFromGitStatus(Result);
+	FString File = FPaths::ConvertRelativePathToFull(InRepositoryRoot, RelativeFilename);
+	return File;
+}
+
+bool UpdateChangelistStateByCommand()
+{
+	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+	if (!Provider.IsGitAvailable())
+	{
+		return false;
+	}
+	TSharedRef<FGitSourceControlChangelistState, ESPMode::ThreadSafe> StagedChangelist = Provider.GetStateInternal(FGitSourceControlChangelist::StagedChangelist);
+	TSharedRef<FGitSourceControlChangelistState, ESPMode::ThreadSafe> WorkingChangelist = Provider.GetStateInternal(FGitSourceControlChangelist::WorkingChangelist);
+	StagedChangelist->Files.RemoveAll([](const FSourceControlStateRef& InState){ return true; });
+	WorkingChangelist->Files.RemoveAll([](const FSourceControlStateRef& InState){ return true; });
+
+	TArray<FString> Files;
+	Files.Add(TEXT("Content/"));
+	TArray<FString> Parameters;
+	Parameters.Add(TEXT("--porcelain"));
+	TArray<FString> Results;
+	TArray<FString> ErrorMsg;
+	const bool bResult = RunCommand(TEXT("--no-optional-locks status"), Provider.GetGitBinaryPath(), Provider.GetPathToRepositoryRoot(), Parameters, Files, Results, ErrorMsg);
+	for (const auto& Result : Results)
+	{
+		FString File = GetFullPathFromGitStatus(Result, Provider.GetPathToRepositoryRoot());
+		TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(File);
+		// Staged check
+		if (!TChar<TCHAR>::IsWhitespace(Result[0]))
+		{
+			WorkingChangelist->Files.Remove(State);
+			UpdateFileStagingOnSavedInternal(Result);
+			State->Changelist = FGitSourceControlChangelist::StagedChangelist;
+			StagedChangelist->Files.AddUnique(State);
+			continue;
+		}
+		// Working check
+		if (!TChar<TCHAR>::IsWhitespace(Result[1]))
+		{
+			StagedChangelist->Files.Remove(State);
+			State->Changelist = FGitSourceControlChangelist::WorkingChangelist;
+			WorkingChangelist->Files.AddUnique(State);
+		}
+	}
+	return true;
+}
+	
 // Run a batch of Git "status" command to update status of given files and/or directories.
 bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles,
 					 TArray<FString>& OutErrorMessages, TMap<FString, FGitSourceControlState>& OutStates)
@@ -1650,10 +1703,53 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	{
 		ParseStatusResults(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, RepoFiles, ResultsMap, OutStates);
 	}
+	
+	UpdateChangelistStateByCommand();
 
 	CheckRemote(InPathToGitBinary, InRepositoryRoot, RepoFiles, OutErrorMessages, OutStates);
 
 	return bResult;
+}
+
+void UpdateFileStagingOnSaved(const FString& Filename, UPackage* Pkg, FObjectPostSaveContext ObjectSaveContext)
+{
+	UpdateFileStagingOnSavedInternal(Filename);
+}
+	
+bool UpdateFileStagingOnSavedInternal(const FString& Filename)
+{
+	bool bResult = false;
+	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+	if (!Provider.IsGitAvailable())
+	{
+		return bResult;
+	}
+	TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(Filename);
+
+	if (State->Changelist.GetName().Equals(TEXT("Staged")))
+	{
+		TArray<FString> File;
+		File.Add(Filename);
+		TArray<FString> DummyResults;
+		TArray<FString> DummyMsgs;
+		bResult = RunCommand(TEXT("add"), Provider.GetGitBinaryPath(), Provider.GetPathToRepositoryRoot(), FGitSourceControlModule::GetEmptyStringArray(), File, DummyResults, DummyMsgs);
+	}
+	
+	return bResult;
+}
+	
+void UpdateStateOnAssetRename(const FAssetData& InAssetData, const FString& InOldName)
+{
+	FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+	FGitSourceControlProvider& Provider = GitSourceControl.GetProvider();
+	if (!Provider.IsGitAvailable())
+	{
+		return ;
+	}
+	TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(InOldName);	
+	
+	State->LocalFilename = InAssetData.GetObjectPathString();
 }
 
 // Run a Git `cat-file --filters` command to dump the binary content of a revision into a file.
