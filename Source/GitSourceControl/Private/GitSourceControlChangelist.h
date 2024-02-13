@@ -27,10 +27,12 @@ public:
 		return ChangelistName != InOther.ChangelistName;
 	}
 
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3
 	virtual bool IsDefault() const override
 	{
 		return ChangelistName == WorkingChangelist.ChangelistName;
 	}
+#endif
 
 	void SetInitialized()
 	{
@@ -58,10 +60,12 @@ public:
 		return ChangelistName;
 	}
 
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3
 	virtual FString GetIdentifier() const override
 	{
 		return ChangelistName;
 	}
+#endif
 
 public:
 	static FGitSourceControlChangelist WorkingChangelist;
