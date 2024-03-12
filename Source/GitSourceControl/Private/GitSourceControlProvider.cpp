@@ -104,6 +104,8 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 		bGitRepositoryFound = false;
 		return;
 	}
+	PathToRepositoryRoot = PathToGitRoot;
+
 	if (!GitSourceControlUtils::CheckGitAvailability(PathToGitBinary, &GitVersion))
 	{
 		UE_LOG(LogSourceControl, Error, TEXT("Failed to find valid Git executable."));
