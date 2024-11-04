@@ -458,7 +458,15 @@ ECommandResult::Type FGitSourceControlProvider::Execute( const FSourceControlOpe
 	}
 
 	FGitSourceControlCommand* Command = new FGitSourceControlCommand(InOperation, Worker.ToSharedRef());
+	const bool bCancelCommand = AbsoluteFiles.Num() > 0;
 	Command->UpdateRepositoryRootIfSubmodule(AbsoluteFiles);
+	if (bCancelCommand &&
+		AbsoluteFiles.Num() == 0)
+	{
+		delete Command;
+		return ECommandResult::Succeeded;
+	}
+
 	Command->Files = AbsoluteFiles;
 	Command->OperationCompleteDelegate = InOperationCompleteDelegate;
 
