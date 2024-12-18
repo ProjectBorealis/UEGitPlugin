@@ -43,6 +43,9 @@
 #include "Async/Async.h"
 #include "UObject/Linker.h"
 
+#include "SourceControlHelpers.h"
+#include "SourceControlWindows.h"
+
 #ifndef GIT_DEBUG_STATUS
 #define GIT_DEBUG_STATUS 0
 #endif
@@ -2527,6 +2530,36 @@ TSharedPtr<ISourceControlRevision, ESPMode::ThreadSafe> GetOriginRevisionOnBranc
 	}
 
 	return nullptr;
+}
+
+void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FAssetData>& SelectedAssets, FString BranchName)
+{
+	TArray<FString> FilesToSync;
+	for (const FAssetData& AssetData : SelectedAssets)
+	{
+		FilesToSync.Add(SourceControlHelpers::PackageFilename(AssetData.PackageName.ToString()));
+	}
+
+	// Source control checkout is lock the file and mark for read.
+	FGitSourceControlModule* GitSourceControl = FGitSourceControlModule::GetThreadSafe();
+	if (!GitSourceControl)
+	{
+		return;
+	}
+	FGitSourceControlProvider& Provider = GitSourceControl->GetProvider();
+	Provider.Execute(ISourceControlOperation::Create<FCheckOut>(), FilesToSync);
+
+	// Git checkout is pulling content
+	TArray<FString> Results;
+	TArray<FString> Errors;
+	RunCommand("checkout", InPathToGitBinary, InRepositoryRoot, { BranchName, TEXT("--") }, FilesToSync, Results, Errors);
+
+
+	FCheckinResultInfo ResultInfo;
+	// Re-check the status of the files before opening the window because we've just reverted a bunch of files which haven't had a status update yet.
+	bool bUseSourceControlStateCache = false;
+	FSourceControlWindows::PromptForCheckin(ResultInfo, FilesToSync, TArray<FString>(), TArray<FString>(), bUseSourceControlStateCache);
+
 }
 
 } // namespace GitSourceControlUtils
