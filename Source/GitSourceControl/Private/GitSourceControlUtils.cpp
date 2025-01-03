@@ -2540,27 +2540,71 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 		FilesToSync.Add(SourceControlHelpers::PackageFilename(AssetData.PackageName.ToString()));
 	}
 
-	// Source control checkout is lock the file and mark for read.
-	FGitSourceControlModule* GitSourceControl = FGitSourceControlModule::GetThreadSafe();
-	if (!GitSourceControl)
+	TArray<FString> DiffResults;
+	TArray<FString> ErrorMessages;
+	TArray<FString> DiffParametersLog{ TEXT("--pretty="), TEXT("--name-only"), FString::Printf(TEXT("HEAD..%s"), *BranchName), TEXT(""), TEXT("--") };
+	const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, DiffParametersLog, FilesToSync, DiffResults, ErrorMessages);
+	FilesToSync.RemoveAllSwap([&DiffResults](const FString& File)
+		{
+			return !DiffResults.Contains(File);
+		});
+
+	if (!FilesToSync.IsEmpty())
 	{
-		return;
+		// Source control checkout is lock the file and mark for read.
+		FGitSourceControlModule* GitSourceControl = FGitSourceControlModule::GetThreadSafe();
+		if (!GitSourceControl)
+		{
+			return;
+		}
+		FGitSourceControlProvider& Provider = GitSourceControl->GetProvider();
+
+		TArray<FString> FilesToLock;
+		TArray<FString> UneditableAssets;
+
+		TArray<TSharedRef<ISourceControlState, ESPMode::ThreadSafe>> OutStates;
+		Provider.GetState(FilesToSync, OutStates, EStateCacheUsage::ForceUpdate);
+
+		FString FilePath;
+		for (const auto& SourceControlState : OutStates)
+		{
+			FilePath = SourceControlState->GetFilename();
+			if (SourceControlState->CanCheckout())
+			{
+				FilesToLock.Add(FilePath);
+			}
+			else if (!SourceControlState->IsCheckedOut())
+			{
+				UE_LOG(LogSourceControl, Warning, TEXT("File %s is not checked out, and cannot be checked out - failed to sync."), *FilePath);
+				UneditableAssets.Add(FilePath);
+			}
+		}
+
+		if (UneditableAssets.Num() != 0)
+		{
+			FString JoinedFiles = FString::Join(UneditableAssets, TEXT("\n"));
+			FMessageDialog::Open(EAppMsgType::Ok, FText::Format(LOCTEXT("FailedBranchSync", "Failed to sync file from branch {0} because the following files cannot be checked out \n{1}"), { FText::FromString(BranchName), FText::FromString(JoinedFiles) }));
+			return;
+		}
+
+		Provider.Execute(ISourceControlOperation::Create<FCheckOut>(), FilesToSync);
+
+		// Git checkout is pulling content
+		TArray<FString> Results;
+		TArray<FString> Errors;
+		RunCommand("checkout", InPathToGitBinary, InRepositoryRoot, { BranchName, TEXT("--") }, FilesToSync, Results, Errors);
+
+		FCheckinResultInfo ResultInfo;
+		// Re-check the status of the files before opening the window because we've just reverted a bunch of files which haven't had a status update yet.
+		bool bUseSourceControlStateCache = false;
+		FSourceControlWindows::PromptForCheckin(ResultInfo, FilesToSync, TArray<FString>(), TArray<FString>(), bUseSourceControlStateCache);
 	}
-	FGitSourceControlProvider& Provider = GitSourceControl->GetProvider();
-	Provider.Execute(ISourceControlOperation::Create<FCheckOut>(), FilesToSync);
-
-	// Git checkout is pulling content
-	TArray<FString> Results;
-	TArray<FString> Errors;
-	RunCommand("checkout", InPathToGitBinary, InRepositoryRoot, { BranchName, TEXT("--") }, FilesToSync, Results, Errors);
-
-
-	FCheckinResultInfo ResultInfo;
-	// Re-check the status of the files before opening the window because we've just reverted a bunch of files which haven't had a status update yet.
-	bool bUseSourceControlStateCache = false;
-	FSourceControlWindows::PromptForCheckin(ResultInfo, FilesToSync, TArray<FString>(), TArray<FString>(), bUseSourceControlStateCache);
-
+	else
+	{
+		FMessageDialog::Open(EAppMsgType::Ok, (LOCTEXT("BranchSyncUnchanged", "Failed to sync files because the selected file(s) were unchanged")));
+	}
 }
+
 
 } // namespace GitSourceControlUtils
 
