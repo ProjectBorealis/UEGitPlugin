@@ -124,7 +124,7 @@ void FGitLockedFilesCache::OnFileLockChanged(const FString& filePath, const FStr
 
 namespace GitSourceControlUtils
 {
-	FString ChangeRepositoryRootIfSubmodule(TArray<FString>& AbsoluteFilePaths, const FString& PathToRepositoryRoot)
+	FString ChangeRepositoryRootIfSubmodule(TArray<FString>& AbsoluteFilePaths, const FString& PathToGitBinary, const FString& PathToRepositoryRoot)
 	{
 		FString Ret = PathToRepositoryRoot;
 		// note this is not going to support operations where selected files are in different repositories
@@ -166,6 +166,7 @@ namespace GitSourceControlUtils
 				}
 			}
 		}
+
 		if (!PackageNotIncludedInGit.IsEmpty())
 		{
 			for (const FString& ToRemoveFile : PackageNotIncludedInGit)
@@ -174,13 +175,37 @@ namespace GitSourceControlUtils
 			}
 		}
 
+		if (AbsoluteFilePaths.Num() > 0)
+		{
+			PackageNotIncludedInGit = {};
+			PackageNotIncludedInGit.Reserve(AbsoluteFilePaths.Num());
+
+			TArray<FString> ErrorMessages;
+			RunCommand(
+				TEXT("check-ignore"),
+				PathToGitBinary,
+				PathToRepositoryRoot,
+				FGitSourceControlModule::GetEmptyStringArray(),
+				AbsoluteFilePaths,
+				PackageNotIncludedInGit,
+				ErrorMessages);
+
+			if (!PackageNotIncludedInGit.IsEmpty())
+			{
+				for (const FString& ToRemoveFile : PackageNotIncludedInGit)
+				{
+					AbsoluteFilePaths.Remove(ToRemoveFile);
+				}
+			}
+		}
+
 		return Ret;
 	}
 
-	FString ChangeRepositoryRootIfSubmodule(FString & AbsoluteFilePath, const FString& PathToRepositoryRoot)
+	FString ChangeRepositoryRootIfSubmodule(FString & AbsoluteFilePath, const FString& PathToGitBinary, const FString& PathToRepositoryRoot)
 	{
 		TArray<FString> AbsoluteFilePaths = { AbsoluteFilePath };
-		return ChangeRepositoryRootIfSubmodule(AbsoluteFilePaths, PathToRepositoryRoot);
+		return ChangeRepositoryRootIfSubmodule(AbsoluteFilePaths, PathToGitBinary, PathToRepositoryRoot);
 	}
 
 // Launch the Git command line process and extract its results & errors
