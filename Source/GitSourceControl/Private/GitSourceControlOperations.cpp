@@ -856,6 +856,7 @@ bool FGitResolveWorker::UpdateStates() const
 	return GitSourceControlUtils::UpdateCachedStates(States);
 }
 
+#if ENGINE_MAJOR_VERSION == 5
 FName FGitMoveToChangelistWorker::GetName() const
 {
 	return "MoveToChangelist";
@@ -905,5 +906,6 @@ bool FGitUpdateStagingWorker::UpdateStates() const
 {
 	return true;
 }
+#endif
 
 #undef LOCTEXT_NAMESPACE

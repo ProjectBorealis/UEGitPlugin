@@ -1,6 +1,8 @@
-﻿#pragma once
-#include "ISourceControlChangelist.h"
+#pragma once
 #include "Runtime/Launch/Resources/Version.h"
+
+#if ENGINE_MAJOR_VERSION == 5
+#include "ISourceControlChangelist.h"
 
 class FGitSourceControlChangelist : public ISourceControlChangelist
 {
@@ -78,3 +80,4 @@ private:
 };
 
 typedef TSharedRef<class FGitSourceControlChangelist, ESPMode::ThreadSafe> FGitSourceControlChangelistRef;
+#endif

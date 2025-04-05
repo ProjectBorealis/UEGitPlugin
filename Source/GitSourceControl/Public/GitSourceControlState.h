@@ -205,7 +205,9 @@ public:
 	/** Status of the file */
 	FGitState State;
 
+#if ENGINE_MAJOR_VERSION == 5
 	FGitSourceControlChangelist Changelist;
+#endif
 
 	/** The timestamp of the last update */
 	FDateTime TimeStamp;

@@ -34,7 +34,11 @@
 #include "PackageTools.h"
 #include "FileHelpers.h"
 #include "Misc/MessageDialog.h"
+
+#include "Runtime/Launch/Resources/Version.h"
+#if ENGINE_MAJOR_VERSION == 5 
 #include "UObject/ObjectSaveContext.h"
+#endif
 
 #include "Async/Async.h"
 #include "UObject/Linker.h"
@@ -166,7 +170,11 @@ namespace GitSourceControlUtils
 				}
 			}
 		}
+#if ENGINE_MAJOR_VERSION >= 5
 		if (!PackageNotIncludedInGit.IsEmpty())
+#else
+		if (PackageNotIncludedInGit.Num() > 0)
+#endif
 		{
 			for (const FString& ToRemoveFile : PackageNotIncludedInGit)
 			{
@@ -1446,8 +1454,12 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 
 	TArray<FString> ErrorMessages;
 
-	TArray<FString> Results;
+	TArray<FString> LogResults;
+	TArray<FString> DiffResults;
+	TArray<FString> Intersection;
+
 	TMap<FString, FString> NewerFiles;
+
 
 	//const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
 	// Get the full remote status of the Content folder, since it's the only lockable folder we track in editor. 
@@ -1470,10 +1482,27 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 		// .. means commits in the right that are not in the left
 		ParametersLog[2] = FString::Printf(TEXT("..%s"), *Branch);
 
-		const bool bResultDiff = RunCommand(TEXT("log"), InPathToGitBinary, InRepositoryRoot, ParametersLog, FilesToDiff, Results, ErrorMessages);
-		if (bResultDiff)
+		const bool bResultLog = RunCommand(TEXT("log"), InPathToGitBinary, InRepositoryRoot, ParametersLog, FilesToDiff, LogResults, ErrorMessages);
+		if (bResultLog)
 		{
-			for (const FString& NewerFileName : Results)
+			// Status Branches may not be initialized because they're not in use by the project. They can also be not initilaized in some other quirky circumstances
+			// eg. When running multi client / dedicated server in editor without running them under the same process, those game instances will run as an editor instance
+			// which means editor plugins are enabled and running, but they don't run UnrealEdEngine, so the status branches are not initialized.
+			if (StatusBranches.Num() > 0)
+			{
+				// Check if the files state in the branch in which is changed is actually different from status branch
+				// This opens files for edit if they were modified in another branch but have since been reverted back to state in status.
+				TArray<FString> DiffParametersLog{ TEXT("--pretty="), TEXT("--name-only"), FString::Printf(TEXT("%s..%s"), *StatusBranches[0], *Branch), TEXT(""), TEXT("--") };
+				const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, DiffParametersLog, FilesToDiff, DiffResults, ErrorMessages);
+				// Get the intersection of the 2 containers
+				Intersection = DiffResults.FilterByPredicate([&LogResults](const FString& ChangedFile) { return LogResults.Contains(ChangedFile); });
+			}
+			else
+			{
+				Intersection = LogResults;
+			}
+
+			for (const FString& NewerFileName : Intersection)
 			{
 				// Don't care about mergeable files (.collection, .ini, .uproject, etc)
 				if (!IsFileLFSLockable(NewerFileName))
@@ -1493,7 +1522,9 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 				}
 			}
 		}
-		Results.Reset();
+		LogResults.Reset();
+		DiffResults.Reset();
+		Intersection.Reset();
 	}
 
 	for (const auto& NewFile : NewerFiles)
@@ -1631,6 +1662,7 @@ FString GetFullPathFromGitStatus(const FString& Result, const FString& InReposit
 	return File;
 }
 
+#if ENGINE_MAJOR_VERSION == 5
 bool UpdateChangelistStateByCommand()
 {
 	// TODO: This is a temporary solution.
@@ -1684,6 +1716,7 @@ bool UpdateChangelistStateByCommand()
 	}
 	return true;
 }
+#endif
 	
 // Run a batch of Git "status" command to update status of given files and/or directories.
 bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles,
@@ -1715,14 +1748,17 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	{
 		ParseStatusResults(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, RepoFiles, ResultsMap, OutStates);
 	}
-	
+
+#if ENGINE_MAJOR_VERSION == 5
 	UpdateChangelistStateByCommand();
+#endif
 
 	CheckRemote(InPathToGitBinary, InRepositoryRoot, RepoFiles, OutErrorMessages, OutStates);
 
 	return bResult;
 }
 
+#if ENGINE_MAJOR_VERSION == 5
 void UpdateFileStagingOnSaved(const FString& Filename, UPackage* Pkg, FObjectPostSaveContext ObjectSaveContext)
 {
 	UpdateFileStagingOnSavedInternal(Filename);
@@ -1750,6 +1786,7 @@ bool UpdateFileStagingOnSavedInternal(const FString& Filename)
 	
 	return bResult;
 }
+#endif
 	
 void UpdateStateOnAssetRename(const FAssetData& InAssetData, const FString& InOldName)
 {
@@ -1760,8 +1797,12 @@ void UpdateStateOnAssetRename(const FAssetData& InAssetData, const FString& InOl
 		return ;
 	}
 	TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> State = Provider.GetStateInternal(InOldName);	
-	
+
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
 	State->LocalFilename = InAssetData.GetObjectPathString();
+#else
+	State->LocalFilename = InAssetData.ObjectPath.ToString();
+#endif
 }
 
 // Run a Git `cat-file --filters` command to dump the binary content of a revision into a file.
@@ -1833,65 +1874,20 @@ bool RunDumpToFile(const FString& InPathToGitBinary, const FString& InRepository
 		FPlatformProcess::Sleep(0.01f);
 
 		TArray<uint8> BinaryFileContent;
-		bool bRemovedLFSMessage = false;
-		while (FPlatformProcess::IsProcRunning(ProcessHandle))
+		bool bShouldContinue = true;
+		while (FPlatformProcess::IsProcRunning(ProcessHandle) || bShouldContinue)
 		{
 			TArray<uint8> BinaryData;
-			FPlatformProcess::ReadPipeToArray(PipeRead, BinaryData);
+			bShouldContinue = FPlatformProcess::ReadPipeToArray(PipeRead, BinaryData);
 			if (BinaryData.Num() > 0)
 			{
-				if (GitSourceControl.AccessSettings().IsUsingGitLfsLocking())
-				{
-					// @todo: this is hacky!
-					if (BinaryData[0] == 68) // Check for D in "Downloading"
-					{
-						if (BinaryData[BinaryData.Num() - 1] == 10) // Check for newline
-						{
-							BinaryData.Reset();
-							bRemovedLFSMessage = true;
-						}
-					}
-					else
-					{
-						BinaryFileContent.Append(MoveTemp(BinaryData));
-					}
-				}
-				else
-				{
-					BinaryFileContent.Append(MoveTemp(BinaryData));
-				}
-			}
-		}
-		TArray<uint8> BinaryData;
-		FPlatformProcess::ReadPipeToArray(PipeRead, BinaryData);
-		if (BinaryData.Num() > 0)
-		{
-			if (GitSourceControl.AccessSettings().IsUsingGitLfsLocking())
-			{
 				// @todo: this is hacky!
-				if (!bRemovedLFSMessage && BinaryData[0] == 68) // Check for D in "Downloading"
+				bool bIsLFSMessage = BinaryData[0] == 68 // Check for D in "Downloading"
+									&& BinaryData.Last() == 10; // Check for new line
+				if (GitSourceControl.AccessSettings().IsUsingGitLfsLocking() && bIsLFSMessage)
 				{
-					int32 NewLineIndex = 0;
-					for (int32 Index = 0; Index < BinaryData.Num(); Index++)
-					{
-						if (BinaryData[Index] == 10) // Check for newline
-						{
-							NewLineIndex = Index;
-							break;
-						}
-					}
-					if (NewLineIndex > 0)
-					{
-						BinaryData.RemoveAt(0, NewLineIndex + 1);
-					}
+					continue;
 				}
-				else
-				{
-					BinaryFileContent.Append(MoveTemp(BinaryData));
-				}
-			}
-			else
-			{
 				BinaryFileContent.Append(MoveTemp(BinaryData));
 			}
 		}
