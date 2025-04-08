@@ -2555,16 +2555,13 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 		// revert only files that have changed. FPaths::MakePathRelativeTo will take an absolute
 		// path and make it relative, but it will include the root folder (eg. The repo root name)
 		// which needs to be stripped for the comparison to work
-		FString RelativePath = File;
-		FPaths::MakePathRelativeTo(RelativePath, *InRepositoryRoot);
+		FString RelativeFromRootInclusive = File;
+		FPaths::MakePathRelativeTo(RelativeFromRootInclusive, *InRepositoryRoot);
 
-		int FindLocation = 0;
-		if (RelativePath.FindChar('/', FindLocation))
-		{
-			// +1 to strip the slash
-			RelativePath = RelativePath.Mid(FindLocation + 1);
-		}
-		return !DiffResults.Contains(RelativePath);
+		FString RelativeFromRoot;
+		RelativeFromRootInclusive.Split("/", nullptr, &RelativeFromRoot);
+
+		return !DiffResults.Contains(RelativeFromRoot);
 	});
 
 	if (!FilesToSync.IsEmpty())
