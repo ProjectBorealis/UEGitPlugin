@@ -2544,10 +2544,28 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 	TArray<FString> ErrorMessages;
 	TArray<FString> DiffParametersLog{ TEXT("--pretty="), TEXT("--name-only"), FString::Printf(TEXT("HEAD..%s"), *BranchName), TEXT(""), TEXT("--") };
 	const bool bResultDiff = RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, DiffParametersLog, FilesToSync, DiffResults, ErrorMessages);
-	FilesToSync.RemoveAllSwap([&DiffResults](const FString& File)
+	FilesToSync.RemoveAllSwap([&DiffResults, &InRepositoryRoot](const FString& File)
+	{
+		// * SelectedAssets is a list of paths that are package relative (eg. "Game/...")
+		//   that comes straight from Unreal Engine
+		// * FilesToSync is a list of absolute paths  (eg. "C:/...") that will be passed to git
+		// * DiffResults is a list of paths relative to the git repo (eg. "Project/...")
+
+		// We need to minify FilesToSync to only files that match DiffResults so we attempt to
+		// revert only files that have changed. FPaths::MakePathRelativeTo will take an absolute
+		// path and make it relative, but it will include the root folder (eg. The repo root name)
+		// which needs to be stripped for the comparison to work
+		FString RelativePath = File;
+		FPaths::MakePathRelativeTo(RelativePath, *InRepositoryRoot);
+
+		int FindLocation = 0;
+		if (RelativePath.FindChar('/', FindLocation))
 		{
-			return !DiffResults.Contains(File);
-		});
+			// +1 to strip the slash
+			RelativePath = RelativePath.Mid(FindLocation + 1);
+		}
+		return !DiffResults.Contains(RelativePath);
+	});
 
 	if (!FilesToSync.IsEmpty())
 	{
