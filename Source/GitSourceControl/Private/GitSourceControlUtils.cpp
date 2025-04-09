@@ -2597,10 +2597,14 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 
 		Provider.Execute(ISourceControlOperation::Create<FCheckOut>(), FilesToSync);
 
-		// Git checkout is pulling content
-		TArray<FString> Results;
-		TArray<FString> Errors;
-		RunCommand("checkout", InPathToGitBinary, InRepositoryRoot, { BranchName, TEXT("--") }, FilesToSync, Results, Errors);
+		USourceControlHelpers::ApplyOperationAndReloadPackages(FilesToSync, [&](const TArray<FString>&)
+		{
+			// Git checkout is pulling content
+			TArray<FString> Results;
+			TArray<FString> Errors;
+			RunCommand("checkout", InPathToGitBinary, InRepositoryRoot, { BranchName, TEXT("--") }, FilesToSync, Results, Errors);
+			return true;
+		});
 
 		FCheckinResultInfo ResultInfo;
 		// Re-check the status of the files before opening the window because we've just reverted a bunch of files which haven't had a status update yet.
