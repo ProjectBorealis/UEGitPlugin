@@ -44,6 +44,7 @@
 #include "UObject/Linker.h"
 
 #include "SourceControlHelpers.h"
+#include "SourceControlOperations.h"
 #include "SourceControlWindows.h"
 
 #ifndef GIT_DEBUG_STATUS
