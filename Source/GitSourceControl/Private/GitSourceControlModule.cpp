@@ -22,6 +22,7 @@
 #include "GitSourceControlUtils.h"
 #include "ISourceControlModule.h"
 #include "SourceControlHelpers.h"
+#include "Engine/World.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/MultiBox/MultiBoxExtender.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -200,9 +201,10 @@ void FGitSourceControlModule::CreateGitContentBrowserAssetMenu(FMenuBuilder& Men
 		FUIAction(FExecuteAction::CreateRaw( this, &FGitSourceControlModule::DiffAssetAgainstGitOriginBranch, SelectedAssets, BranchName ))
 	);
 
-	const bool bAssetsContainsLevel = SelectedAssets.ContainsByPredicate([](const FAssetData& AssetData)
+	const FString WorldAssetName = UWorld::StaticClass()->GetName();
+	const bool bAssetsContainsLevel = SelectedAssets.ContainsByPredicate([&WorldAssetName](const FAssetData& AssetData)
 	{
-		return AssetData.AssetClassPath.GetAssetName() == "World";
+		return AssetData.AssetClassPath.GetAssetName() == WorldAssetName;
 	});
 	const bool bCanRevertToStatusBranch = !bAssetsContainsLevel;
 
