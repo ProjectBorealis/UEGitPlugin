@@ -2596,7 +2596,7 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 			return;
 		}
 
-		Provider.Execute(ISourceControlOperation::Create<FCheckOut>(), FilesToSync);
+		Provider.Execute(ISourceControlOperation::Create<FCheckOut>(), FilesToLock);
 
 		const bool bOperationSuccess = USourceControlHelpers::ApplyOperationAndReloadPackages(FilesToSync,
 			[&InPathToGitBinary, &InRepositoryRoot, &BranchName, &FilesToSync](const TArray<FString>&)
