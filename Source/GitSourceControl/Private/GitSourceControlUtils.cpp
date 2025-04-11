@@ -2598,21 +2598,39 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 
 		Provider.Execute(ISourceControlOperation::Create<FCheckOut>(), FilesToSync);
 
-		USourceControlHelpers::ApplyOperationAndReloadPackages(FilesToSync,
+		const bool bOperationSuccess = USourceControlHelpers::ApplyOperationAndReloadPackages(FilesToSync,
 			[&InPathToGitBinary, &InRepositoryRoot, &BranchName, &FilesToSync](const TArray<FString>&)
 		{
 			// "checkout" in the context of git will download the file whereas "checkout"
 			// in the context of Unreal Engine/Perforce will add a lock and make it writable
 			TArray<FString> Results;
 			TArray<FString> Errors;
-			RunCommand("checkout", InPathToGitBinary, InRepositoryRoot, { BranchName, TEXT("--") }, FilesToSync, Results, Errors);
-			return true;
+			const FString GitCommand = TEXT("checkout");
+			const bool bCommandSuccess = RunCommand(GitCommand, InPathToGitBinary, InRepositoryRoot, { BranchName, TEXT("--") }, FilesToSync, Results, Errors);
+
+			if (!bCommandSuccess)
+			{
+				UE_LOG(LogSourceControl, Error, TEXT("Git command %s failed"), *GitCommand);
+				for (const auto& Error : Errors)
+				{
+					UE_LOG(LogSourceControl, Error, TEXT("%s"), *Error);
+				}
+			}
+			return bCommandSuccess;
 		});
 
-		FCheckinResultInfo ResultInfo;
-		// Re-check the status of the files before opening the window because we've just reverted a bunch of files which haven't had a status update yet.
-		bool bUseSourceControlStateCache = false;
-		FSourceControlWindows::PromptForCheckin(ResultInfo, FilesToSync, TArray<FString>(), TArray<FString>(), bUseSourceControlStateCache);
+		if (bOperationSuccess)
+		{
+			FCheckinResultInfo ResultInfo;
+			// Re-check the status of the files before opening the window because we've just reverted a bunch of files which haven't had a status update yet.
+			bool bUseSourceControlStateCache = false;
+			FSourceControlWindows::PromptForCheckin(ResultInfo, FilesToSync, TArray<FString>(), TArray<FString>(), bUseSourceControlStateCache);
+		}
+		else
+		{
+			const FText Message = LOCTEXT("FailedBranchSyncGitCheckout", "Revert To Status Branch failed -  git checkout failed. See the log for details");
+			FMessageDialog::Open(EAppMsgType::Ok, Message);
+		}
 	}
 	else
 	{
