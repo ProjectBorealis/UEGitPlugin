@@ -2601,7 +2601,8 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 		USourceControlHelpers::ApplyOperationAndReloadPackages(FilesToSync,
 			[&InPathToGitBinary, &InRepositoryRoot, &BranchName, &FilesToSync](const TArray<FString>&)
 		{
-			// Git checkout is pulling content
+			// "checkout" in the context of git will download the file whereas "checkout"
+			// in the context of Unreal Engine/Perforce will add a lock and make it writable
 			TArray<FString> Results;
 			TArray<FString> Errors;
 			RunCommand("checkout", InPathToGitBinary, InRepositoryRoot, { BranchName, TEXT("--") }, FilesToSync, Results, Errors);
