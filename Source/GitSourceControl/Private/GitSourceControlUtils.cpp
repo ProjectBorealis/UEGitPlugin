@@ -2598,7 +2598,8 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 
 		Provider.Execute(ISourceControlOperation::Create<FCheckOut>(), FilesToSync);
 
-		USourceControlHelpers::ApplyOperationAndReloadPackages(FilesToSync, [&](const TArray<FString>&)
+		USourceControlHelpers::ApplyOperationAndReloadPackages(FilesToSync,
+			[&InPathToGitBinary, &InRepositoryRoot, &BranchName, &FilesToSync](const TArray<FString>&)
 		{
 			// Git checkout is pulling content
 			TArray<FString> Results;
