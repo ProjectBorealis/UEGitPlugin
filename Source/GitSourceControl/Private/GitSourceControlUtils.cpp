@@ -128,6 +128,37 @@ void FGitLockedFilesCache::OnFileLockChanged(const FString& filePath, const FStr
 
 namespace GitSourceControlUtils
 {
+	bool IsMeantToBeSaved(const FString& InFilePath)
+	{
+		FString PackageName;
+		if (!FPackageName::TryConvertFilenameToLongPackageName(InFilePath, PackageName))
+		{
+			return false;
+		}
+
+		UPackage* Package = FindPackage(nullptr, *PackageName);
+		if (!Package)
+		{
+			// Try loading the package if it is not already loaded
+			Package = LoadPackage(nullptr, *PackageName, LOAD_None);
+			if (!Package)
+			{
+				return false;
+			}
+		}
+		// Ignore the packages that aren't meant to be persistent.
+		if (Package->HasAnyFlags(RF_Transient) ||
+			Package->HasAnyPackageFlags(PKG_CompiledIn) ||
+			Package->HasAnyPackageFlags(PKG_PlayInEditor) ||
+			Package == GetTransientPackage() ||
+			FPackageName::IsMemoryPackage(Package->GetPathName()))
+			{
+				return false;
+			}
+
+		return true;
+	}
+
 	FString ChangeRepositoryRootIfSubmodule(TArray<FString>& AbsoluteFilePaths, const FString& PathToRepositoryRoot)
 	{
 		FString Ret = PathToRepositoryRoot;
@@ -147,8 +178,11 @@ namespace GitSourceControlUtils
 				if (TestPath.IsEmpty())
 				{
 					// TestPath.IsEmpty() meaning is that FilePath is not git file. So it need to removed to git command file list.
-					PackageNotIncludedInGit.Add(FilePath);
-					UE_LOG(LogSourceControl, Warning, TEXT("Package file to update has included dependent file is not git or Can't find directory path for file : %s"), *FilePath);
+					if (IsMeantToBeSaved(FilePath))
+					{
+						PackageNotIncludedInGit.Add(FilePath);
+						UE_LOG(LogSourceControl, Warning, TEXT("Package file to update has included dependent file is not git or Can't find directory path for file : %s"), *FilePath);
+					}
 
 					break;
 				}
