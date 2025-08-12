@@ -2599,14 +2599,14 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 		Provider.Execute(ISourceControlOperation::Create<FCheckOut>(), FilesToLock);
 
 		const bool bOperationSuccess = USourceControlHelpers::ApplyOperationAndReloadPackages(FilesToSync,
-			[&InPathToGitBinary, &InRepositoryRoot, &BranchName, &FilesToSync](const TArray<FString>&)
+			[&InPathToGitBinary, &InRepositoryRoot, &BranchName, &FilesToSync, &Provider, &SelectedAssets](const TArray<FString>&)
 		{
 			// "checkout" in the context of git will download the file whereas "checkout"
 			// in the context of Unreal Engine/Perforce will add a lock and make it writable
 			TArray<FString> Results;
 			TArray<FString> Errors;
 			const FString GitCommand = TEXT("checkout");
-			const bool bCommandSuccess = RunCommand(GitCommand, InPathToGitBinary, InRepositoryRoot, { BranchName, TEXT("--") }, FilesToSync, Results, Errors);
+			bool bCommandSuccess = RunCommand(GitCommand, InPathToGitBinary, InRepositoryRoot, { BranchName, TEXT("--") }, FilesToSync, Results, Errors);
 
 			if (!bCommandSuccess)
 			{
@@ -2615,6 +2615,15 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 				{
 					UE_LOG(LogSourceControl, Error, TEXT("%s"), *Error);
 				}
+
+				// TODO: Build this by comparing files to sync so we don't try to revert too much
+				TArray<FString> PackagesToRevert;
+				for (const FAssetData& AssetData : SelectedAssets)
+				{
+					PackagesToRevert.Add(AssetData.PackageName.ToString());
+				}
+				auto RevertOperation = ISourceControlOperation::Create<FRevert>();
+				Provider.Execute(RevertOperation, PackagesToRevert, EConcurrency::Synchronous);
 			}
 			return bCommandSuccess;
 		});
