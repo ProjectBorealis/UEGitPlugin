@@ -38,6 +38,9 @@
 #include "ToolMenuMisc.h"
 #endif
 
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 6
+#include "EditorModeManager.h"
+#endif
 #include "UObject/Linker.h"
 
 static const FName GitSourceControlMenuTabName(TEXT("GitSourceControlMenu"));
@@ -92,6 +95,17 @@ bool FGitSourceControlMenu::HaveRemoteUrl() const
 {
 	const FGitSourceControlModule& GitSourceControl = FGitSourceControlModule::Get();
 	return !GitSourceControl.GetProvider().GetRemoteUrl().IsEmpty();
+}
+
+bool FGitSourceControlMenu::CanCommit() const
+{
+	// The 'Submit Content' operation could lead to a world reload (in UEFN) that takes the user out of their selected editor mode.
+	// Piggy back on the 'CanAutoSave' functionality to determine if now is a good time to trigger a 'Submit Content' SCC operation.
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 6
+	return GLevelEditorModeTools().CanAutoSave() && FSourceControlWindows::CanChoosePackagesToCheckIn();
+#else
+	return true;
+#endif
 }
 
 /// Prompt to save or discard all packages
@@ -528,6 +542,20 @@ void FGitSourceControlMenu::AddMenuExtension(FToolMenuSection& Builder)
 void FGitSourceControlMenu::AddMenuExtension(FMenuBuilder& Builder)
 #endif
 {
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 6
+	// UE 5.6 removed the submit content button, so re-create one here
+	Builder.AddMenuEntry(
+		"CommitAndPush",
+		LOCTEXT("GitCommit",				"Submit Content"),
+		LOCTEXT("GitPushTooltip",		"Opens a dialog with check in options for content and levels."),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "SourceControl.Actions.Submit"),
+		FUIAction(
+			FExecuteAction::CreateRaw(this, &FGitSourceControlMenu::CommitClicked),
+			FCanExecuteAction::CreateRaw(this, &FGitSourceControlMenu::CanCommit)
+		)
+	);
+#endif
+	
 	Builder.AddMenuEntry(
 #if ENGINE_MAJOR_VERSION >= 5
 		"GitPush",
