@@ -2623,7 +2623,7 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 		{
 			FCheckinResultInfo ResultInfo;
 			// Re-check the status of the files before opening the window because we've just reverted a bunch of files which haven't had a status update yet.
-			bool bUseSourceControlStateCache = false;
+			constexpr bool bUseSourceControlStateCache = false;
 			FSourceControlWindows::PromptForCheckin(ResultInfo, FilesToSync, TArray<FString>(), TArray<FString>(), bUseSourceControlStateCache);
 		}
 		else
