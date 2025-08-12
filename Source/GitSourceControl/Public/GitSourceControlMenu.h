@@ -32,8 +32,9 @@ protected:
 
 private:
 	bool HaveRemoteUrl() const;
+	bool CanCommit() const;
 
-	bool				SaveDirtyPackages();
+	bool SaveDirtyPackages();
 
 	bool StashAwayAnyModifications();
 	void ReApplyStashedModifications();
