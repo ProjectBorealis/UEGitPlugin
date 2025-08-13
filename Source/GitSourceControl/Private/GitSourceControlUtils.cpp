@@ -2535,30 +2535,27 @@ TSharedPtr<ISourceControlRevision, ESPMode::ThreadSafe> GetOriginRevisionOnBranc
 
 void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FAssetData>& SelectedAssets, const FString& BranchName)
 {
-	TArray<FString> FilesToSync;
+	TArray<FString> FilesToDiff;
 	TMap<FString, FString> AbsoluteFilePathToAsset;
 	for (const FAssetData& AssetData : SelectedAssets)
 	{
 		FString PackageName = AssetData.PackageName.ToString();
 		FString AbsoluteFilePath = SourceControlHelpers::PackageFilename(PackageName);
 		
-		FilesToSync.Add(AbsoluteFilePath);
+		FilesToDiff.Add(AbsoluteFilePath);
 		AbsoluteFilePathToAsset.Add(AbsoluteFilePath, PackageName);
 	}
 
 	TArray<FString> DiffResults;
 	TArray<FString> ErrorMessages;
 	TArray<FString> DiffParametersLog{ TEXT("--pretty="), TEXT("--name-only"), FString::Printf(TEXT("HEAD..%s"), *BranchName), TEXT(""), TEXT("--") };
-	RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, DiffParametersLog, FilesToSync, DiffResults, ErrorMessages);
+	RunCommand(TEXT("diff"), InPathToGitBinary, InRepositoryRoot, DiffParametersLog, FilesToDiff, DiffResults, ErrorMessages);
 
 	// DiffResults is repo relative and we need to be
 	// in absolute so we can compare against FilesToSync
 	AbsoluteFilenames(InRepositoryRoot, DiffResults);
 
-	FilesToSync.RemoveAllSwap([&DiffResults](const FString& File)
-	{
-		return !DiffResults.Contains(File);
-	});
+	const TArray<FString> FilesToSync = DiffResults;
 
 	if (!FilesToSync.IsEmpty())
 	{
