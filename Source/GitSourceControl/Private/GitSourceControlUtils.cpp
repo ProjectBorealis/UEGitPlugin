@@ -2536,9 +2536,14 @@ TSharedPtr<ISourceControlRevision, ESPMode::ThreadSafe> GetOriginRevisionOnBranc
 void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FAssetData>& SelectedAssets, FString BranchName)
 {
 	TArray<FString> FilesToSync;
+	TMap<FString, FString> AbsoluteFilePathToAsset;
 	for (const FAssetData& AssetData : SelectedAssets)
 	{
-		FilesToSync.Add(SourceControlHelpers::PackageFilename(AssetData.PackageName.ToString()));
+		FString PackageName = AssetData.PackageName.ToString();
+		FString AbsoluteFileName = SourceControlHelpers::PackageFilename(PackageName);
+		
+		FilesToSync.Add(AbsoluteFileName);
+		AbsoluteFilePathToAsset.Add(AbsoluteFileName, PackageName);
 	}
 
 	TArray<FString> DiffResults;
@@ -2599,7 +2604,7 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 		Provider.Execute(ISourceControlOperation::Create<FCheckOut>(), FilesToLock);
 
 		const bool bOperationSuccess = USourceControlHelpers::ApplyOperationAndReloadPackages(FilesToSync,
-			[&InPathToGitBinary, &InRepositoryRoot, &BranchName, &FilesToSync, &Provider, &SelectedAssets](const TArray<FString>&)
+			[&InPathToGitBinary, &InRepositoryRoot, &BranchName, &FilesToSync, &Provider, &AbsoluteFilePathToAsset](const TArray<FString>&)
 		{
 			// "checkout" in the context of git will download the file whereas "checkout"
 			// in the context of Unreal Engine/Perforce will add a lock and make it writable
@@ -2616,11 +2621,10 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 					UE_LOG(LogSourceControl, Error, TEXT("%s"), *Error);
 				}
 
-				// TODO: Build this by comparing files to sync so we don't try to revert too much
 				TArray<FString> PackagesToRevert;
-				for (const FAssetData& AssetData : SelectedAssets)
+				for (const FString& AbsoluteFilePath : FilesToSync)
 				{
-					PackagesToRevert.Add(AssetData.PackageName.ToString());
+					PackagesToRevert.Add(AbsoluteFilePathToAsset[AbsoluteFilePath]);
 				}
 				auto RevertOperation = ISourceControlOperation::Create<FRevert>();
 				Provider.Execute(RevertOperation, PackagesToRevert, EConcurrency::Synchronous);
