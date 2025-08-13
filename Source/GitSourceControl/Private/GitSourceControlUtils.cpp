@@ -2591,7 +2591,7 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 		if (UneditableAssets.Num() != 0)
 		{
 			FString JoinedFiles = FString::Join(UneditableAssets, TEXT("\n"));
-			FMessageDialog::Open(EAppMsgType::Ok, FText::Format(LOCTEXT("FailedBranchSync", "Failed to sync file from branch {0} because the following files cannot be checked out \n{1}"), { FText::FromString(BranchName), FText::FromString(JoinedFiles) }));
+			FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, FText::Format(LOCTEXT("FailedBranchSync", "Failed to sync file from branch {0} because the following files cannot be checked out \n{1}"), { FText::FromString(BranchName), FText::FromString(JoinedFiles) }));
 			return;
 		}
 
