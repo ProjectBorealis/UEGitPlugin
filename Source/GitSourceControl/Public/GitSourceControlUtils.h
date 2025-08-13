@@ -387,6 +387,6 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 
 GITSOURCECONTROL_API TSharedPtr< class ISourceControlRevision, ESPMode::ThreadSafe > GetOriginRevisionOnBranch( const FString & InPathToGitBinary, const FString & InRepositoryRoot, const FString & InRelativeFileName, TArray< FString > & OutErrorMessages, const FString & BranchName );
 
-void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FAssetData>& SelectedAssets, FString BranchName);
+void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FAssetData>& SelectedAssets, const FString& BranchName);
 
 }

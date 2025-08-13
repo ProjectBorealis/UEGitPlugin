@@ -2533,7 +2533,7 @@ TSharedPtr<ISourceControlRevision, ESPMode::ThreadSafe> GetOriginRevisionOnBranc
 	return nullptr;
 }
 
-void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FAssetData>& SelectedAssets, FString BranchName)
+void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FAssetData>& SelectedAssets, const FString& BranchName)
 {
 	TArray<FString> FilesToSync;
 	TMap<FString, FString> AbsoluteFilePathToAsset;
