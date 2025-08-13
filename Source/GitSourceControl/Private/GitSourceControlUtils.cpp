@@ -2553,10 +2553,7 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 
 	// DiffResults is repo relative and we need to be
 	// in absolute so we can compare against FilesToSync
-	for (FString& Path : DiffResults)
-	{
-		Path = FPaths::ConvertRelativePathToFull(InRepositoryRoot, Path);
-	}
+	AbsoluteFilenames(InRepositoryRoot, DiffResults);
 
 	FilesToSync.RemoveAllSwap([&DiffResults](const FString& File)
 	{
