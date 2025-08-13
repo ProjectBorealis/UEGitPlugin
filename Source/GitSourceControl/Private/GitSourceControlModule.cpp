@@ -208,27 +208,28 @@ void FGitSourceControlModule::CreateGitContentBrowserAssetMenu(FMenuBuilder& Men
 	});
 	const bool bCanRevertToStatusBranch = !bAssetsContainsLevel;
 
-	if (bCanRevertToStatusBranch)
-	{
-		MenuBuilder.AddMenuEntry(
-			FText::Format(LOCTEXT("StatusRevert", "Revert to status branch: {0}"), FText::FromString(BranchName)),
-			FText::Format(LOCTEXT("StatusRevertDesc", "Revert this asset back to its state in status branch: {0}"), FText::FromString(BranchName)),
-	#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "SourceControl.Actions.Revert"),
-	#else
-			FSlateIcon(FEditorStyle::GetStyleSetName(), "SourceControl.Actions.Revert"),
-	#endif
-			FUIAction(
-				FExecuteAction::CreateLambda([SelectedAssets, BranchName]
-				{
-					const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-					const FString& PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
-					const FString& PathToRepositoryRoot = GitSourceControl.GetProvider().GetPathToRepositoryRoot();
-					GitSourceControlUtils::SyncAssetsFromBranch(PathToGitBinary, PathToRepositoryRoot, SelectedAssets, BranchName);
-				})
-			)
-		);
-	}
+	MenuBuilder.AddMenuEntry(
+		FText::Format(LOCTEXT("StatusRevert", "Revert to status branch: {0}"), FText::FromString(BranchName)),
+		FText::Format(LOCTEXT("StatusRevertDesc", "Revert this asset back to its state in status branch: {0}"), FText::FromString(BranchName)),
+		#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "SourceControl.Actions.Revert"),
+		#else
+		FSlateIcon(FEditorStyle::GetStyleSetName(), "SourceControl.Actions.Revert"),
+		#endif
+		FUIAction(
+			FExecuteAction::CreateLambda([SelectedAssets, BranchName]
+			{
+			   const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+			   const FString& PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
+			   const FString& PathToRepositoryRoot = GitSourceControl.GetProvider().GetPathToRepositoryRoot();
+			   GitSourceControlUtils::SyncAssetsFromBranch(PathToGitBinary, PathToRepositoryRoot, SelectedAssets, BranchName);
+			}),
+			FCanExecuteAction::CreateLambda([bCanRevertToStatusBranch]
+			{
+				return bCanRevertToStatusBranch;
+			})
+		)
+	);
 }
 
 void FGitSourceControlModule::DiffAssetAgainstGitOriginBranch(const TArray<FAssetData> SelectedAssets, FString BranchName) const
