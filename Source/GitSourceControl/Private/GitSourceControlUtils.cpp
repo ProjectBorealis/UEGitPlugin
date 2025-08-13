@@ -2540,10 +2540,10 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 	for (const FAssetData& AssetData : SelectedAssets)
 	{
 		FString PackageName = AssetData.PackageName.ToString();
-		FString AbsoluteFileName = SourceControlHelpers::PackageFilename(PackageName);
+		FString AbsoluteFilePath = SourceControlHelpers::PackageFilename(PackageName);
 		
-		FilesToSync.Add(AbsoluteFileName);
-		AbsoluteFilePathToAsset.Add(AbsoluteFileName, PackageName);
+		FilesToSync.Add(AbsoluteFilePath);
+		AbsoluteFilePathToAsset.Add(AbsoluteFilePath, PackageName);
 	}
 
 	TArray<FString> DiffResults;
