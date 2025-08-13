@@ -2620,7 +2620,8 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 				{
 					PackagesToRevert.Add(AbsoluteFilePathToAsset[AbsoluteFilePath]);
 				}
-				auto RevertOperation = ISourceControlOperation::Create<FRevert>();
+
+				const TSharedRef<FRevert, ESPMode::ThreadSafe> RevertOperation = ISourceControlOperation::Create<FRevert>();
 				Provider.Execute(RevertOperation, PackagesToRevert, EConcurrency::Synchronous);
 			}
 			return bCommandSuccess;
