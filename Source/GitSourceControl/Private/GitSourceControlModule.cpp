@@ -206,8 +206,8 @@ void FGitSourceControlModule::CreateGitContentBrowserAssetMenu(FMenuBuilder& Men
 	{
 		return AssetData.AssetClassPath.GetAssetName() == WorldAssetName;
 	});
+	
 	const bool bCanRevertToStatusBranch = !bAssetsContainsLevel;
-
 	if (bCanRevertToStatusBranch)
 	{
 		MenuBuilder.AddMenuEntry(
