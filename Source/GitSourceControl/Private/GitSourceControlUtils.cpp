@@ -2536,14 +2536,11 @@ TSharedPtr<ISourceControlRevision, ESPMode::ThreadSafe> GetOriginRevisionOnBranc
 void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FAssetData>& SelectedAssets, const FString& BranchName)
 {
 	TArray<FString> FilesToDiff;
-	TMap<FString, FString> AbsoluteFilePathToAsset;
+
 	for (const FAssetData& AssetData : SelectedAssets)
 	{
-		FString PackageName = AssetData.PackageName.ToString();
-		FString AbsoluteFilePath = SourceControlHelpers::PackageFilename(PackageName);
-		
+		FString AbsoluteFilePath = SourceControlHelpers::PackageFilename(AssetData.PackageName.ToString());		
 		FilesToDiff.Add(AbsoluteFilePath);
-		AbsoluteFilePathToAsset.Add(AbsoluteFilePath, PackageName);
 	}
 
 	TArray<FString> DiffResults;
@@ -2598,7 +2595,7 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 		Provider.Execute(ISourceControlOperation::Create<FCheckOut>(), FilesToLock);
 
 		const bool bOperationSuccess = USourceControlHelpers::ApplyOperationAndReloadPackages(FilesToSync,
-			[&InPathToGitBinary, &InRepositoryRoot, &BranchName, &FilesToSync, &Provider, &AbsoluteFilePathToAsset](const TArray<FString>&)
+			[&InPathToGitBinary, &InRepositoryRoot, &BranchName, &FilesToSync](const TArray<FString>&)
 		{
 			// "checkout" in the context of git will download the file whereas "checkout"
 			// in the context of Unreal Engine/Perforce will add a lock and make it writable
@@ -2614,15 +2611,6 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 				{
 					UE_LOG(LogSourceControl, Error, TEXT("%s"), *Error);
 				}
-
-				TArray<FString> PackagesToRevert;
-				for (const FString& AbsoluteFilePath : FilesToSync)
-				{
-					PackagesToRevert.Add(AbsoluteFilePathToAsset[AbsoluteFilePath]);
-				}
-
-				const TSharedRef<FRevert, ESPMode::ThreadSafe> RevertOperation = ISourceControlOperation::Create<FRevert>();
-				Provider.Execute(RevertOperation, PackagesToRevert, EConcurrency::Synchronous);
 			}
 			return bCommandSuccess;
 		});
@@ -2634,7 +2622,7 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 		}
 		else
 		{
-			const FText Message = LOCTEXT("SyncAssetsFromBranchFailedGitCheckout", "Revert To Status Branch failed -  git checkout failed. See the log for details");
+			const FText Message = LOCTEXT("SyncAssetsFromBranchFailedGitCheckout", "Revert To Status Branch failed - git checkout failed. See the log for details and carefully review all files");
 			FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, Message);
 		}
 	}
