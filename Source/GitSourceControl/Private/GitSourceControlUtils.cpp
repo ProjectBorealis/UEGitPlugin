@@ -2639,13 +2639,13 @@ void SyncAssetsFromBranch(const FString& InPathToGitBinary, const FString& InRep
 		}
 		else
 		{
-			const FText Message = LOCTEXT("FailedBranchSyncGitCheckout", "Revert To Status Branch failed -  git checkout failed. See the log for details");
-			FMessageDialog::Open(EAppMsgType::Ok, Message);
+			const FText Message = LOCTEXT("SyncAssetsFromBranchFailedGitCheckout", "Revert To Status Branch failed -  git checkout failed. See the log for details");
+			FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, Message);
 		}
 	}
 	else
 	{
-		FMessageDialog::Open(EAppMsgType::Ok, (LOCTEXT("BranchSyncUnchanged", "Failed to sync files because the selected file(s) were unchanged")));
+		FMessageDialog::Open(EAppMsgCategory::Info, EAppMsgType::Ok, LOCTEXT("SyncAssetsFromBranchAssetsUnchanged", "Failed to sync files because the selected file(s) were unchanged"));
 	}
 }
 
