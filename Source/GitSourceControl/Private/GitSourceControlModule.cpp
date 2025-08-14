@@ -202,11 +202,11 @@ void FGitSourceControlModule::CreateGitContentBrowserAssetMenu(FMenuBuilder& Men
 	);
 
 	const FString WorldAssetName = UWorld::StaticClass()->GetName();
-	const bool bAssetsContainsLevel = SelectedAssets.ContainsByPredicate([&WorldAssetName](const FAssetData& AssetData)
+	const bool bSelectedAssetsContainsWorld = SelectedAssets.ContainsByPredicate([&WorldAssetName](const FAssetData& AssetData)
 	{
 		return AssetData.AssetClassPath.GetAssetName() == WorldAssetName;
 	});
-	const bool bCanRevertToStatusBranch = !bAssetsContainsLevel;
+	const bool bCanRevertToStatusBranch = !bSelectedAssetsContainsWorld;
 
 	MenuBuilder.AddMenuEntry(
 		FText::Format(LOCTEXT("StatusRevert", "Revert to status branch: {0}"), FText::FromString(BranchName)),
