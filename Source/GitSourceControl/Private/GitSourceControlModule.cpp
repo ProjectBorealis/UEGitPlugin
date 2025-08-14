@@ -219,10 +219,16 @@ void FGitSourceControlModule::CreateGitContentBrowserAssetMenu(FMenuBuilder& Men
 		FUIAction(
 			FExecuteAction::CreateLambda([SelectedAssets, BranchName]
 			{
-			   const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
-			   const FString& PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
-			   const FString& PathToRepositoryRoot = GitSourceControl.GetProvider().GetPathToRepositoryRoot();
-			   GitSourceControlUtils::SyncAssetsFromBranch(PathToGitBinary, PathToRepositoryRoot, SelectedAssets, BranchName);
+				const FText Message = FText::Format(LOCTEXT("StatusRevertAskForConfirmation", "Are you sure you want to revert the selected files to status branch {0}"), FText::FromString(BranchName));
+				const EAppReturnType::Type ConfirmationAnswer = FMessageDialog::Open(EAppMsgCategory::Warning, EAppMsgType::YesNoCancel, Message);
+
+				if (ConfirmationAnswer == EAppReturnType::Yes)
+				{
+					const FGitSourceControlModule& GitSourceControl = FModuleManager::GetModuleChecked<FGitSourceControlModule>("GitSourceControl");
+					const FString& PathToGitBinary = GitSourceControl.AccessSettings().GetBinaryPath();
+					const FString& PathToRepositoryRoot = GitSourceControl.GetProvider().GetPathToRepositoryRoot();
+					GitSourceControlUtils::SyncAssetsFromBranch(PathToGitBinary, PathToRepositoryRoot, SelectedAssets, BranchName);
+				}
 			}),
 			FCanExecuteAction::CreateLambda([bCanRevertToStatusBranch]
 			{
