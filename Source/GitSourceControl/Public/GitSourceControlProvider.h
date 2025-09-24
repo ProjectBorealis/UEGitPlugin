@@ -91,6 +91,9 @@ public:
 #endif
 	virtual void Tick() override;
 	virtual TArray< TSharedRef<class ISourceControlLabel> > GetLabels( const FString& InMatchingSpec ) const override;
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 7
+	virtual bool GetStateBranchAtIndex(int32 BranchIndex, FString& OutBranchName) const override;
+#endif	
 
 #if ENGINE_MAJOR_VERSION >= 5
 	virtual TArray<FSourceControlChangelistRef> GetChangelists( EStateCacheUsage::Type InStateCacheUsage ) override;

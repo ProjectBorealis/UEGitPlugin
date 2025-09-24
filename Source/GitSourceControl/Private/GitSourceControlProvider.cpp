@@ -880,6 +880,20 @@ void FGitSourceControlProvider::RegisterStateBranches(const TArray<FString>& Bra
 	StatusBranchNamePatternsInternal = BranchNames;
 }
 
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 7
+bool FGitSourceControlProvider::GetStateBranchAtIndex(int32 BranchIndex, FString& OutBranchName) const
+{
+	auto StatusBranchNames = GetStatusBranchNames();
+
+	if (BranchIndex >= 0 && BranchIndex < StatusBranchNames.Num())
+	{
+		OutBranchName = StatusBranchNames[BranchIndex];
+		return true;
+	}
+	return false;
+}
+#endif
+
 int32 FGitSourceControlProvider::GetStateBranchIndex(const FString& StateBranchName) const
 {
 	// How do state branches indices work?
