@@ -408,7 +408,7 @@ FString FindGitBinaryPath()
 	FString GitBinaryPath = TEXT("/usr/local/git/bin/git");
 	bool bFound = CheckGitAvailability(GitBinaryPath);
 
-		// 2) Else, look for the version of git provided by Homebrew
+	// 2) Else, look for the version of git provided by Homebrew
 	if (!bFound)
 	{
 		GitBinaryPath = TEXT("/usr/local/bin/git");
