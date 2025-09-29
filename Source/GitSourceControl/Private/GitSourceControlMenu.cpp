@@ -305,9 +305,11 @@ void FGitSourceControlMenu::RevertClicked()
 	}
 
 	// make sure we update the SCC status of all packages (this could take a long time, so we will run it as a background task)
-	const TArray<FString> Filenames {
+	const TArray<FString> Filenames
+	{
 		FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),
 		FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()),
+		FPaths::ConvertRelativePathToFull(FPaths::ProjectPluginsDir()),
 		FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath())
 	};
 

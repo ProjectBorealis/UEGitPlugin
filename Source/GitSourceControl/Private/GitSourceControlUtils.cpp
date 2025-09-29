@@ -1469,10 +1469,17 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 
 
 	//const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
-	// Get the full remote status of the Content folder, since it's the only lockable folder we track in editor. 
+	// Get the full remote status of the Content and Plugins folder, since it's the only lockable folder we track in editor. 
 	// This shows any new files as well.
 	// Also update the status of `.checksum`.
-	TArray<FString> FilesToDiff{FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()), ".checksum", "Binaries/", "Plugins/"};
+	TArray<FString> FilesToDiff
+	{
+		FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),
+		".checksum",
+		"Binaries/",
+		FPaths::ConvertRelativePathToFull(FPaths::ProjectPluginsDir()),
+	};
+	
 	TArray<FString> ParametersLog{TEXT("--pretty="), TEXT("--name-only"), TEXT(""), TEXT("--")};
 	for (auto& Branch : BranchesToDiff)
 	{
