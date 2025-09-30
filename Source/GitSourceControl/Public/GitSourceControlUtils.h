@@ -167,7 +167,7 @@ bool GetCommitInfo(const FString& InPathToGitBinary, const FString& InRepository
  */
 bool GetRemoteUrl(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutRemoteUrl);
 
-static const TArray<FString>& GetImportantGitPaths();
+TArray<FString>GetImportantGitPaths();
 
 /**
  * Run a Git command - output is a string TArray.
