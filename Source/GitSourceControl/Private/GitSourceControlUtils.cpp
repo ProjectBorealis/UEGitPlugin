@@ -795,6 +795,17 @@ bool GetRemoteUrl(const FString& InPathToGitBinary, const FString& InRepositoryR
 	return bResults;
 }
 
+const TArray<FString>& GetImportantGitPaths()
+{
+	return
+	{
+		FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),
+		FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()),
+		FPaths::ConvertRelativePathToFull(FPaths::ProjectPluginsDir()),
+		FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath())
+	};
+}
+
 bool RunCommand(const FString& InCommand, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& InParameters,
 				const TArray<FString>& InFiles, TArray<FString>& OutResults, TArray<FString>& OutErrorMessages)
 {
