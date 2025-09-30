@@ -1467,6 +1467,11 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 
 	TMap<FString, FString> NewerFiles;
 
+	// Get a relative path to the Plugins folder from the repository root
+	// without any directory walking up the path
+	auto ProjectPluginsPathRepoRelative = FPaths::ConvertRelativePathToFull(FPaths::ProjectPluginsDir());
+	FPaths::MakePathRelativeTo(ProjectPluginsPathRepoRelative, GetData(InRepositoryRoot));
+	ProjectPluginsPathRepoRelative.Split(TEXT("/"), nullptr, &ProjectPluginsPathRepoRelative);
 
 	//const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
 	// Get the full remote status of the Content and Plugins folder, since it's the only lockable folder we track in editor. 
@@ -1523,7 +1528,7 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 				{
 					// Check if there's newer binaries pending on this branch
 					if (bCurrentBranch && (NewerFileName == TEXT(".checksum") || NewerFileName.StartsWith("Binaries/", ESearchCase::IgnoreCase) ||
-						NewerFileName.StartsWith("Plugins/", ESearchCase::IgnoreCase)))
+						NewerFileName.StartsWith(ProjectPluginsPathRepoRelative, ESearchCase::IgnoreCase)))
 					{
 						Provider.bPendingRestart = true;
 					}
