@@ -684,7 +684,7 @@ bool FGitFetchWorker::Execute(FGitSourceControlCommand& InCommand)
 	if (Operation->bUpdateStatus)
 	{
 		// Now update the status of all our files
-		const TArray<FString> ProjectDirs = GitSourceControlUtils::GetImportantGitPaths();
+		const TArray<FString> ProjectDirs = GitSourceControlUtils::GetSourceControlledAssetPaths();
 
 		TMap<FString, FGitSourceControlState> UpdatedStates;
 		InCommand.bCommandSuccessful = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking,
@@ -747,7 +747,7 @@ bool FGitUpdateStatusWorker::Execute(FGitSourceControlCommand& InCommand)
 	else
 	{
 		// no path provided: only update the status of assets in Content/ directory and also Config files
-		const TArray<FString> ProjectDirs = GitSourceControlUtils::GetImportantGitPaths();
+		const TArray<FString> ProjectDirs = GitSourceControlUtils::GetSourceControlledAssetPaths();
 		
 		TMap<FString, FGitSourceControlState> UpdatedStates;
 		InCommand.bCommandSuccessful = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking, ProjectDirs, InCommand.ResultInfo.ErrorMessages, UpdatedStates);

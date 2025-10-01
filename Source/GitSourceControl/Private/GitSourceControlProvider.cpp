@@ -172,7 +172,7 @@ void FGitSourceControlProvider::CheckRepositoryStatus()
 				}
 			}
 
-			const TArray<FString> ProjectDirs = GitSourceControlUtils::GetImportantGitPaths();
+			const TArray<FString> ProjectDirs = GitSourceControlUtils::GetSourceControlledAssetPaths();
 
 			TArray<FString> StatusErrorMessages;
 			if (!GitSourceControlUtils::RunUpdateStatus(PathToGitBinary, PathToRepositoryRoot, bUsingGitLfsLocking, ProjectDirs, StatusErrorMessages, States))

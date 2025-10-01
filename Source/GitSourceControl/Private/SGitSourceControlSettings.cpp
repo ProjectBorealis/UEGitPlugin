@@ -704,7 +704,7 @@ FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
 	{
 		// List of files to add to Revision Control (.uproject, Config/, Content/, Plugins/, Source/ files and .gitignore/.gitattributes if any)
 		TArray<FString> ProjectFiles;
-		for (const FString& Path : GitSourceControlUtils::GetImportantGitPaths())
+		for (const FString& Path : GitSourceControlUtils::GetSourceControlledAssetPaths())
 		{
 			ProjectFiles.Add(Path);
 		}
