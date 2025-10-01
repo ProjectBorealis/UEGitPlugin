@@ -1478,11 +1478,9 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 
 	TMap<FString, FString> NewerFiles;
 
-	// Get a relative path to the Plugins folder from the repository root
-	// without any directory walking up the path
-	auto ProjectPluginsPathRepoRelative = FPaths::ConvertRelativePathToFull(FPaths::ProjectPluginsDir());
-	FPaths::MakePathRelativeTo(ProjectPluginsPathRepoRelative, GetData(InRepositoryRoot));
-	ProjectPluginsPathRepoRelative.Split(TEXT("/"), nullptr, &ProjectPluginsPathRepoRelative);
+	const FString AbsoluteProjectPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+	const FString AbsolutePluginsPath = FPaths::Combine(AbsoluteProjectPath, "Plugins/");
+	const FString AbsoluteBinariesPath = FPaths::Combine(AbsoluteProjectPath, "Binaries/");
 
 	//const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
 	// Get the full remote status of the Content and Plugins folder, since it's the only lockable folder we track in editor. 
@@ -1492,8 +1490,8 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 	{
 		FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),
 		".checksum",
-		"Binaries/",
-		FPaths::ConvertRelativePathToFull(FPaths::ProjectPluginsDir()),
+		AbsoluteBinariesPath,
+		AbsolutePluginsPath,
 	};
 	
 	TArray<FString> ParametersLog{TEXT("--pretty="), TEXT("--name-only"), TEXT(""), TEXT("--")};
@@ -1534,18 +1532,20 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 
 			for (const FString& NewerFileName : Intersection)
 			{
+				const FString& NewerFilePath = FPaths::ConvertRelativePathToFull(InRepositoryRoot, NewerFileName);
+
 				// Don't care about mergeable files (.collection, .ini, .uproject, etc)
 				if (!IsFileLFSLockable(NewerFileName))
 				{
 					// Check if there's newer binaries pending on this branch
-					if (bCurrentBranch && (NewerFileName == TEXT(".checksum") || NewerFileName.StartsWith("Binaries/", ESearchCase::IgnoreCase) ||
-						NewerFileName.StartsWith(ProjectPluginsPathRepoRelative, ESearchCase::IgnoreCase)))
+					if (bCurrentBranch && (NewerFileName == TEXT(".checksum") || NewerFilePath.StartsWith(AbsoluteBinariesPath, ESearchCase::IgnoreCase) ||
+						NewerFilePath.StartsWith(AbsolutePluginsPath, ESearchCase::IgnoreCase)))
 					{
 						Provider.bPendingRestart = true;
 					}
 					continue;
 				}
-				const FString& NewerFilePath = FPaths::ConvertRelativePathToFull(InRepositoryRoot, NewerFileName);
+
 				if (bCurrentBranch || !NewerFiles.Contains(NewerFilePath))
 				{
 					NewerFiles.Add(NewerFilePath, Branch);
