@@ -1481,15 +1481,16 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 	const FString AbsoluteProjectPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
 	const FString AbsolutePluginsPath = FPaths::Combine(AbsoluteProjectPath, "Plugins/");
 	const FString AbsoluteBinariesPath = FPaths::Combine(AbsoluteProjectPath, "Binaries/");
+	const FString AbsoluteChecksumPath = FPaths::Combine(AbsoluteProjectPath, ".checksum");
 
 	//const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
 	// Get the full remote status of the Content and Plugins folder, since it's the only lockable folder we track in editor. 
 	// This shows any new files as well.
 	// Also update the status of `.checksum`.
-	TArray<FString> FilesToDiff
+	const TArray<FString> FilesToDiff
 	{
 		FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),
-		".checksum",
+		AbsoluteChecksumPath,
 		AbsoluteBinariesPath,
 		AbsolutePluginsPath,
 	};
@@ -1538,7 +1539,7 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 				if (!IsFileLFSLockable(NewerFileName))
 				{
 					// Check if there's newer binaries pending on this branch
-					if (bCurrentBranch && (NewerFileName == TEXT(".checksum") || NewerFilePath.StartsWith(AbsoluteBinariesPath, ESearchCase::IgnoreCase) ||
+					if (bCurrentBranch && (NewerFilePath == AbsoluteChecksumPath || NewerFilePath.StartsWith(AbsoluteBinariesPath, ESearchCase::IgnoreCase) ||
 						NewerFilePath.StartsWith(AbsolutePluginsPath, ESearchCase::IgnoreCase)))
 					{
 						Provider.bPendingRestart = true;
