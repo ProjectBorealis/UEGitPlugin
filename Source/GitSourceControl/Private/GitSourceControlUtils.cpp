@@ -1478,10 +1478,10 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 
 	TMap<FString, FString> NewerFiles;
 
-	const FString AbsoluteProjectPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
-	const FString AbsolutePluginsPath = FPaths::Combine(AbsoluteProjectPath, "Plugins/");
-	const FString AbsoluteBinariesPath = FPaths::Combine(AbsoluteProjectPath, "Binaries/");
-	const FString AbsoluteChecksumPath = FPaths::Combine(AbsoluteProjectPath, ".checksum");
+	const FString AbsoluteProjectDirPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+	const FString AbsolutePluginsPath = FPaths::Combine(AbsoluteProjectDirPath, "Plugins/");
+	const FString AbsoluteBinariesPath = FPaths::Combine(AbsoluteProjectDirPath, "Binaries/");
+	const FString AbsoluteChecksumPath = FPaths::Combine(AbsoluteProjectDirPath, ".checksum");
 
 	//const TArray<FString>& RelativeFiles = RelativeFilenames(Files, InRepositoryRoot);
 	// Get the full remote status of the Content and Plugins folder, since it's the only lockable folder we track in editor. 
