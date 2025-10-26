@@ -101,11 +101,8 @@ bool FGitSourceControlMenu::CanCommit() const
 {
 	// The 'Submit Content' operation could lead to a world reload (in UEFN) that takes the user out of their selected editor mode.
 	// Piggy back on the 'CanAutoSave' functionality to determine if now is a good time to trigger a 'Submit Content' SCC operation.
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 6
+
 	return GLevelEditorModeTools().CanAutoSave() && FSourceControlWindows::CanChoosePackagesToCheckIn();
-#else
-	return true;
-#endif
 }
 
 /// Prompt to save or discard all packages
