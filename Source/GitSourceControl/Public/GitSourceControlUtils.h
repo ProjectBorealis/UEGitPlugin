@@ -167,6 +167,9 @@ bool GetCommitInfo(const FString& InPathToGitBinary, const FString& InRepository
  */
 bool GetRemoteUrl(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutRemoteUrl);
 
+// A list of asset paths that we will always check locks, status, etc on startup and periodically 
+TArray<FString> GetSourceControlledAssetPaths();
+
 /**
  * Run a Git command - output is a string TArray.
  *

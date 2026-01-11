@@ -702,11 +702,13 @@ FReply SGitSourceControlSettings::OnClickedInitializeGitRepository()
 	GitSourceControl.GetProvider().CheckGitAvailability();
 	if(GitSourceControl.GetProvider().IsAvailable())
 	{
-		// List of files to add to Revision Control (.uproject, Config/, Content/, Source/ files and .gitignore/.gitattributes if any)
+		// List of files to add to Revision Control (.uproject, Config/, Content/, Plugins/, Source/ files and .gitignore/.gitattributes if any)
 		TArray<FString> ProjectFiles;
-		ProjectFiles.Add(FPaths::ProjectContentDir());
-		ProjectFiles.Add(FPaths::ProjectConfigDir());
-		ProjectFiles.Add(FPaths::GetProjectFilePath());
+		for (const FString& Path : GitSourceControlUtils::GetSourceControlledAssetPaths())
+		{
+			ProjectFiles.Add(Path);
+		}
+
 		if (FPaths::DirectoryExists(FPaths::GameSourceDir()))
 		{
 			ProjectFiles.Add(FPaths::GameSourceDir());

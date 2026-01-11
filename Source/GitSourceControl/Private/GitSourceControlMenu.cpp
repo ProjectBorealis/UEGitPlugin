@@ -305,11 +305,7 @@ void FGitSourceControlMenu::RevertClicked()
 	}
 
 	// make sure we update the SCC status of all packages (this could take a long time, so we will run it as a background task)
-	const TArray<FString> Filenames {
-		FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir()),
-		FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()),
-		FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath())
-	};
+	const TArray<FString> Filenames = GitSourceControlUtils::GetSourceControlledAssetPaths();
 
 	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
 	FSourceControlOperationRef Operation = ISourceControlOperation::Create<FUpdateStatus>();
@@ -542,18 +538,22 @@ void FGitSourceControlMenu::AddMenuExtension(FToolMenuSection& Builder)
 void FGitSourceControlMenu::AddMenuExtension(FMenuBuilder& Builder)
 #endif
 {
+	// UE 5.6 doesn't show the Submit Content button if changelists are enabled
 #if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 6
-	// UE 5.6 removed the submit content button, so re-create one here
-	Builder.AddMenuEntry(
-		"CommitAndPush",
-		LOCTEXT("GitCommit",				"Submit Content"),
-		LOCTEXT("GitPushTooltip",		"Opens a dialog with check in options for content and levels."),
-		FSlateIcon(FAppStyle::GetAppStyleSetName(), "SourceControl.Actions.Submit"),
-		FUIAction(
-			FExecuteAction::CreateRaw(this, &FGitSourceControlMenu::CommitClicked),
-			FCanExecuteAction::CreateRaw(this, &FGitSourceControlMenu::CanCommit)
-		)
-	);
+	const FGitSourceControlProvider& Provider = FGitSourceControlModule::Get().GetProvider();
+	if (Provider.UsesChangelists())
+	{
+		Builder.AddMenuEntry(
+			"CommitAndPush",
+			LOCTEXT("GitCommit",				"Submit Content"),
+			LOCTEXT("GitPushTooltip",		"Opens a dialog with check in options for content and levels."),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "SourceControl.Actions.Submit"),
+			FUIAction(
+				FExecuteAction::CreateRaw(this, &FGitSourceControlMenu::CommitClicked),
+				FCanExecuteAction::CreateRaw(this, &FGitSourceControlMenu::CanCommit)
+			)
+		);
+	}
 #endif
 	
 	Builder.AddMenuEntry(
