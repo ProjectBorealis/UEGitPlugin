@@ -1,7 +1,23 @@
 # Unreal Engine Git Plugin
 
-This is a refactor of the [Git LFS 2 plugin by SRombauts](https://github.com/SRombauts/UE4GitPlugin), with lessons learned from production
-that include performance optimizations, new features and workflow improvements.
+This is a refactor of the [Git LFS 2 plugin by SRombauts](https://github.com/SRombauts/UE4GitPlugin), with lessons learned from production that include performance optimizations, new features and workflow improvements.
+
+## Compatibility
+
+**UE 5.6.1 — Verified March 2026**
+
+Compiled and verified working on Unreal Engine 5.6.1 with zero source code modifications required.
+
+**Tested setup:**
+- UE 5.6.1
+- Windows 11
+- Git for Windows 2.x
+- GitHub with LFS enabled
+- Visual Studio 2022, Development Editor configuration
+
+**Windows git-lfs.exe note:**
+
+The plugin expects `git-lfs.exe` at `Plugins/GitSourceControl/git-lfs.exe` in your project directory. The binary shipped in this repo is named `git-lfs` (no extension) and is a Linux binary — it will not run on Windows. To fix this, copy `git-lfs.exe` from your Git installation at `C:\Program Files\Git\mingw64\bin\git-lfs.exe` into your project's `Plugins/GitSourceControl/` folder.
 
 ## Features
 
@@ -25,9 +41,7 @@ that include performance optimizations, new features and workflow improvements.
 
 ## Installation
 
-Either install this into your project's `Plugins/` folder, or if you would like to install to the engine,
-rename `Engine/Plugins/Developer/GitSourceControl.uplugin` to `Engine/Plugins/Developer/GitSourceControl.uplugin.disabled` 
-and then install this plugin to the `Engine/Plugins` folder.
+Either install this into your project's `Plugins/` folder, or if you would like to install to the engine, rename `Engine/Plugins/Developer/GitSourceControl.uplugin` to `Engine/Plugins/Developer/GitSourceControl.uplugin.disabled` and then install this plugin to the `Engine/Plugins` folder.
 
 Please note that we do not provide precompiled binaries at this time, so you will need to use Visual Studio to compile the plugin.
 
@@ -78,7 +92,7 @@ bPromptForCheckoutOnAssetModification=True
 
 ---
 
-* As another general usability improvement, you can set the editor to load any checked out packages for faster loading. In `Config/DefaultEditorPerProjectUserSettings.ini`: 
+* As another general usability improvement, you can set the editor to load any checked out packages for faster loading. In `Config/DefaultEditorPerProjectUserSettings.ini`:
 
 ```ini
 [/Script/UnrealEd.EditorPerProjectUserSettings]
@@ -129,10 +143,11 @@ void UMyEdEngine::Init(IEngineLoop* InEngineLoop)
 UnrealEdEngine=/Script/MyModule.MyEdEngine
 ```
 
-5. In this example, `origin/promoted` is the highest tested branch. Any changes in this branch are asset changes that do not need testing, and get automatically merged down to `origin/develop`. This may be extended to involve multiple branches, like `origin/trunk`, `origin/main`, or whatever you may prefer, where changes may be cascaded from most-stable to least-stable automatically. With this paradigm, changes from less-stable branches are manually promoted to more-stable branches after a merge review.   
-**NOTE**: The second argument in `RegisterStateBranches` is Perforce specific and is ignored, but is meant to point to the relative content path.
+5. In this example, `origin/promoted` is the highest tested branch. Any changes in this branch are asset changes that do not need testing, and get automatically merged down to `origin/develop`. This may be extended to involve multiple branches, like `origin/trunk`, `origin/main`, or whatever you may prefer, where changes may be cascaded from most-stable to least-stable automatically. With this paradigm, changes from less-stable branches are manually promoted to more-stable branches after a merge review.
+NOTE: The second argument in `RegisterStateBranches` is Perforce specific and is ignored, but is meant to point to the relative content path.
 
 6. If you decide to implement the status branch code in a editor-only module, ensure the loading phase in the editor module is set to `Default` in your .uproject settings, like so: (Otherwise, the editor will likely have difficulty finding your subclass'd UUnrealEdEngine class.)
+
 ```json
 		{
 			"Name": "MyTestProjectEditor",
@@ -141,27 +156,26 @@ UnrealEdEngine=/Script/MyModule.MyEdEngine
 		}
 ```
 
-## Status Branches - Conceptual Overview  
+## Status Branches - Conceptual Overview
 
 This feature helps ensure you're not locking and modifying files that are out-of-date.
 
-If a user is on **any** branch, regardless if it's tracking a branch included in the 'status branch' list, they will be **unable to checkout** files that have **more recent changes on the remote server** than they have on the local branch, **provided** those changes are in a branch in the **'status branch' list.**
-* **If** the **remote branch with the changes** is **not** in the status branch list, the user will **not be notified of remote changes.**
-* **If** the user makes changes to a **local branch** and **switches** to **another local branch**, the user will **not** be notified of their **own changes** to the other branch, **regardless** if it's in the 'status branch' list or not **(this feature only checks remote branches!)**
-* **If** the user is tracking a remote branch that is in the status branch list, they will be **unable to lock stale files** (files that are changed up-stream).
+If a user is on any branch, regardless if it's tracking a branch included in the 'status branch' list, they will be unable to checkout files that have more recent changes on the remote server than they have on the local branch, provided those changes are in a branch in the 'status branch' list.
+
+* If the remote branch with the changes is not in the status branch list, the user will not be notified of remote changes.
+* If the user makes changes to a local branch and switches to another local branch, the user will not be notified of their own changes to the other branch, regardless if it's in the 'status branch' list or not (this feature only checks remote branches!)
+* If the user is tracking a remote branch that is in the status branch list, they will be unable to lock stale files (files that are changed up-stream).
 
 ![Status Branch Overview](https://i.imgur.com/bY3igQI.png)
 
-#### Note: 
-
-It's important to only release file locks after changes have been pushed to the server. The system has no way to determine that there are local changes to a file, so if you modify a locked file it's imperative that you push the changes to a remote branch included in the 'status branch' list so other users can see those changes and avoid modifying a stale file. Otherwise, you'll want to keep the file locked!
+Note: It's important to only release file locks after changes have been pushed to the server. The system has no way to determine that there are local changes to a file, so if you modify a locked file it's imperative that you push the changes to a remote branch included in the 'status branch' list so other users can see those changes and avoid modifying a stale file. Otherwise, you'll want to keep the file locked!
 
 Additionally, if you're switching back and forth between two or more branches locally you'll need to keep track of what branch you've made changes to locked files, as the system will not prevent you from modifying the same locked file on multiple different branches!
 
-#### Real-world example of the 'status branch' feature:
+Real-world example of the 'status branch' feature:
 
-* The user has checked out the `develop` branch, but there is an up-stream change on `origin/develop` for `FirstPersonProjectileMaterial`, indicated with the **yellow** exclamation mark.
-* There are also newer upstream changes on the `promoted` branch, indicated with the **red** exclamation mark. (NOTE: The plugin does not currently report the branch name the changes are on.)
+* The user has checked out the `develop` branch, but there is an up-stream change on `origin/develop` for `FirstPersonProjectileMaterial`, indicated with the yellow exclamation mark.
+* There are also newer upstream changes on the `promoted` branch, indicated with the red exclamation mark. (NOTE: The plugin does not currently report the branch name the changes are on.)
 
 ![Status Branch Feature in Action](https://iili.io/1HqPhg.webp)
 
@@ -173,44 +187,44 @@ Generally speaking, the field next to `Uses Git LFS 2 File Locking workflow` sho
 (If you find that the checkmark turns blue shortly after checking out a file, then the LFS name is incorrect, update it to the name it says checked out the file)
 
 ![Connecting to Revision Control](https://iili.io/1HzKep.webp)
-  
+
 ### Checking out (locking) one or more assets:
 
-You can lock individual files or you can hold `shift` to select and lock multiple at once, which can be quite a bit faster than locking them individually.
+You can lock individual files or you can hold shift to select and lock multiple at once, which can be quite a bit faster than locking them individually.
 
 ![Checking out Multiple Assets](https://iili.io/1HYog9.webp)
-  
+
 ### Unlocking one or more un-changed assets:
 
-You can unlock individual files or you can hold `shift` to select and unlock multiple at once, which can be quite a bit faster than unlocking them individually.
+You can unlock individual files or you can hold shift to select and unlock multiple at once, which can be quite a bit faster than unlocking them individually.
 
 ![Checking out Multiple Assets](https://iili.io/1HYzJe.webp)
-  
+
 ### Locking every asset within a folder:
 
-You can lock every file in a folder by right clicking on the folder and clicking `Check Out`.
+You can lock every file in a folder by right clicking on the folder and clicking Check Out.
 
 ![Lock every asset in a folder](https://iili.io/1HYCfS.webp)
-  
+
 ### Viewing locks:
 
-View the owner of a file lock simply by hovering over the asset icon. Your locked files have a **red** check-mark, other user's locks will show up with a **blue** checkmark.
+View the owner of a file lock simply by hovering over the asset icon. Your locked files have a red check-mark, other user's locks will show up with a blue checkmark.
 
 ![Viewing file locks](https://iili.io/1HYn07.webp)
-  
+
 ### Pulling latest from within the editor:
 
 You can pull the latest changes from your currently checked-out branch within the editor. This doesn't always work smoothly, but effort has been made to improve this process. It is still recommended to always save changes before doing this, however.
 
 ![Pulling latest](https://iili.io/1HhumN.webp)
-  
+
 ### Submitting changes up-stream:
 
-`Submit to revision control` will create a local commit, push it, and release your file lock. 
-(While you cannot check out branches within the plugin, it is fully branch-aware! In this scenario, the user has checked out the `develop` branch, so their change is pushed to `origin/develop`.)
-   
+Submit to revision control will create a local commit, push it, and release your file lock.
+(While you cannot check out branches within the plugin, it is fully branch-aware! In this scenario, the user has checked out the develop branch, so their change is pushed to origin/develop.)
+
 ![Submitting to revision control](https://iili.io/1HhI7R.webp)
-  
+
 ## Additional Resources
 
-You can learn more about how we set up our Git repository at [the PBCore wiki](https://github.com/ProjectBorealis/PBCore/wiki).
+You can learn more about how we set up our Git repository at the PBCore wiki: https://github.com/ProjectBorealis/PBCore/wiki
