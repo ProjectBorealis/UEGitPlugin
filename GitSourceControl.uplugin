@@ -19,5 +19,15 @@
 			"Type": "UncookedOnly",
 			"LoadingPhase": "Default"
 		}
-	]
+	],
+	"PreBuildSteps":
+	{
+		"Mac": [
+			"chmod +x \"$(PluginDir)/git-lfs-mac-amd64\"",
+			"chmod +x \"$(PluginDir)/git-lfs-mac-arm64\""
+		],
+		"Linux": [
+			"chmod +x \"$(PluginDir)/git-lfs\""
+		]
+	},
 }
