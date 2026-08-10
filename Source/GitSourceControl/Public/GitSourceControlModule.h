@@ -103,7 +103,7 @@ public:
 		return GitSourceControlProvider;
 	}
 
-	GITSOURCECONTROL_API static const TArray< FString > & GetEmptyStringArray()
+	static const TArray< FString > & GetEmptyStringArray()
 	{
 		return EmptyStringArray;
 	}

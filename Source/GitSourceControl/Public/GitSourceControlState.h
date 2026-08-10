@@ -125,7 +125,7 @@ struct FGitState
 	FString HeadBranch;
 };
 
-class GITSOURCECONTROL_API FGitSourceControlState : public ISourceControlState
+class FGitSourceControlState : public ISourceControlState
 {
 public:
     explicit FGitSourceControlState(const FString &InLocalFilename) :

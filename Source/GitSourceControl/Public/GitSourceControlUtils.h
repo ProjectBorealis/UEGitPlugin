@@ -84,7 +84,7 @@ FString FindGitBinaryPath();
 /**
  * Run a Git "version" command to check the availability of the binary.
  * @param InPathToGitBinary		The path to the Git binary
- * @param OutGitVersion         If provided, populate with the git version parsed from "version" command
+ * @param OutVersion            If provided, populate with the git version parsed from "version" command
  * @returns true if the command succeeded and returned no errors
  */
 bool CheckGitAvailability(const FString& InPathToGitBinary, FGitVersion* OutVersion = nullptr);
@@ -99,14 +99,14 @@ bool CheckGitAvailability(const FString& InPathToGitBinary, FGitVersion* OutVers
 	/**
 		* Check git for various optional capabilities by various means.
 		* @param InPathToGitBinary		The path to the Git binary
-		* @param OutGitVersion			If provided, populate with the git version parsed from "version" command
+		* @param OutVersion			    If provided, populate with the git version parsed from "version" command
 		*/
 	void FindGitCapabilities(const FString& InPathToGitBinary, FGitVersion* OutVersion);
 
 	/**
 		* Run a Git "lfs" command to check the availability of the "Large File System" extension.
 		* @param InPathToGitBinary		The path to the Git binary
-		* @param OutGitVersion			If provided, populate with the git version parsed from "version" command
+		* @param OutVersion			If provided, populate with the git version parsed from "version" command
 		*/
 	void FindGitLfsCapabilities(const FString& InPathToGitBinary, FGitVersion* OutVersion);
 
@@ -123,7 +123,7 @@ bool FindRootDirectory(const FString& InPath, FString& OutRepositoryRoot);
  * @param	InPathToGitBinary	The path to the Git binary
  * @param	InRepositoryRoot	The Git repository from where to run the command - usually the Game directory (can be empty)
  * @param	OutUserName			Name of the Git user configured for this repository (or globaly)
- * @param	OutEmailName		E-mail of the Git user configured for this repository (or globaly)
+ * @param	OutUserEmail		E-mail of the Git user configured for this repository (or globaly)
  */
 void GetUserConfig(const FString& InPathToGitBinary, const FString& InRepositoryRoot, FString& OutUserName, FString& OutUserEmail);
 
@@ -182,7 +182,7 @@ TArray<FString> GetSourceControlledAssetPaths();
  * @param	OutErrorMessages	Any errors (from StdErr) as an array per-line
  * @returns true if the command succeeded and returned no errors
  */
-GITSOURCECONTROL_API  bool RunCommand( const FString & InCommand, const FString & InPathToGitBinary, const FString & InRepositoryRoot, const TArray< FString > & InParameters, const TArray< FString > & InFiles, TArray< FString > & OutResults, TArray< FString > & OutErrorMessages );
+bool RunCommand( const FString & InCommand, const FString & InPathToGitBinary, const FString & InRepositoryRoot, const TArray< FString > & InParameters, const TArray< FString > & InFiles, TArray< FString > & OutResults, TArray< FString > & OutErrorMessages );
 bool RunCommandInternalRaw(const FString& InCommand, const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& InParameters, const TArray<FString>& InFiles, FString& OutResults, FString& OutErrors, const int32 ExpectedReturnCode = 0);
 
 /**
@@ -205,7 +205,7 @@ bool ListFilesInDirectoryRecurse(const FString& InPathToGitBinary, const FString
  *
  * @param	InPathToGitBinary	The path to the Git binary
  * @param	InRepositoryRoot	The Git repository from where to run the command - usually the Game directory
- * @param	InParameter			The parameters to the Git commit command
+ * @param	InParameters		The parameters to the Git commit command
  * @param	InFiles				The files to be operated on
  * @param	OutErrorMessages	Any errors (from StdErr) as an array per-line
  * @returns true if the command succeeded and returned no errors
@@ -225,7 +225,7 @@ bool RunCommit(const FString& InPathToGitBinary, const FString& InRepositoryRoot
  * @param[out]	InResults			Results from the "status" command
  * @param[out]	OutStates			States of files for witch the status has been gathered (distinct than InFiles in case of a "directory status")
  */
-GITSOURCECONTROL_API void ParseStatusResults( const FString & InPathToGitBinary, const FString & InRepositoryRoot, const bool InUsingLfsLocking, const TArray< FString > & InFiles, const TMap< FString, FString > & InResults, TMap< FString, FGitSourceControlState > & OutStates );
+void ParseStatusResults( const FString & InPathToGitBinary, const FString & InRepositoryRoot, const bool InUsingLfsLocking, const TArray< FString > & InFiles, const TMap< FString, FString > & InResults, TMap< FString, FGitSourceControlState > & OutStates );
 
 /**
  * Checks remote branches to see file differences.
@@ -342,13 +342,13 @@ void RemoveRedundantErrors(FGitSourceControlCommand& InCommand, const FString& I
  * Helper function for various commands to update cached states.
  * @returns true if any states were updated
  */
-GITSOURCECONTROL_API bool UpdateCachedStates( const TMap< const FString, FGitState > & InResults );
+bool UpdateCachedStates( const TMap< const FString, FGitState > & InResults );
 
 /**
 * Helper function for various commands to collect new states.
 * @returns true if any states were updated
 */
-GITSOURCECONTROL_API bool CollectNewStates( const TMap< FString, FGitSourceControlState > & InStates, TMap< const FString, FGitState > & OutResults );
+bool CollectNewStates( const TMap< FString, FGitSourceControlState > & InStates, TMap< const FString, FGitState > & OutResults );
 	
 /**
  * Helper function for various commands to collect new states.
@@ -382,12 +382,12 @@ bool IsFileLFSLockable(const FString& InFile);
  */
 bool CheckLFSLockable(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const TArray<FString>& InFiles, TArray<FString>& OutErrorMessages);
 
-GITSOURCECONTROL_API bool FetchRemote( const FString & InPathToGitBinary, const FString & InPathToRepositoryRoot, bool InUsingGitLfsLocking, TArray< FString > & OutResults, TArray< FString > & OutErrorMessages );
+bool FetchRemote( const FString & InPathToGitBinary, const FString & InPathToRepositoryRoot, bool InUsingGitLfsLocking, TArray< FString > & OutResults, TArray< FString > & OutErrorMessages );
 
 bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToRepositoryRoot, const TArray<FString>& InFiles, TArray<FString>& OutFiles,
 				TArray<FString>& OutResults, TArray<FString>& OutErrorMessages);
 
 
-GITSOURCECONTROL_API TSharedPtr< class ISourceControlRevision, ESPMode::ThreadSafe > GetOriginRevisionOnBranch( const FString & InPathToGitBinary, const FString & InRepositoryRoot, const FString & InRelativeFileName, TArray< FString > & OutErrorMessages, const FString & BranchName );
+TSharedPtr< class ISourceControlRevision, ESPMode::ThreadSafe > GetOriginRevisionOnBranch( const FString & InPathToGitBinary, const FString & InRepositoryRoot, const FString & InRelativeFileName, TArray< FString > & OutErrorMessages, const FString & BranchName );
 
 }

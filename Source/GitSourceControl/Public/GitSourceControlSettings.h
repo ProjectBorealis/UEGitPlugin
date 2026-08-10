@@ -8,7 +8,7 @@
 #include "Containers/UnrealString.h"
 #include "HAL/CriticalSection.h"
 
-class GITSOURCECONTROL_API FGitSourceControlSettings
+class FGitSourceControlSettings
 {
 public:
 	/** Get the Git Binary Path */

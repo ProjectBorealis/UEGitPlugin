@@ -18,7 +18,7 @@ class FGitSourceControlCommand;
 
 DECLARE_DELEGATE_RetVal(FGitSourceControlWorkerRef, FGetGitSourceControlWorker)
 
-/// Git version and capabilites extracted from the string "git version 2.11.0.windows.3"
+/// Git version and capabilities extracted from the string "git version 2.11.0.windows.3"
 struct FGitVersion
 {
 	// Git version extracted from the string "git version 2.11.0.windows.3" (Windows), "git version 2.11.0" (Linux/Mac/Cygwin/WSL) or "git version 2.31.1.vfs.0.3" (Microsoft)
@@ -43,7 +43,7 @@ struct FGitVersion
 	}
 };
 
-class GITSOURCECONTROL_API FGitSourceControlProvider final : public ISourceControlProvider
+class FGitSourceControlProvider final : public ISourceControlProvider
 {
 public:
 	/* ISourceControlProvider implementation */
