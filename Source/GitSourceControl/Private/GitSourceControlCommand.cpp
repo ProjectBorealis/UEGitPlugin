@@ -31,6 +31,7 @@ FGitSourceControlCommand::FGitSourceControlCommand(const TSharedRef<class ISourc
 void FGitSourceControlCommand::UpdateRepositoryRootIfSubmodule(TArray<FString>& AbsoluteFilePaths)
 {
 	PathToRepositoryRoot = GitSourceControlUtils::ChangeRepositoryRootIfSubmodule(AbsoluteFilePaths, PathToRepositoryRoot);
+	PathToGitRoot = PathToRepositoryRoot;
 }
 
 bool FGitSourceControlCommand::DoWork()

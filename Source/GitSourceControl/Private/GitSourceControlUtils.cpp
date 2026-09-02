@@ -80,40 +80,56 @@ const FString& FGitScopedTempFile::GetFilename() const
 	return Filename;
 }
 
-FDateTime FGitLockedFilesCache::LastUpdated = FDateTime::MinValue();
-TMap<FString, FString> FGitLockedFilesCache::LockedFiles = TMap<FString, FString>();
+TMap<FString, FDateTime> FGitLockedFilesCache::LastUpdated;
+TMap<FString, TMap<FString, FString>> FGitLockedFilesCache::LockedFiles = TMap<FString, TMap<FString, FString>>();
 
-void FGitLockedFilesCache::SetLockedFiles(const TMap<FString, FString>& newLocks)
-{	
-	for (auto lock : LockedFiles)
+TMap<FString, FString> FGitLockedFilesCache::GetLockedFiles(const FString& RepositoryRoot)
+{
+	if (const TMap<FString, FString>* RepositoryLocks = LockedFiles.Find(RepositoryRoot))
 	{
-		if (!newLocks.Contains(lock.Key))
+		return *RepositoryLocks;
+	}
+	return TMap<FString, FString>();
+}
+
+void FGitLockedFilesCache::SetLockedFiles(const FString& RepositoryRoot, const TMap<FString, FString>& NewLocks)
+{	
+	TMap<FString, FString>& RepositoryLocks = LockedFiles.FindOrAdd(RepositoryRoot);
+	for (auto lock : RepositoryLocks)
+	{
+		if (!NewLocks.Contains(lock.Key))
 		{
 			OnFileLockChanged(lock.Key, lock.Value, false);
 		}
 	}
 	
-	for (auto lock : newLocks)
+	for (auto lock : NewLocks)
 	{		
-		if (!LockedFiles.Contains(lock.Key))
+		if (!RepositoryLocks.Contains(lock.Key))
 		{
 			OnFileLockChanged(lock.Key, lock.Value, true);
 		}		
 	}
 
-	LockedFiles = newLocks;
+	RepositoryLocks = NewLocks;
 }
 
-void FGitLockedFilesCache::AddLockedFile(const FString& filePath, const FString& lockUser)
+void FGitLockedFilesCache::AddLockedFile(const FString& RepositoryRoot, const FString& FilePath, const FString& LockUser)
 {
-	LockedFiles.Add(filePath, lockUser);
-	OnFileLockChanged(filePath, lockUser, true);
+	LockedFiles.FindOrAdd(RepositoryRoot).Add(FilePath, LockUser);
+	OnFileLockChanged(FilePath, LockUser, true);
 }
 
 void FGitLockedFilesCache::RemoveLockedFile(const FString& filePath)
 {
 	FString user;
-	LockedFiles.RemoveAndCopyValue(filePath, user);
+	for (auto& Repository : LockedFiles)
+	{
+		if (Repository.Value.RemoveAndCopyValue(filePath, user))
+		{
+			break;
+		}
+	}
 	OnFileLockChanged(filePath, user, false);
 }
 
@@ -1586,7 +1602,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, const FString& GitBinaryFallba
 	bool bCacheExpired = bInvalidateCache;
 	if (!bInvalidateCache)
 	{
-		const FTimespan CacheTimeElapsed = CurrentTime - FGitLockedFilesCache::LastUpdated;
+		const FTimespan CacheTimeElapsed = CurrentTime - FGitLockedFilesCache::LastUpdated.FindRef(InRepositoryRoot);
 		bCacheExpired = CacheTimeElapsed > CacheLimit;
 	}
 	bool bResult = false;
@@ -1607,8 +1623,8 @@ bool GetAllLocks(const FString& InRepositoryRoot, const FString& GitBinaryFallba
 #endif
 				OutLocks.Add(MoveTemp(LockFile.LocalFilename), MoveTemp(LockFile.LockUser));
 			}
-			FGitLockedFilesCache::LastUpdated = CurrentTime;
-			FGitLockedFilesCache::SetLockedFiles(OutLocks);
+			FGitLockedFilesCache::LastUpdated.Add(InRepositoryRoot, CurrentTime);
+			FGitLockedFilesCache::SetLockedFiles(InRepositoryRoot, OutLocks);
 			return bResult;
 		}
 		// We tried to invalidate the UE cache, but we failed for some reason. Try updating lock state from LFS cache.
@@ -1663,7 +1679,7 @@ bool GetAllLocks(const FString& InRepositoryRoot, const FString& GitBinaryFallba
 	if (!bResult)
 	{
 		// We can use our internally tracked local lock cache (an effective combination of --cached and --local)
-		OutLocks = FGitLockedFilesCache::GetLockedFiles();
+		OutLocks = FGitLockedFilesCache::GetLockedFiles(InRepositoryRoot);
 		bResult = true;
 	}
 	return bResult;
@@ -1753,8 +1769,11 @@ bool UpdateChangelistStateByCommand()
 bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InRepositoryRoot, const bool InUsingLfsLocking, const TArray<FString>& InFiles,
 					 TArray<FString>& OutErrorMessages, TMap<FString, FGitSourceControlState>& OutStates)
 {
+	TArray<FString> StatusFiles = InFiles;
+	const FString StatusRepositoryRoot = ChangeRepositoryRootIfSubmodule(StatusFiles, InRepositoryRoot);
+
 	// Remove files that aren't in the repository
-	const TArray<FString>& RepoFiles = InFiles.FilterByPredicate([InRepositoryRoot](const FString& File) { return File.StartsWith(InRepositoryRoot); });
+	const TArray<FString>& RepoFiles = StatusFiles.FilterByPredicate([StatusRepositoryRoot](const FString& File) { return File.StartsWith(StatusRepositoryRoot); });
 
 	if (!RepoFiles.Num())
 	{
@@ -1767,24 +1786,24 @@ bool RunUpdateStatus(const FString& InPathToGitBinary, const FString& InReposito
 	// We skip checking ignored since no one ignores files that Unreal would read in as revision controlled (Content/{*.uasset,*.umap},Config/*.ini).
 	TArray<FString> Results;
 	// avoid locking the index when not needed (useful for status updates)
-	const bool bResult = RunCommand(TEXT("--no-optional-locks status"), InPathToGitBinary, InRepositoryRoot, Parameters, RepoFiles, Results, OutErrorMessages);
+	const bool bResult = RunCommand(TEXT("--no-optional-locks status"), InPathToGitBinary, StatusRepositoryRoot, Parameters, RepoFiles, Results, OutErrorMessages);
 	TMap<FString, FString> ResultsMap;
 	for (const auto& Result : Results)
 	{
 		const FString& RelativeFilename = FilenameFromGitStatus(Result);
-		const FString& File = FPaths::ConvertRelativePathToFull(InRepositoryRoot, RelativeFilename);
+		const FString& File = FPaths::ConvertRelativePathToFull(StatusRepositoryRoot, RelativeFilename);
 		ResultsMap.Add(File, Result);
 	}
 	if (bResult)
 	{
-		ParseStatusResults(InPathToGitBinary, InRepositoryRoot, InUsingLfsLocking, RepoFiles, ResultsMap, OutStates);
+		ParseStatusResults(InPathToGitBinary, StatusRepositoryRoot, InUsingLfsLocking, RepoFiles, ResultsMap, OutStates);
 	}
 
 #if ENGINE_MAJOR_VERSION == 5
 	UpdateChangelistStateByCommand();
 #endif
 
-	CheckRemote(InPathToGitBinary, InRepositoryRoot, RepoFiles, OutErrorMessages, OutStates);
+	CheckRemote(InPathToGitBinary, StatusRepositoryRoot, RepoFiles, OutErrorMessages, OutStates);
 
 	return bResult;
 }
@@ -1810,9 +1829,10 @@ bool UpdateFileStagingOnSavedInternal(const FString& Filename)
 	{
 		TArray<FString> File;
 		File.Add(Filename);
+		const FString RepositoryRoot = ChangeRepositoryRootIfSubmodule(File, Provider.GetPathToRepositoryRoot());
 		TArray<FString> DummyResults;
 		TArray<FString> DummyMsgs;
-		bResult = RunCommand(TEXT("add"), Provider.GetGitBinaryPath(), Provider.GetPathToRepositoryRoot(), FGitSourceControlModule::GetEmptyStringArray(), File, DummyResults, DummyMsgs);
+		bResult = RunCommand(TEXT("add"), Provider.GetGitBinaryPath(), RepositoryRoot, FGitSourceControlModule::GetEmptyStringArray(), File, DummyResults, DummyMsgs);
 	}
 	
 	return bResult;

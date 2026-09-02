@@ -42,17 +42,17 @@ struct FGitVersion;
 class FGitLockedFilesCache
 {
 public:
-	static FDateTime LastUpdated;
+	static TMap<FString, FDateTime> LastUpdated;
 
- static const TMap<FString, FString>& GetLockedFiles() { return LockedFiles; }
- static void SetLockedFiles(const TMap<FString, FString>& newLocks);
- static void AddLockedFile(const FString& filePath, const FString& lockUser);
- static void RemoveLockedFile(const FString& filePath);
+	static TMap<FString, FString> GetLockedFiles(const FString& RepositoryRoot);
+	static void SetLockedFiles(const FString& RepositoryRoot, const TMap<FString, FString>& NewLocks);
+	static void AddLockedFile(const FString& RepositoryRoot, const FString& FilePath, const FString& LockUser);
+	static void RemoveLockedFile(const FString& filePath);
 
 private:
- static void OnFileLockChanged(const FString& filePath, const FString& lockUser, bool locked);
- // update local read/write state when our own lock statuses change
-	static TMap<FString, FString> LockedFiles;
+	static void OnFileLockChanged(const FString& filePath, const FString& lockUser, bool locked);
+	// update local read/write state when our own lock statuses change
+	static TMap<FString, TMap<FString, FString>> LockedFiles;
 };
 
 namespace GitSourceControlUtils
