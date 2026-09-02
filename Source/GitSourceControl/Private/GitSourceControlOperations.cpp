@@ -132,7 +132,7 @@ bool FGitCheckOutWorker::Execute(FGitSourceControlCommand& InCommand)
 		for (const auto& RelativeFile : RelativeFiles)
 		{
 			FString AbsoluteFile = FPaths::Combine(InCommand.PathToGitRoot, RelativeFile);
-			FGitLockedFilesCache::AddLockedFile(AbsoluteFile, LockUser);
+			FGitLockedFilesCache::AddLockedFile(InCommand.PathToGitRoot, AbsoluteFile, LockUser);
 			FPaths::NormalizeFilename(AbsoluteFile);
 			AbsoluteFiles.Add(AbsoluteFile);
 		}
