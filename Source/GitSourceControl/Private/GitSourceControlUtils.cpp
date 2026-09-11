@@ -1464,6 +1464,10 @@ void CheckRemote(const FString& InPathToGitBinary, const FString& InRepositoryRo
 		// Ensure that the remote branch is in there.
 		BranchesToDiff.Add(CurrentBranchName);
 	}
+	else
+	{
+		GetBranchName(InPathToGitBinary, InRepositoryRoot, CurrentBranchName);
+	}
 
 	if (!BranchesToDiff.Num())
 	{
